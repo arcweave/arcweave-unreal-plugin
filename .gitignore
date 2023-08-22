@@ -1,0 +1,3 @@
+# Ignore generated folders
+arcweave/Binaries/*
+arcweave/Intermediate/*
