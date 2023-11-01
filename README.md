@@ -1,37 +1,44 @@
-# Arcweave Plugin for Unreal
+# Arcweave Plugin for Unreal Engine
 
-Official plugin for importing [Arcweave](https://arcweave.com/) projects into Unreal engine (5.0 and later). It uses the Arcweave data fetched via Arcweave's web API (available only to Team users).
+This is the official README file for the Arcweave plugin repository, which facilitates the importation of [Arcweave](https://arcweave.com/) projects into Unreal Engine (version 5.0 and later). 
+The plugin utilizes Arcweave's web API to fetch data, a feature available exclusively to Team account users.
 
+## Plugin Installation
 
-## Plugin installation
-
-To install the Arcweave Plugin for Unity:
+To install the Arcweave Plugin for Unreal Engine, follow these steps:
 
 1. Download the plugin from this repository.
-2. Copy the plugin in the **ProjectRootDirectory/Plugins** folder
+2. Copy the plugin into the **ProjectRootDirectory/Plugins** folder.
 3. Open your project.
-4. If a prompt appears to rebuild the Arcweave plugin, press **Yes**.
+4. If prompted to rebuild the Arcweave plugin, click **Yes**.
 
 ### Arcweave's Web API
 
-Feature available to Team account holders only. You can fetch your Arcweave project's data from within Unreal engine, via Arcweave's web API.
+This feature is available only to Team account holders. It allows you to fetch your Arcweave project's data directly within Unreal Engine, via Arcweave's web API. You will need:
 
-To do this, you will need:
+- Your **API key** as an Arcweave user.
+- Your **project's hash**.
 
-* your **API key** as an Arcweave user.
-* your **project's hash**.
+Refer to [this chapter](https://arcweave.com/docs/1.0/api) in the Arcweave Documentation for details on how to find these.
 
-[This chapter](https://arcweave.com/docs/1.0/api) in the Arcweave Documentation explains where to find both of them.
+### Arcweave's Web API Credentials in Unreal Engine
 
+Navigate to Project Settings -> Plugins -> Arcweave. Here, you can input your APIToken and the project hash obtained in the previous step.
+
+### Fetching the Data
+
+Once the project credentials are correctly set, the Arcweave plugin will automatically fetch the data and populate the UArcweaveSubsystem upon project initialization. Any additional data fetching during runtime must be manually configured. Example usage can be found in the **Demo scene**.
 
 ## Using the Demo Scene
 
-Included in the plugin's package is also a `Demo` folder; a scene recreating Arcweave's Play Mode environment.
+The plugin package includes a `Demo` folder, which contains a scene that recreates Arcweave's Play Mode environment.
 
 ### Running the Demo
 
-To see the Unreal Arcweave Player demo scene in action:
+To view the Unreal Arcweave Player demo scene:
 
- 1. Make sure that in the content folder -> Show Plugin content is enabled
- 2. Open the **MAP_ArcweaveDemoScene**.
- 3. Hit **Play**.
+1. Ensure that **Content folder -> Show Plugin** content is enabled.
+2. Open the **MAP_ArcweaveDemoScene**.
+3. Press **Play**.
+
+For any further inquiries, please contact us at [info@email.arcweave.com].
