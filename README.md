@@ -29,16 +29,7 @@ Navigate to Project Settings -> Plugins -> Arcweave. Here, you can input your AP
 
 Once the project credentials are correctly set, the Arcweave plugin will automatically fetch the data and populate the UArcweaveSubsystem upon project initialization. Any additional data fetching during runtime must be manually configured. Example usage can be found in the **Demo scene**.
 
-## Using the Demo Scene
+## Using the Demo Project
 
-The plugin package includes a `Demo` folder, which contains a scene that recreates Arcweave's Play Mode environment.
-
-### Running the Demo
-
-To view the Unreal Arcweave Player demo scene:
-
-1. Ensure that **Content folder -> Show Plugin** content is enabled.
-2. Open the **MAP_ArcweaveDemoScene**.
-3. Press **Play**.
-
-For any further inquiries, please contact us at [info@email.arcweave.com].
+You can explore the plugin implementation and see examples of its usage in our demo project, [Arcweave]([https://arcweave.com/](https://github.com/Arcweave/arcweave-unreal-example)). 
+This project includes a demo scene and samples of logic implementation using Arcweave's Web API, showcasing all the capabilities of the plugin.
