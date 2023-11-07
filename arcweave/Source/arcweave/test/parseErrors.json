@@ -1,0 +1,92 @@
+{
+  "initialVars": {
+    "var1": {
+      "id": "var1",
+      "name": "x",
+      "type": "integer",
+      "value": 14
+    },
+    "var2": {
+      "id": "var2",
+      "name": "y",
+      "type": "integer",
+      "value": 15
+    },
+    "var3": {
+      "id": "var3",
+      "name": "z",
+      "type": "integer",
+      "value": 0
+    },
+    "var4": {
+      "id": "var4",
+      "name": "w",
+      "type": "string",
+      "value": "Dummy text"
+    },
+    "var5": {
+      "id": "var5",
+      "name": "$c5",
+      "type": "integer",
+      "value": 0
+    },
+    "var6": {
+      "id": "var6",
+      "name": "_a",
+      "type": "boolean",
+      "value": false
+    },
+    "var7": {
+      "id": "var7",
+      "name": "xy",
+      "type": "integer",
+      "value": -1
+    }
+  },
+  "cases": [
+    {
+      "code": "<pre><code>p = 1</code></pre>",
+      "error": "parse"
+    },
+    {
+      "code": "<pre><code>x = p</code></pre>",
+      "error": "parse"
+    },
+    {
+      "code": "<pre><code>show(x, y, z, abc)</code></pre>",
+      "error": "parse"
+    },
+    {
+      "code": "<pre><code>testFunction(x, y)</code></pre>",
+      "error": "parse"
+    },
+    {
+      "code": "<pre><code>x = 1;</code></pre>",
+      "error": "parse"
+    },
+    {
+      "code": "<pre><code>We want to be friends</code></pre>",
+      "error": "parse"
+    },
+    {
+      "code": "<pre><code>x = sqr()</code></pre>",
+      "error": "parse"
+    },
+    {
+      "code": "<pre><code>x = random(2)</code></pre>",
+      "error": "parse"
+    },
+    {
+      "code": "<pre><code>y = 33</code></pre><pre><code>reset(13)</code></pre>",
+      "error": "parse"
+    },
+    {
+      "code": "<pre><code>ελληνικά</code></pre>",
+      "error": "parse"
+    },
+    {
+      "code": "<pre><code>visits(<span class=\"mention mention-component\" data-type=\"element\" data-id=\"xyz\">Untitled Comp</span>) == 9</code></pre>",
+      "error": "parse"
+    }
+  ]
+}

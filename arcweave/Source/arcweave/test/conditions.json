@@ -1,0 +1,100 @@
+{
+  "initialVars": {
+    "var1": {
+      "id": "var1",
+      "name": "x",
+      "type": "integer",
+      "value": 14
+    },
+    "var2": {
+      "id": "var2",
+      "name": "y",
+      "type": "integer",
+      "value": 15
+    },
+    "var3": {
+      "id": "var3",
+      "name": "z",
+      "type": "integer",
+      "value": 0
+    },
+    "var4": {
+      "id": "var4",
+      "name": "w",
+      "type": "string",
+      "value": "Dummy text"
+    },
+    "var5": {
+      "id": "var5",
+      "name": "$c5",
+      "type": "integer",
+      "value": 0
+    },
+    "var6": {
+      "id": "var6",
+      "name": "_a",
+      "type": "boolean",
+      "value": false
+    },
+    "var7": {
+      "id": "var7",
+      "name": "xy",
+      "type": "integer",
+      "value": -1
+    }
+  },
+  "cases": [
+    {
+      "code": "<pre><code>x >= 14</code></pre>",
+      "result": true
+    },
+    {
+      "code": "<pre><code>x == 14</code></pre>",
+      "result": true
+    },
+    {
+      "code": "<pre><code>x is 14</code></pre>",
+      "result": true
+    },
+    {
+      "code": "<pre><code>x == 45</code></pre>",
+      "result": false
+    },
+    {
+      "code": "<pre><code>x is 45</code></pre>",
+      "result": false
+    },
+    {
+      "code": "<pre><code>x == 14 && y == 15</code></pre>",
+      "result": true
+    },
+    {
+      "code": "<pre><code>x == 14 and y == 15</code></pre>",
+      "result": true
+    },
+    {
+      "code": "<pre><code>x == 3 || y != 0</code></pre>",
+      "result": true
+    },
+    {
+      "code": "<pre><code>x == 3 or y != 0</code></pre>",
+      "result": true
+    },
+    {
+      "code": "<pre><code>w == \"Dummy text\"</code></pre>",
+      "result": true
+    },
+    {
+      "code": "<pre><code>w != \"Dummy text\"</code></pre>",
+      "result": false
+    },
+    {
+      "code": "<pre><code>w is not \"Dummy text\"</code></pre>",
+      "result": false
+    },
+    {
+      "code": "<pre><code>x is not \"Dummy text\"</code></pre>",
+      "result": true
+    }
+  ]
+}

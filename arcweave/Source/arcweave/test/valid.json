@@ -1,0 +1,372 @@
+{
+	"initialVars": {
+		"var1": {
+			"id": "var1",
+			"name": "x",
+			"type": "integer",
+			"value": 14
+		},
+		"var2": {
+			"id": "var2",
+			"name": "y",
+			"type": "integer",
+			"value": 15
+		},
+		"var3": {
+			"id": "var3",
+			"name": "z",
+			"type": "integer",
+			"value": 0
+		},
+		"var4": {
+			"id": "var4",
+			"name": "w",
+			"type": "string",
+			"value": "Dummy text"
+		},
+		"var5": {
+			"id": "var5",
+			"name": "$c5",
+			"type": "integer",
+			"value": 0
+		},
+		"var6": {
+			"id": "var6",
+			"name": "_a",
+			"type": "boolean",
+			"value": false
+		},
+		"var7": {
+			"id": "var7",
+			"name": "xy",
+			"type": "integer",
+			"value": -1
+		},
+		"var8": {
+			"id": "var8",
+			"name": "man",
+			"type": "string",
+			"value": "Different Text"
+		}
+	},
+  "cases": [
+	{
+	  "code": "<pre><code>x=5</code></pre>",
+	  "changes": {
+		"var1": 5
+	  }
+	},
+	{
+	  "code": "<pre><code>x=-5</code></pre>",
+	  "changes": {
+		"var1": -5
+	  }
+	},
+	{
+	  "code": "<pre><code>x=5.23</code></pre>",
+	  "changes": {
+		"var1": 5.23
+	  }
+	},
+	{
+	  "code": "<pre><code>x=3</code></pre><pre><code>y=2</code></pre>",
+	  "changes": {
+		"var1": 3,
+		"var2": 2
+	  }
+	},
+	{
+	  "code": "<pre><code>x=\"test\"</code></pre>",
+	  "changes": {
+		"var1": "test"
+	  }
+	},
+	{
+	  "code": "<pre><code>x=true</code></pre>",
+	  "changes": {
+		"var1": true
+	  }
+	},
+	{
+	  "code": "<pre><code>x = y</code></pre>",
+	  "changes": {
+		"var1": 15
+	  }
+	},
+	{
+	  "code": "<pre><code>x = 5 + 3</code></pre>",
+	  "changes": {
+		"var1": 8
+	  }
+	},
+	{
+	  "code": "<pre><code>x = sqr(2)</code></pre>",
+	  "changes": {
+		"var1": 4
+	  }
+	},
+	{
+	  "code": "<pre><code>x = 3 > 2</code></pre>",
+	  "changes": {
+		"var1": true
+	  }
+	},
+	{
+	  "code": "<pre><code>x = 3 >= 2</code></pre>",
+	  "changes": {
+		"var1": true
+	  }
+	},
+	{
+	  "code": "<pre><code>x = 3 < 2</code></pre>",
+	  "changes": {
+		"var1": false
+	  }
+	},
+	{
+	  "code": "<pre><code>x = 3 <= 2</code></pre>",
+	  "changes": {
+		"var1": false
+	  }
+	},
+	{
+	  "code": "<pre><code>x = 3 == 2</code></pre>",
+	  "changes": {
+		"var1": false
+	  }
+	},
+	{
+	  "code": "<pre><code>x = 3 != 2</code></pre>",
+	  "changes": {
+		"var1": true
+	  }
+	},
+	{
+	  "code": "<pre><code>_a = !(3 == 2)</code></pre>",
+	  "changes": {
+		"var6": true
+	  }
+	},
+	{
+	  "code": "<pre><code>_a = not (3 == 2)</code></pre>",
+	  "changes": {
+		"var6": true
+	  }
+	},
+	{
+	  "code": "<pre><code>x = !0</code></pre>",
+	  "changes": {
+		"var1": true
+	  }
+	},
+	{
+	  "code": "<pre><code>x = true || false</code></pre>",
+	  "changes": {
+		"var1": true
+	  }
+	},
+	{
+	  "code": "<pre><code>x = true && false</code></pre>",
+	  "changes": {
+		"var1": false
+	  }
+	},
+	{
+	  "code": "<pre><code>x = -3</code></pre><pre><code>y = y + 3</code></pre><pre><code>z = sqr(x)</code></pre>",
+	  "changes": {
+		"var1": -3,
+		"var2": 18,
+		"var3": 9
+	  }
+	},
+	{
+	  "code": "<pre><code>x = sqrt(y + 2)</code></pre>",
+	  "changes": {
+		"var1": 4
+	  }
+	},
+	{
+	  "code": "<pre><code>x = z + 12 == 4 * 3</code></pre>",
+	  "changes": {
+		"var1": true
+	  }
+	},
+	{
+	  "code": "<pre><code>x = y == 15 && !(z == 1)</code></pre>",
+	  "changes": {
+		"var1": true
+	  }
+	},
+	{
+	  "code": "<pre><code>x = (x*x + 3)/y</code></pre>",
+	  "changes": {
+		"var1": 13.266666666666667
+	  }
+	},
+	{
+	  "code": "<pre><code>x = x*(x + 1)/y</code></pre>",
+	  "changes": {
+		"var1": 14
+	  }
+	},
+	{
+	  "code": "<pre><code>x += 2</code></pre>",
+	  "changes": {
+		"var1": 16
+	  }
+	},
+	{
+	  "code": "<pre><code>x -= 2</code></pre>",
+	  "changes": {
+		"var1": 12
+	  }
+	},
+	{
+	  "code": "<pre><code>x *= 2</code></pre>",
+	  "changes": {
+		"var1": 28
+	  }
+	},
+	{
+	  "code": "<pre><code>x /= 2</code></pre>",
+	  "changes": {
+		"var1": 7
+	  }
+	},
+	{
+	  "code": "<pre><code>x = abs(-6)</code></pre>",
+	  "changes": {
+		"var1": 6
+	  }
+	},
+	{
+	  "code": "<pre><code>x = min(5, -y, 2.3)</code></pre>",
+	  "changes": {
+		"var1": -15
+	  }
+	},
+	{
+	  "code": "<pre><code>x = max(5, -y, 2.3)</code></pre>",
+	  "changes": {
+		"var1": 5
+	  }
+	},
+	{
+	  "code": "<pre><code>x = random()</code></pre>",
+	  "changes": {}
+	},
+	{
+	  "code": "<pre><code>x = roll(6)</code></pre>",
+	  "changes": {}
+	},
+	{
+	  "code": "<pre><code>x = roll(6, 5)</code></pre>",
+	  "changes": {}
+	},
+	{
+	  "code": "<pre><code>x = roll(y)</code></pre>",
+	  "changes": {}
+	},
+	{
+	  "code": "<pre><code>x = round(2.65)</code></pre>",
+	  "changes": {
+		"var1": 3
+	  }
+	},
+	{
+	  "code": "<pre><code>show(\"x is \", x)</code></pre>",
+	  "changes": {},
+	  "output": "<p>x is 14</p>"
+	},
+	{
+	  "code": "<pre><code>y = 33</code></pre><pre><code>reset(y)</code></pre>",
+	  "changes": {
+		"var2": 15
+	  }
+	},
+	{
+	  "code": "<pre><code>x = 16</code></pre><pre><code>y = 33</code></pre><pre><code>resetAll(y)</code></pre>",
+	  "changes": {
+		"var1": 14,
+		"var2": 33
+	  }
+	},
+	{
+	  "code": "<pre><code>$c5 = x</code></pre>",
+	  "changes": {
+		"var5": 14
+	  }
+	},
+	{
+	  "code": "<pre><code>if (x==14) </code></pre><pre><code>x=5</code></pre><pre><code>endif</code></pre>",
+	  "changes": {
+		"var1": 5
+	  }
+	},
+	{
+	  "code": "<pre><code>if (x==11)</code></pre><pre><code>x=5</code></pre><pre><code>else</code></pre><pre><code>x=7</code></pre><pre><code>endif</code></pre>",
+	  "changes": {
+		"var1": 7
+	  }
+	},
+	{
+	  "code": "<pre><code>if x==3</code></pre><pre><code>x=5</code></pre><pre><code>elseif x==14</code></pre><pre><code>x=2</code></pre><pre><code>else</code></pre><pre><code>x = 0</code></pre><pre><code>endif</code></pre>",
+	  "changes": {
+		"var1": 2
+	  }
+	},
+	{
+	  "code": "<p>Mein gott!</p><pre><code>x = 1</code></pre><p>What is that?</p>",
+	  "changes": {
+		"var1": 1
+	  },
+	  "output": "<p>Mein gott! What is that?</p>"
+	},
+	{
+	  "code": "<p>Hello my dear</p><pre><code>if x == 1</code></pre>We might ride to the mountains.<pre><code>endif</code></pre>",
+	  "changes": {},
+	  "output": "<p>Hello my dear</p>"
+	},
+	{
+	  "code": "<p>You carry</p><pre attr='hep'><code rem='jjk'>if x == 12</code></pre><p>a small knife</p><pre><code>elseif y == 12</code></pre><p>a large sword</p><pre><code>elseif z == 1</code></pre><p>just a rotten tomato</p><pre><code>else</code></pre><p>nothing really</p><pre><code>endif</code></pre>",
+	  "changes": {},
+	  "output": "<p>You carry nothing really</p>"
+	},
+	{
+	  "code": "<p>How are you?</p><pre><code>x = 1</code></pre><p></p><p>I am fine, thank you.</p>",
+	  "changes": {},
+	  "output": "<p>How are you? </p><p>I am fine, thank you.</p>"
+	},
+	{
+	  "code": "<pre><code>show(\"Hello friends:\", x)</code></pre>",
+	  "changes": {},
+	  "output": "<p>Hello friends:14</p>"
+	},
+	{
+	  "code": " <pre><code>_a = true</code></pre><pre><code>if (((_a)))</code></pre><pre><code>x = 1</code></pre><pre><code>endif</code></pre>",
+	  "changes": {
+		"var1": 1
+	  }
+	},
+	{
+	  "code": "<pre><code>visits() == 1</code></pre>",
+	  "visits": {
+		"a": 1,
+		"b": 1,
+		"c": 0
+	  },
+	  "elementId": "b",
+	  "result": true
+	},
+	{
+	  "code": "<pre><code>visits(<span class=\"mention mention-component\" data-type=\"element\" data-id=\"b\">Untitled Comp</span>) == 9</code></pre>",
+	  "visits": {
+		"a": 1,
+		"b": 1,
+		"c": 0
+	  },
+	  "elementId": "b",
+	  "result": false
+	}
+  ]
+}
