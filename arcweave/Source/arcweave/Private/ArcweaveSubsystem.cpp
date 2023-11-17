@@ -11,22 +11,6 @@
 
 void UArcweaveSubsystem::FetchData(FString APIToken, FString ProjectHash)
 {
-	/*UArcweaveSettings* ArcweaveSettings = GetMutableDefault<UArcweaveSettings>();
-	// Check if the settings are valid
-	if (ArcweaveSettings->APIToken.IsEmpty() || ArcweaveSettings->Hash.IsEmpty())
-	{
-		//log also to screen
-		UE_LOG(ArcweaveSubsystem, Error, TEXT("Arcweave settings are not valid!"));
-		if (GEngine)
-		{
-			const float TimeToDisplay = 5.0f; 
-			const FColor TextColor = FColor::Red; 
-			const FString Message = TEXT("Arcweave settings are not valid!"); 
-
-			GEngine->AddOnScreenDebugMessage(-1, TimeToDisplay, TextColor, Message);
-		}
-		return;
-	}*/
 	FString ApiUrl = FString::Printf(TEXT("https://arcweave.com/api/%s/json"), *ProjectHash);
 
 	TSharedRef<IHttpRequest, ESPMode::ThreadSafe> Request = FHttpModule::Get().CreateRequest();
@@ -45,23 +29,6 @@ void UArcweaveSubsystem::FetchData(FString APIToken, FString ProjectHash)
 FArcweaveAPISettings UArcweaveSubsystem::LoadArcweaveSettings() const
 {
 	FArcweaveAPISettings OutSetttings = FArcweaveAPISettings();	
-	/*UArcweaveSettings* ArcweaveSettings = GetMutableDefault<UArcweaveSettings>();
-	// Check if the settings are valid
-	if (ArcweaveSettings->APIToken.IsEmpty() || ArcweaveSettings->Hash.IsEmpty())
-	{
-		//log also to screen
-		UE_LOG(LogArcwarePlugin, Error, TEXT("Arcweave settings are not valid!"));
-		if (GEngine)
-		{
-			const float TimeToDisplay = 5.0f; 
-			const FColor TextColor = FColor::Red; 
-			const FString Message = TEXT("Arcweave settings are not valid!"); 
-
-			GEngine->AddOnScreenDebugMessage(-1, TimeToDisplay, TextColor, Message);
-		}
-		return OutSetttings;
-	}*/
-
     UArcweaveSettings* ArcweaveSettings = GetMutableDefault<UArcweaveSettings>();
     if (ArcweaveSettings)
     {
@@ -241,13 +208,6 @@ TArray<FArcweaveAssetData> UArcweaveSubsystem::ParseComponentAsset(const TShared
     {
         FArcweaveAssetData ComponentAsset;
         ComponentAsset.Cover = ParseCoverData(*ComponentAssetsObject);
-        /*for (const auto& ComponentAssetPair : ComponentAssetsObject->Get()->Values)
-        {
-            const TSharedPtr<FJsonObject> AssetValueObject = ComponentAssetPair.Value->AsObject();
-            AssetValueObject->TryGetStringField("mode", ComponentAsset.Mode);
-            AssetValueObject->TryGetStringField("asset", ComponentAsset.Asset);
-            AssetValueObject->TryGetStringField("delay", ComponentAsset.Delay);
-        }*/
         ComponentAssets.Add(ComponentAsset);
     }
     return  ComponentAssets;
@@ -326,6 +286,7 @@ TArray<FArcweaveBoardData> UArcweaveSubsystem::ParseBoard(const TSharedPtr<FJson
            Board.Elements = ParseElements(MainJsonObject, BoardValueObject, Board);
            Board.Connections = ParseConnections(FString("connections"), MainJsonObject, BoardValueObject);
            Board.Branches = ParseBranches(MainJsonObject, BoardValueObject,Board);
+           Board.Jumpers = ParseJumpers(MainJsonObject, BoardValueObject, Board);
            Boards.Add(Board);
         }
     }
@@ -426,38 +387,8 @@ TArray<FArcweaveElementData> UArcweaveSubsystem::ParseElements(const TSharedPtr<
         //then search for the element pairs
         for (const FString& ElementId : ElementArrayStrings)
         {
-            // Extract elements
-            const TSharedPtr<FJsonObject>* ElementsObject;
-            if (MainJsonObject->TryGetObjectField("elements", ElementsObject))
-            {
-                for (const auto& ElementPair : ElementsObject->Get()->Values)
-                {
-                    if (ElementPair.Key == ElementId)
-                    {
-                        FArcweaveElementData Element;
-                        Element.Id = ElementPair.Key;
-                        const TSharedPtr<FJsonObject> ElementValueObject = ElementPair.Value->AsObject();
-
-                        if (ElementValueObject.IsValid())
-                        {
-                            //inti visits object for the transpiler
-                            
-                            //get the values from the json object
-                            ElementValueObject->TryGetStringField("theme", Element.Theme);
-                            FString DirtyTitle = FString("");
-                            ElementValueObject->TryGetStringField("title", DirtyTitle);
-                            Element.Title = RemoveHtmlTags(DirtyTitle);
-                            FString DirtyContent = FString("");
-                            ElementValueObject->TryGetStringField("content", Element.Content);
-                            //FArcscriptTranspilerOutput Output = RunTranspiler(DirtyContent, Element.Id, ProjectData.InitialVars, BoardObj.Visits);
-                            Element.Outputs = ParseConnections(FString("outputs"), MainJsonObject, ElementValueObject);
-                            Element.Components = ParseComponents(MainJsonObject, ElementValueObject);
-                            Element.Attributes = ParseObjectAttributes(MainJsonObject, ElementValueObject);
-                        }
-                        Elements.Add(Element);
-                    }
-                }
-            }
+            FArcweaveElementData Element = ExtractElementData(MainJsonObject, ElementId);
+            Elements.Add(Element);
         }        
     }
     return Elements;
@@ -515,6 +446,84 @@ TArray<FArcweaveBranchData> UArcweaveSubsystem::ParseBranches(const TSharedPtr<F
         }
     }
     return Branches;            
+}
+
+TArray<FArcweaveJumpersData> UArcweaveSubsystem::ParseJumpers(const TSharedPtr<FJsonObject>& MainJsonObject,
+    const TSharedPtr<FJsonObject>& BoardValueObject, FArcweaveBoardData& BoardObj)
+{
+     TArray<FArcweaveJumpersData> Jumpers;
+    TArray<FString> JumpersArrayStrings;
+    if (BoardValueObject->TryGetStringArrayField("jumpers", JumpersArrayStrings))
+    {
+        for (const FString& JumperId : JumpersArrayStrings)
+        {
+            BoardObj.Visits.Add(JumperId, 0);
+        }
+        //then search for the elements for jumpers
+        for (const FString& JumperId : JumpersArrayStrings)
+        {
+            // Extract jumpers
+            const TSharedPtr<FJsonObject>* JumperObject;
+            if (MainJsonObject->TryGetObjectField("jumpers", JumperObject))
+            {
+                // Iterate through the "jumpers" object
+                for (const auto& JumperPair : JumperObject->Get()->Values)
+                {
+                    if (JumperPair.Key == JumperId)
+                    {
+                        FArcweaveJumpersData Jumper = FArcweaveJumpersData();
+                        Jumper.Id = JumperPair.Key;
+                        const TSharedPtr<FJsonObject>& JumperDataObject = JumperPair.Value->AsObject();
+
+                        if (JumperDataObject.IsValid())
+                        {
+                            FString ElementId = FString("");
+                            JumperDataObject->TryGetStringField("elementId", ElementId);
+                            FArcweaveElementData Element = ExtractElementData(MainJsonObject, ElementId);
+                            Jumper.ElementData = Element;
+                        }
+                        Jumpers.Add(Jumper); 
+                    }
+                }
+            }
+        }
+    }
+    return Jumpers;            
+}
+
+FArcweaveElementData UArcweaveSubsystem::ExtractElementData(const TSharedPtr<FJsonObject>& MainJsonObject, const FString& ElementId)
+{
+    FArcweaveElementData Element;
+    const TSharedPtr<FJsonObject>* ElementsObject;
+    if (MainJsonObject->TryGetObjectField("elements", ElementsObject))
+    {
+        for (const auto& ElementPair : ElementsObject->Get()->Values)
+        {
+            if (ElementPair.Key == ElementId)
+            {
+                Element.Id = ElementPair.Key;
+                const TSharedPtr<FJsonObject> ElementValueObject = ElementPair.Value->AsObject();
+
+                if (ElementValueObject.IsValid())
+                {
+                    //inti visits object for the transpiler
+                            
+                    //get the values from the json object
+                    ElementValueObject->TryGetStringField("theme", Element.Theme);
+                    FString DirtyTitle = FString("");
+                    ElementValueObject->TryGetStringField("title", DirtyTitle);
+                    Element.Title = RemoveHtmlTags(DirtyTitle);
+                    FString DirtyContent = FString("");
+                    ElementValueObject->TryGetStringField("content", Element.Content);
+                    //FArcscriptTranspilerOutput Output = RunTranspiler(DirtyContent, Element.Id, ProjectData.InitialVars, BoardObj.Visits);
+                    Element.Outputs = ParseConnections(FString("outputs"), MainJsonObject, ElementValueObject);
+                    Element.Components = ParseComponents(MainJsonObject, ElementValueObject);
+                    Element.Attributes = ParseObjectAttributes(MainJsonObject, ElementValueObject);
+                }
+            }
+        }
+    }
+    return Element;
 }
 
 FArcweaveConditionData UArcweaveSubsystem::ParseConditionData(const TSharedPtr<FJsonObject>& MainJsonObject, const TSharedPtr<FJsonObject>& ConditionsObject, const FString& ConditionName, FArcweaveBoardData& BoardObj)
@@ -846,8 +855,7 @@ void UArcweaveSubsystem::HandleFetch(FHttpRequestPtr Request, FHttpResponsePtr R
     }
 }
 
-
-
+// possible helpers for structs logging KEEP
 /*void  UArcweaveSubsystem::LogStructFields(const void* StructPtr, UStruct* StructDefinition)
 {
     if (!StructPtr || !StructDefinition)
