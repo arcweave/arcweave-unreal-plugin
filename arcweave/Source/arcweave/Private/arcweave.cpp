@@ -18,7 +18,6 @@ void FarcweaveModule::StartupModule()
 	// This code will execute after your module is loaded into memory; the exact timing is specified in the .uplugin file per-module
 
 	// Get the base directory of this plugin
-	//FString BaseDir = IPluginManager::Get().FindPlugin("arcweave")->GetBaseDir();
 	UE_LOG(LogArcwarePlugin, Warning, TEXT("Arcware plugin module started!"));
 
 	// Add on the relative location of the third party dll and load it
@@ -32,8 +31,6 @@ void FarcweaveModule::StartupModule()
 	#elif PLATFORM_LINUX
 	//Antlr4LibraryPath = FPaths::Combine(*BaseDir, TEXT("Binaries/ThirdParty/arcweaveLibrary/Linux/x86_64-unknown-linux-gnu/libExampleLibrary.so"));
 	#endif // PLATFORM_WINDOWS
-    //../Arcweave/arcweave-unreal-example/ArcweaveDemo/Plugins/arcweave/Source/ThirdParty/ArcscriptTranspiler/x64/Release/ArcscriptTranspiler.dll"
-    //D:\Arcweave\arcweave-unreal-example\ArcweaveDemo\Plugins\arcweave\Source\ThirdParty\ArcscriptTranspiler\x64\Release\ArcscriptTranspiler.dll
 	ArcscriptTranspilerHandle = !ArcscriptTranspilerPath.IsEmpty() ? FPlatformProcess::GetDllHandle(*ArcscriptTranspilerPath) : nullptr;
 
 	if (ArcscriptTranspilerHandle)
@@ -41,13 +38,6 @@ void FarcweaveModule::StartupModule()
         // Initialize the UArcscriptTranspilerWrapper instance
         ArcscriptWrapper = NewObject<UArcscriptTranspilerWrapper>();
         UE_LOG(LogArcwarePlugin, Warning, TEXT("Address of ArcscriptWrapper: %p"), (void*)ArcscriptWrapper);
-		//TestJsonFile();
-		// Call the test function in the third party library that opens a message box
-		//Antlr4LibraryFunction();
-		if(ArcscriptWrapper)
-		{
-			//TestJsonFile();
-		}
 	}
 	else
 	{
@@ -161,20 +151,6 @@ bool FarcweaveModule::TestJsonFile()
 					UE_LOG(LogArcwarePlugin, Log, TEXT("Test Failed!\n%s"), *FString(e.what()));
 					return false;
 				}
-				// Run the script in the Transpiler				
-				
-				//try {   // In case we have expected errors in file
-				//	output =  transpiler.runScript(code);
-				//} catch(ParseErrorException&) {
-				//	FString ErrorString = FString("");
-				//	if (CaseObject->TryGetStringField("error", ErrorString))
-				//	{
-				//		if (!(hasError && ErrorString == "parse")) {
-				//			UE_LOG(LogArcwarePlugin, Log, TEXT("DIDNT FIND EXPECTED ERROR"));
-				//		}
-				//	}
-				//}
-
 				// Compare the result (Only applicable in conditions)
 				if (CaseObject->HasField("result"))
 				{
@@ -187,19 +163,6 @@ bool FarcweaveModule::TestJsonFile()
 						}
 					}
 				}
-
-				// Compare the variable changes
-				/*if (CaseObject->HasField("result"))
-				{
-					TSharedPtr<FJsonObject> expectedVarsJson = CaseObject->GetObjectField("changes");
-					std::map<std::string, std::any> expectedVars = GetExpectedVars(expectedVarsJson);
-					std::string errors = CompareVars(expectedVars, output.changes);
-					if (errors.size() > 0) {
-						UE_LOG(LogArcwarePlugin, Log, TEXT("Errors in code:\n%s"), UTF8_TO_TCHAR(code.c_str()));
-						UE_LOG(LogArcwarePlugin, Log, TEXT("%s"), UTF8_TO_TCHAR(errors.c_str()));
-					}
-				}*/
-
 				//// Compare the outputs
 				if (CaseObject->HasField("output"))
 				{

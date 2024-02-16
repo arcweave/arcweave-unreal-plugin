@@ -113,6 +113,12 @@ struct FArcweaveAPISettings
 {
 	GENERATED_BODY()
 
+    /*
+     * API token that you can find in your Arcweave account settings.
+     */
+    UPROPERTY(Config, EditAnywhere, Category = ArcweaveSettings)
+    bool EnableRecieveMethodFromLocalJSON = false;
+
 	/*
 	 * API token that you can find in your Arcweave account settings.
 	 */
@@ -126,7 +132,8 @@ struct FArcweaveAPISettings
 	FString Hash = FString("");
 
 	FArcweaveAPISettings()
-		: APIToken(FString(""))
+		: EnableRecieveMethodFromLocalJSON(false)
+		, APIToken(FString(""))
 		, Hash(FString(""))
 	{}
 };
@@ -455,8 +462,6 @@ struct FArcweaveProjectData
     UPROPERTY(BlueprintReadWrite, Category = "Arcweave")
     TArray<FArcweaveComponentData> Components = TArray<FArcweaveComponentData>();
     
-    //project branches
-
     //constructor
     FArcweaveProjectData()
         : Name(FString(""))
@@ -464,7 +469,6 @@ struct FArcweaveProjectData
         , CurrentVars(TMap<FString, FArcweaveVariable>())
         , Boards(TArray<FArcweaveBoardData>())
         , Components(TArray<FArcweaveComponentData>())
-        //, Branches(TArray<FArcweaveBranchData>())
     {}
 };
 

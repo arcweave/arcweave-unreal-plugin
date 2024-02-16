@@ -21,12 +21,14 @@ class ARCWEAVE_API UArcweaveSubsystem : public UGameInstanceSubsystem
 	GENERATED_BODY()
 	
 public:
+    void FetchDataFromAPI(FString APIToken, FString ProjectHash);
 	/*
 	 * Fetch the data from Arcweave API
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Arcweave")
 	void FetchData(FString APIToken, FString ProjectHash);
-	/*
+    bool LoadJsonFile();
+    /*
 	 * Get Arcweave API token from settings
 	 */
     UFUNCTION(BlueprintPure, Category = "Arcweave")
@@ -56,6 +58,7 @@ public:
      */
     UFUNCTION(BlueprintCallable, Category = "Arcweave")
     FArcscriptTranspilerOutput TranspileCondition(FString ConditionId, bool& Success);
+    bool GetBoardForObject(FString ObjectId, FArcweaveElementData& OutElement, FArcweaveBoardData*& OutBoardObj);
 
 public:
     
@@ -78,11 +81,11 @@ private:
     TArray<FArcweaveBoardData> ParseBoard(const TSharedPtr<FJsonObject>& MainJsonObject);
     TMap<FString, FArcweaveVariable> ParseVariables(const TSharedPtr<FJsonObject>& MainJsonObject);
     TArray<FArcweaveConnectionsData> ParseConnections(const FString& FieldName, const TSharedPtr<FJsonObject>& MainJsonObject, const TSharedPtr<FJsonObject>& BoardValueObject);
-    TArray<FArcweaveElementData> ParseElements(const TSharedPtr<FJsonObject>& MainJsonObject, const TSharedPtr<FJsonObject>& BoardValueObject, FArcweaveBoardData& BoardObj);
-    TArray<FArcweaveBranchData> ParseBranches(const TSharedPtr<FJsonObject>& MainJsonObject, const TSharedPtr<FJsonObject>& BoardValueObject, FArcweaveBoardData& BoardObj);
-    TArray<FArcweaveJumpersData> ParseJumpers(const TSharedPtr<FJsonObject>& MainJsonObject, const TSharedPtr<FJsonObject>& BoardValueObject, FArcweaveBoardData& BoardObj);
-    FArcweaveConditionData ParseConditionData(const TSharedPtr<FJsonObject>& MainJsonObject, const TSharedPtr<FJsonObject>& ConditionsObject, const FString& ConditionName, FArcweaveBoardData& BoardObj);
-    TMap<FString, int> InitVisist(const TSharedPtr<FJsonObject>& BoardValueObject, FArcweaveBoardData& BoardObj);
+    TArray<FArcweaveElementData> ParseElements(const TSharedPtr<FJsonObject>& MainJsonObject, const TSharedPtr<FJsonObject>& BoardValueObject, FArcweaveBoardData& OutBoardObj);
+    TArray<FArcweaveBranchData> ParseBranches(const TSharedPtr<FJsonObject>& MainJsonObject, const TSharedPtr<FJsonObject>& BoardValueObject, FArcweaveBoardData& OutBoardObj);
+    TArray<FArcweaveJumpersData> ParseJumpers(const TSharedPtr<FJsonObject>& MainJsonObject, const TSharedPtr<FJsonObject>& BoardValueObject, FArcweaveBoardData& OutBoardObj);
+    FArcweaveConditionData ParseConditionData(const TSharedPtr<FJsonObject>& MainJsonObject, const TSharedPtr<FJsonObject>& ConditionsObject, const FString& ConditionName, FArcweaveBoardData& OutBoardObj);
+    TMap<FString, int> InitVisist(const TSharedPtr<FJsonObject>& BoardValueObject, FArcweaveBoardData& OutBoardObj);
     TArray<FArcweaveComponentData> ParseComponents(const TSharedPtr<FJsonObject>& MainJsonObject, const TSharedPtr<FJsonObject>& ElementValueObject);
     TArray<FArcweaveComponentData> ParseAllComponents(const TSharedPtr<FJsonObject>& MainJsonObject);
     FArcweaveCoverData ParseCoverData(const TSharedPtr<FJsonObject>& CoverValueObject);
@@ -90,12 +93,17 @@ private:
     FArcscriptTranspilerOutput RunTranspiler(FString Code, FString ElementId, TMap<FString, FArcweaveVariable> InitialVars, TMap<FString, int> Visits);
     FArcweaveElementData ExtractElementData(const TSharedPtr<FJsonObject>& MainJsonObject, const FString& ElementId);
 
-    //KEEP possible future use
-    //void LogStructFields(const void* StructPtr, UStruct* StructDefinition);
-    //void LogStructFieldsRecursive(const void* StructPtr, UStruct* StructDefinition, int32 IndentationLevel);
-
+    FString ExtractDataIdFromConditionScriptString(const FString& ConditionScript);
     void LogTranspilerOutput(const FArcscriptTranspilerOutput& TranspilerOutput);
+    bool GetBoardObjectForElement(FString ConditionId, FArcweaveConditionData& OutConditionData, FArcweaveBoardData*& OutBoardObj);
+    bool IsScriptVisitsPositive(const FString& ConditionScript);
 
-private:    
+private:
+    UPROPERTY()
     FArcweaveProjectData ProjectData = FArcweaveProjectData();
+    UPROPERTY()
+    FArcweaveBoardData BoardObj = FArcweaveBoardData();
+    UPROPERTY()
+    FArcweaveAPISettings ArcweaveAPISettings = FArcweaveAPISettings();
+
 };

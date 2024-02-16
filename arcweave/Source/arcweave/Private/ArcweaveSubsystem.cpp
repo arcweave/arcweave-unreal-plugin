@@ -8,22 +8,70 @@
 #include "ArcweaveTypes.h"
 #include "HttpModule.h"
 #include "Interfaces/IHttpResponse.h"
+#include "Interfaces/IPluginManager.h"
+
+void UArcweaveSubsystem::FetchDataFromAPI(FString APIToken, FString ProjectHash)
+{
+    FString ApiUrl = FString::Printf(TEXT("https://arcweave.com/api/%s/json"), *ProjectHash);
+
+    TSharedRef<IHttpRequest, ESPMode::ThreadSafe> Request = FHttpModule::Get().CreateRequest();
+    Request->SetVerb("GET");
+    Request->SetURL(ApiUrl);
+    Request->SetHeader(TEXT("Authorization"), FString::Printf(TEXT("Bearer %s"), *APIToken));
+    Request->SetHeader(TEXT("Accept"), TEXT("application/json"));
+
+    // Set the request complete callback
+    Request->OnProcessRequestComplete().BindUObject(this, &UArcweaveSubsystem::HandleFetch);
+
+    // Execute the request
+    Request->ProcessRequest();
+}
 
 void UArcweaveSubsystem::FetchData(FString APIToken, FString ProjectHash)
 {
-	FString ApiUrl = FString::Printf(TEXT("https://arcweave.com/api/%s/json"), *ProjectHash);
+    if (ArcweaveAPISettings.EnableRecieveMethodFromLocalJSON)
+    {
+        LoadJsonFile();
+    }
+    else
+    {
+        FetchDataFromAPI(APIToken, ProjectHash);
+    }   
+}
 
-	TSharedRef<IHttpRequest, ESPMode::ThreadSafe> Request = FHttpModule::Get().CreateRequest();
-	Request->SetVerb("GET");
-	Request->SetURL(ApiUrl);
-	Request->SetHeader(TEXT("Authorization"), FString::Printf(TEXT("Bearer %s"), *APIToken));
-	Request->SetHeader(TEXT("Accept"), TEXT("application/json"));
-
-	// Set the request complete callback
-	Request->OnProcessRequestComplete().BindUObject(this, &UArcweaveSubsystem::HandleFetch);
-
-	// Execute the request
-	Request->ProcessRequest();
+bool UArcweaveSubsystem::LoadJsonFile()
+{
+	FString JsonRaw;
+    FString DirectoryPath = FPaths::ProjectDir() + TEXT("Content/ArcweaveExport/");
+    // Normalize the directory path
+    FPaths::NormalizeDirectoryName(DirectoryPath);
+    // Get the file manager instance
+    IFileManager& FileManager = IFileManager::Get();
+    // Find all files in the directory (assuming you want to include files in subdirectories as well)
+    TArray<FString> Files;
+    FileManager.FindFilesRecursive(Files, *DirectoryPath, TEXT("*.json*"), true, false, false);
+    // Log the found files
+    for (FString& File : Files)
+    {
+        // Convert the relative path to an absolute path
+        File = FPaths::ConvertRelativePathToFull(File);
+        UE_LOG(LogArcwarePlugin, Log, TEXT("Found file: %s"), *File);
+        // Add on-screen message
+        GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red, FString::Printf(TEXT("Found file: %s"), *File));
+    }
+    //always get the 0 one if there are mutiple ones
+    if (Files.IsValidIndex(0) == false)
+    {
+        UE_LOG(LogArcwarePlugin, Log, TEXT("There is no JSON folder in the ArcweaveExport directory"));
+        return false;
+    }
+    if (!FFileHelper::LoadFileToString(JsonRaw, *Files[0]))
+    {
+        UE_LOG(LogArcwarePlugin, Log, TEXT("Failed to load JSON file!"));
+        return false;
+    }
+    ParseResponse(JsonRaw);
+    return true;
 }
 
 FArcweaveAPISettings UArcweaveSubsystem::LoadArcweaveSettings() const
@@ -35,6 +83,11 @@ FArcweaveAPISettings UArcweaveSubsystem::LoadArcweaveSettings() const
         ArcweaveSettings->ReloadConfig();
         if (GConfig)
         {
+            if(GConfig->GetBool(ARCWEAVE_SETTINGS_SECTION, TEXT("EnableRecieveMethodFromLocalJSON"), OutSetttings.EnableRecieveMethodFromLocalJSON, GGameIni))
+            {
+                UE_LOG(LogTemp, Warning, TEXT("Read EnableRecieveMethodFromLocalJSON: %d"), OutSetttings.EnableRecieveMethodFromLocalJSON);
+            }
+            
             if(GConfig->GetString(ARCWEAVE_SETTINGS_SECTION, TEXT("APIToken"), OutSetttings.APIToken, GGameIni))
             {
                 UE_LOG(LogTemp, Warning, TEXT("Read APIToken: %s"), *OutSetttings.APIToken);
@@ -46,9 +99,6 @@ FArcweaveAPISettings UArcweaveSubsystem::LoadArcweaveSettings() const
             }
         }
     }
-
-
-
 	return OutSetttings;
 }
 
@@ -59,13 +109,6 @@ void UArcweaveSubsystem::SaveArcweaveSettings(const FString& APIToken, const FSt
         return;
     }
 
-    //GConfig->EmptySection(TEXT("TargetDeviceServices"), GGameIni);
-
-    // save configuration
-    //GConfig->SetString(ARCWEAVE_SETTINGS_SECTION, TEXT("APIToken"), *APIToken, GGameIni);
-    //GConfig->SetString(ARCWEAVE_SETTINGS_SECTION, TEXT("Hash"), *ProjectHash, GGameIni);
-    //GConfig->Flush(false, GGameIni);
-
     UArcweaveSettings* ArcweaveSettings = GetMutableDefault<UArcweaveSettings>();
     if (ArcweaveSettings)
     {
@@ -75,26 +118,23 @@ void UArcweaveSubsystem::SaveArcweaveSettings(const FString& APIToken, const FSt
     }
 }
 
-FArcscriptTranspilerOutput UArcweaveSubsystem::TranspileCondition(FString ConditionId, bool& Success)
+bool UArcweaveSubsystem::GetBoardObjectForElement(FString ConditionId, FArcweaveConditionData& OutConditionData, FArcweaveBoardData*& OutBoardObj)
 {
-    Success = false;
-    FArcscriptTranspilerOutput Output;
-    FArcweaveConditionData ConditionData;
-    //get the element
-    FArcweaveBoardData BoardObj;
-    for (const auto& Board : ProjectData.Boards)
+    for (auto& Board : ProjectData.Boards)
     {
-        for (const auto& BranchObj : Board.Branches)
+        for (auto& BranchObj : Board.Branches)
         {
             if (BranchObj.IfCondition.Id == ConditionId)
             {
-                BoardObj = Board;
-                ConditionData = BranchObj.IfCondition;
+                OutBoardObj = &Board;
+                OutConditionData = BranchObj.IfCondition;
+                return true;
             }
             else if (BranchObj.ElseCondition.Id == ConditionId)
             {
-                BoardObj = Board;
-                ConditionData = BranchObj.ElseCondition;
+                OutBoardObj = &Board;
+                OutConditionData = BranchObj.ElseCondition;
+                return true;
             }
             else
             {
@@ -102,26 +142,80 @@ FArcscriptTranspilerOutput UArcweaveSubsystem::TranspileCondition(FString Condit
                 {
                     if (ElseIfCondition.Id == ConditionId)
                     {
-                        BoardObj = Board;
-                        ConditionData = ElseIfCondition;
+                        OutBoardObj = &Board;
+                        OutConditionData = ElseIfCondition;
+                        return true;
                     }
                 }
             }
         }
     }
-    if (BoardObj.BoardId.IsEmpty() || ConditionData.Id.IsEmpty())
+    return false;
+}
+
+bool UArcweaveSubsystem::IsScriptVisitsPositive(const FString& ConditionScript)
+{
+    // Check for "not visits" first to handle the negation case
+    if (ConditionScript.Contains(TEXT("not visits"), ESearchCase::IgnoreCase, ESearchDir::FromStart))
+    {
+        return false;
+    }
+    else if (ConditionScript.Contains(TEXT("visits"), ESearchCase::IgnoreCase, ESearchDir::FromStart))
+    {
+        return true; // Found a relevant mention
+    }
+    
+    return false;
+}
+
+FArcscriptTranspilerOutput UArcweaveSubsystem::TranspileCondition(FString ConditionId, bool& Success)
+{
+    UE_LOG(LogArcwarePlugin, Log, TEXT("----- TranspileCondition for id: %s -----"), *ConditionId);
+    Success = false;
+    FArcscriptTranspilerOutput Output;
+    FArcweaveConditionData ConditionData;
+    FArcweaveBoardData* NewBoardObj = nullptr;
+    if(GetBoardObjectForElement(ConditionId, ConditionData, NewBoardObj) == false)
     {
         UE_LOG(LogArcwarePlugin, Error, TEXT("Cannot find transpile data for condition id: %s"), *ConditionId);
         return Output;
     }
-    //run the transpiler
+    if (NewBoardObj->BoardId.IsEmpty() || ConditionData.Id.IsEmpty())
+    {
+        UE_LOG(LogArcwarePlugin, Error, TEXT("Cannot find transpile data for condition id: %s"), *ConditionId);
+        return Output;
+    }
     try
     {
-        FString ScriptModified = FString("<pre><code>") + ConditionData.Script + FString("</code></pre>");
-        Output = RunTranspiler(ScriptModified, ConditionData.Id, ProjectData.CurrentVars, BoardObj.Visits);
-        //increase the visits counter
-        BoardObj.Visits[ConditionId] += 1;
-        //ConditionData.Content = RemoveHtmlTags(Output.Output);
+        //here we are checking if the condition is a visit counter
+        //this is the format of the visit counter condition
+        //"script": "visits(<span class=\"mention-element mention\" data-id=\"045ab2b6-6d77-43f7-a7b4-e275f41667c3\" data-label=\"Giving healing potion\" data-type=\"element\">giving_healing_potion<\/span>)"
+        //"script": "not visits(<span class=\"mention-element mention\" data-id=\"d852a577-bd1f-44cf-8187-77a86f97baef\" data-label=\"Get potion\" data-type=\"element\">get_potion<\/span>)"
+        //so if there is a string with data-id and the word visits, we will not transpile it
+        //we will just check the counter and return the output
+        FString ScriptDataId = ExtractDataIdFromConditionScriptString(ConditionData.Script);
+        if (ScriptDataId.IsEmpty())
+        {
+            //run the transpiler
+            FString ScriptModified = FString("<pre><code>") + ConditionData.Script + FString("</code></pre>");
+            Output = RunTranspiler(ScriptModified, ConditionData.Id, ProjectData.CurrentVars, NewBoardObj->Visits);
+            NewBoardObj->Visits[ConditionId] += 1;
+        }
+        else
+        {
+            bool IsScriptsVisitsPositive = IsScriptVisitsPositive(ConditionData.Script);
+            const int* VisitsCounter = NewBoardObj->Visits.Find(ScriptDataId);
+            if (VisitsCounter)
+            {
+                Output.ConditionResult = *VisitsCounter > 0;
+                //we need the reverse result, the condition is not negated
+                if (IsScriptsVisitsPositive == false)
+                {
+                    Output.ConditionResult = !Output.ConditionResult;
+                }
+                //UE_LOG(LogArcwarePlugin, Log, TEXT("Visits counter for id GET : %s is: %d conditionResult is: %d IsScriptsVisitsPositive %d"), *ScriptDataId, *VisitsCounter, Output.ConditionResult, IsScriptsVisitsPositive);
+            }
+        }
         Success = true;
     }
     catch (...)
@@ -131,25 +225,35 @@ FArcscriptTranspilerOutput UArcweaveSubsystem::TranspileCondition(FString Condit
     return Output;
 }
 
+bool UArcweaveSubsystem::GetBoardForObject(FString ObjectId, FArcweaveElementData& OutElement, FArcweaveBoardData*& OutBoardObj)
+{
+    for (auto& Board : ProjectData.Boards)
+    {
+        for (auto& ElementObj : Board.Elements)
+        {
+            if (ElementObj.Id == ObjectId)
+            {
+                OutBoardObj = &Board;
+                OutElement = ElementObj;
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
 FArcweaveElementData UArcweaveSubsystem::TranspileObject(FString ObjectId, bool& Success)
 {
     Success = false;
     FArcweaveElementData Element;
     //get the element
-    FArcweaveBoardData BoardObj;
-    for (const auto& Board : ProjectData.Boards)
+    FArcweaveBoardData* NewBoardObj = nullptr;
+    if(GetBoardForObject(ObjectId, Element, NewBoardObj) == false)
     {
-        for (const auto& ElementObj : Board.Elements)
-        {
-            if (ElementObj.Id == ObjectId)
-            {
-                BoardObj = Board;
-                Element = ElementObj;
-                break;
-            }
-        }
+        UE_LOG(LogArcwarePlugin, Error, TEXT("Cannot find transpile data for element id: %s"), *ObjectId);
+        return Element;
     }
-    if (BoardObj.BoardId.IsEmpty() || Element.Id.IsEmpty())
+    if (NewBoardObj->BoardId.IsEmpty() || Element.Id.IsEmpty())
     {
         UE_LOG(LogArcwarePlugin, Error, TEXT(" Cannot find transpile data for element id: %s"), *ObjectId);
         return Element;
@@ -157,9 +261,9 @@ FArcweaveElementData UArcweaveSubsystem::TranspileObject(FString ObjectId, bool&
     //run the transpiler
     try
     {
-        FArcscriptTranspilerOutput Output = RunTranspiler(Element.Content, Element.Id, ProjectData.CurrentVars, BoardObj.Visits);
-        //increase the visits counter
-        BoardObj.Visits[ObjectId] += 1;
+        FArcscriptTranspilerOutput Output = RunTranspiler(Element.Content, Element.Id, ProjectData.CurrentVars, NewBoardObj->Visits);
+        NewBoardObj->Visits[ObjectId] += 1;
+        //UE_LOG(LogArcwarePlugin, Log, TEXT("Visits counter for id: %s is: %d"), *ObjectId, NewBoardObj->Visits[ObjectId]);
         Element.Content = RemoveHtmlTags(Output.Output);
         Success = true;
     }
@@ -197,6 +301,22 @@ FString UArcweaveSubsystem::RemoveHtmlTags(const FString& InputString)
     }
 
     return CleanedString;
+}
+
+FString UArcweaveSubsystem::ExtractDataIdFromConditionScriptString(const FString& ConditionScript)
+{
+    // Define the regex pattern to match the data-id value
+    FRegexPattern Pattern(TEXT("data-id=\\\"([\\w-]+)\\\""));
+    FRegexMatcher Matcher(Pattern, ConditionScript);
+
+    if (Matcher.FindNext())
+    {
+        // Return the matched data-id value
+        return Matcher.GetCaptureGroup(1);
+    }
+
+    // If no match is found, return an empty string or an error message
+    return FString("");
 }
 
 TArray<FArcweaveAssetData> UArcweaveSubsystem::ParseComponentAsset(const TSharedPtr<FJsonObject>& ComponentValueObject)
@@ -354,7 +474,6 @@ TArray<FArcweaveConnectionsData> UArcweaveSubsystem::ParseConnections(const FStr
                             FString DirtyLabel = FString("");
                             ConObject->TryGetStringField("label", DirtyLabel);
                             Connection.Label = RemoveHtmlTags(DirtyLabel);                            
-                            //UE_LOG(LogArcwarePlugin, Log, TEXT(" --- Connection object name: %s, label %s"), *ConnectionPair.Key, *Connection.Label);
                             ConObject->TryGetStringField("type", Connection.Type);
                             ConObject->TryGetStringField("theme", Connection.Theme);
                             ConObject->TryGetStringField("sourceid", Connection.Sourceid);
@@ -373,7 +492,7 @@ TArray<FArcweaveConnectionsData> UArcweaveSubsystem::ParseConnections(const FStr
     return Connections;
 }
 
-TArray<FArcweaveElementData> UArcweaveSubsystem::ParseElements(const TSharedPtr<FJsonObject>& MainJsonObject, const TSharedPtr<FJsonObject>& BoardValueObject, FArcweaveBoardData& BoardObj)
+TArray<FArcweaveElementData> UArcweaveSubsystem::ParseElements(const TSharedPtr<FJsonObject>& MainJsonObject, const TSharedPtr<FJsonObject>& BoardValueObject, FArcweaveBoardData& OutBoardObj)
 {
     TArray<FArcweaveElementData> Elements;
      // Parse "elements" as an array of element data structs
@@ -382,7 +501,7 @@ TArray<FArcweaveElementData> UArcweaveSubsystem::ParseElements(const TSharedPtr<
     {
         for (const FString& ElementId : ElementArrayStrings)
         {
-            BoardObj.Visits.Add(ElementId, 0);
+            OutBoardObj.Visits.Add(ElementId, 0);
         }
         //then search for the element pairs
         for (const FString& ElementId : ElementArrayStrings)
@@ -394,7 +513,7 @@ TArray<FArcweaveElementData> UArcweaveSubsystem::ParseElements(const TSharedPtr<
     return Elements;
 }
 
-TArray<FArcweaveBranchData> UArcweaveSubsystem::ParseBranches(const TSharedPtr<FJsonObject>& MainJsonObject, const TSharedPtr<FJsonObject>& BoardValueObject, FArcweaveBoardData& BoardObj)
+TArray<FArcweaveBranchData> UArcweaveSubsystem::ParseBranches(const TSharedPtr<FJsonObject>& MainJsonObject, const TSharedPtr<FJsonObject>& BoardValueObject, FArcweaveBoardData& OutBoardObj)
 {
     TArray<FArcweaveBranchData> Branches;
     TArray<FString> BranchesArrayStrings;
@@ -402,7 +521,7 @@ TArray<FArcweaveBranchData> UArcweaveSubsystem::ParseBranches(const TSharedPtr<F
     {
         for (const FString& BranchId : BranchesArrayStrings)
         {
-            BoardObj.Visits.Add(BranchId, 0);
+            OutBoardObj.Visits.Add(BranchId, 0);
         }
         //then search for the element pairs
         for (const FString& BranchId : BranchesArrayStrings)
@@ -424,8 +543,8 @@ TArray<FArcweaveBranchData> UArcweaveSubsystem::ParseBranches(const TSharedPtr<F
                         const TSharedPtr<FJsonObject>& ConditionsObject = BranchDataObject->GetObjectField("conditions");
 
                         // Extract "ifCondition"
-                        Branch.IfCondition = ParseConditionData(MainJsonObject, ConditionsObject, FString("ifCondition"), BoardObj);
-                        Branch.ElseCondition = ParseConditionData(MainJsonObject, ConditionsObject, FString("elseCondition"), BoardObj);
+                        Branch.IfCondition = ParseConditionData(MainJsonObject, ConditionsObject, FString("ifCondition"), OutBoardObj);
+                        Branch.ElseCondition = ParseConditionData(MainJsonObject, ConditionsObject, FString("elseCondition"), OutBoardObj);
                         
                         // Extract "elseIfConditions" array
                         const TArray<TSharedPtr<FJsonValue>>* ElseIfConditionsArray;
@@ -433,7 +552,7 @@ TArray<FArcweaveBranchData> UArcweaveSubsystem::ParseBranches(const TSharedPtr<F
                         {
                             for (const TSharedPtr<FJsonValue>& ElseIfValue : *ElseIfConditionsArray)
                             {
-                                FArcweaveConditionData ElseIfConditionSingle = ParseConditionData(MainJsonObject, ConditionsObject, FString("elseIfCondition"), BoardObj);
+                                FArcweaveConditionData ElseIfConditionSingle = ParseConditionData(MainJsonObject, ConditionsObject, FString("elseIfCondition"), OutBoardObj);
                                 Branch.ElseIfConditions.Add(ElseIfConditionSingle);
                             }
                         }
@@ -449,7 +568,7 @@ TArray<FArcweaveBranchData> UArcweaveSubsystem::ParseBranches(const TSharedPtr<F
 }
 
 TArray<FArcweaveJumpersData> UArcweaveSubsystem::ParseJumpers(const TSharedPtr<FJsonObject>& MainJsonObject,
-    const TSharedPtr<FJsonObject>& BoardValueObject, FArcweaveBoardData& BoardObj)
+    const TSharedPtr<FJsonObject>& BoardValueObject, FArcweaveBoardData& OutBoardObj)
 {
      TArray<FArcweaveJumpersData> Jumpers;
     TArray<FString> JumpersArrayStrings;
@@ -457,7 +576,7 @@ TArray<FArcweaveJumpersData> UArcweaveSubsystem::ParseJumpers(const TSharedPtr<F
     {
         for (const FString& JumperId : JumpersArrayStrings)
         {
-            BoardObj.Visits.Add(JumperId, 0);
+            OutBoardObj.Visits.Add(JumperId, 0);
         }
         //then search for the elements for jumpers
         for (const FString& JumperId : JumpersArrayStrings)
@@ -526,7 +645,7 @@ FArcweaveElementData UArcweaveSubsystem::ExtractElementData(const TSharedPtr<FJs
     return Element;
 }
 
-FArcweaveConditionData UArcweaveSubsystem::ParseConditionData(const TSharedPtr<FJsonObject>& MainJsonObject, const TSharedPtr<FJsonObject>& ConditionsObject, const FString& ConditionName, FArcweaveBoardData& BoardObj)
+FArcweaveConditionData UArcweaveSubsystem::ParseConditionData(const TSharedPtr<FJsonObject>& MainJsonObject, const TSharedPtr<FJsonObject>& ConditionsObject, const FString& ConditionName, FArcweaveBoardData& OutBoardObj)
 {
     FArcweaveConditionData ConditionData = FArcweaveConditionData();
     FString IfConditionOutputId = FString("");
@@ -542,7 +661,7 @@ FArcweaveConditionData UArcweaveSubsystem::ParseConditionData(const TSharedPtr<F
                 {
                     const TSharedPtr<FJsonObject>& ConditionDataObject = ConditionPair.Value->AsObject();
                     ConditionData.Id = ConditionPair.Key;
-                    BoardObj.Visits.Add(ConditionData.Id, 0);
+                    OutBoardObj.Visits.Add(ConditionData.Id, 0);
                     //output
                     FString Output = FString("");
                     if (ConditionDataObject->TryGetStringField("output", Output))
@@ -578,7 +697,7 @@ FArcweaveConditionData UArcweaveSubsystem::ParseConditionData(const TSharedPtr<F
 }
 
 
-TMap<FString, int> UArcweaveSubsystem::InitVisist(const TSharedPtr<FJsonObject>& BoardValueObject, FArcweaveBoardData& BoardObj)
+TMap<FString, int> UArcweaveSubsystem::InitVisist(const TSharedPtr<FJsonObject>& BoardValueObject, FArcweaveBoardData& OutBoardObj)
 {
     //add the visits to the board data
     TMap<FString, int> AllVisits;
@@ -697,7 +816,6 @@ void UArcweaveSubsystem::ParseResponse(const FString& ResponseString)
         ProjectData.Cover = ParseCoverData(JsonObject);        
         ProjectData.CurrentVars = ParseVariables(JsonObject);
         ProjectData.Components = ParseAllComponents(JsonObject);
-        //ProjectData.Branches = ParseBranches(JsonObject, ProjectData);
         ProjectData.Boards = ParseBoard(JsonObject);
         OnArcweaveResponseReceived.Broadcast(ProjectData);
         //LogStructFieldsRecursive(&ProjectData, FArcweaveProjectData::StaticStruct(),0);
@@ -835,8 +953,7 @@ void UArcweaveSubsystem::Initialize(FSubsystemCollectionBase& Collection)
     Super::Initialize(Collection);
 
     // we must read from engine config here
-    FArcweaveAPISettings ArcweaveAPISettings = LoadArcweaveSettings();
-    FetchData(FString(ArcweaveAPISettings.APIToken), ArcweaveAPISettings.Hash);
+    ArcweaveAPISettings = LoadArcweaveSettings();
 }
 
 void UArcweaveSubsystem::HandleFetch(FHttpRequestPtr Request, FHttpResponsePtr Response, bool bWasSuccessful)
@@ -844,8 +961,6 @@ void UArcweaveSubsystem::HandleFetch(FHttpRequestPtr Request, FHttpResponsePtr R
     if (bWasSuccessful && Response.IsValid())
     {
         FString ResponseString = Response->GetContentAsString();
-        //UE_LOG(LogArcwarePlugin, Log, TEXT("HTTP Response: %s"), *ResponseString);
-
         ParseResponse(ResponseString);
     }
     else
@@ -854,68 +969,3 @@ void UArcweaveSubsystem::HandleFetch(FHttpRequestPtr Request, FHttpResponsePtr R
         UE_LOG(LogArcwarePlugin, Error, TEXT("HTTP Request failed!"));
     }
 }
-
-// possible helpers for structs logging KEEP
-/*void  UArcweaveSubsystem::LogStructFields(const void* StructPtr, UStruct* StructDefinition)
-{
-    if (!StructPtr || !StructDefinition)
-    {
-        UE_LOG(LogArcwarePlugin, Warning, TEXT("Invalid struct or struct definition provided!"));
-        return;
-    }
-
-    // Iterate through all fields of the struct
-    for (TFieldIterator<FProperty> PropertyIt(StructDefinition); PropertyIt; ++PropertyIt)
-    {
-        FProperty* Property = *PropertyIt;
-        FString PropertyName = Property->GetName();
-
-        // Use the Property's accessors to get the value as a string
-        FString PropertyValue;
-        Property->ExportText_InContainer(0, PropertyValue, StructPtr, StructPtr, nullptr, PPF_None);
-
-        // Log the property name and value
-        UE_LOG(LogArcwarePlugin, Log, TEXT("%s: %s"), *PropertyName, *PropertyValue);
-    }
-}*/
-
-/*void UArcweaveSubsystem::LogStructFieldsRecursive(const void* StructPtr, UStruct* StructDefinition, int32 IndentationLevel)
-{
-    if (!StructPtr || !StructDefinition)
-    {
-        UE_LOG(LogTemp, Warning, TEXT("Invalid struct or struct definition provided!"));
-        return;
-    }
-
-    // Create a string for indentation based on the current level
-    FString Indentation = FString::ChrN(IndentationLevel, TEXT('\t'));
-
-    // Iterate through all fields of the struct
-    for (TFieldIterator<FProperty> PropertyIt(StructDefinition); PropertyIt; ++PropertyIt)
-    {
-        FProperty* Property = *PropertyIt;
-        FString PropertyName = Property->GetName();
-
-        // Use the Property's accessors to get the value as a string
-        FString PropertyValue;
-        Property->ExportText_InContainer(0, PropertyValue, StructPtr, StructPtr, nullptr, PPF_None);
-
-        // Log the property name and value with indentation on a new line
-        FString LogMessage = FString::Printf(TEXT("%s%s: %s\n"), *Indentation, *PropertyName, *PropertyValue);
-        UE_LOG(LogTemp, Warning, TEXT("%s"), *LogMessage);
-
-        // If the property is a nested struct, recursively log its fields with increased indentation
-        if (Property->IsA(FStructProperty::StaticClass()))
-        {
-            FStructProperty* StructProperty = Cast<FStructProperty>(Property);
-            if (StructProperty)
-            {
-                const void* NestedStructPtr = StructProperty->ContainerPtrToValuePtr<void>(StructPtr);
-                UStruct* NestedStructDefinition = StructProperty->Struct;
-
-                // Recursively log the fields of the nested struct with increased indentation
-                LogStructFieldsRecursive(NestedStructPtr, NestedStructDefinition, IndentationLevel + 1);
-            }
-        }
-    }
-}*/

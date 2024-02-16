@@ -125,27 +125,6 @@ FArcscriptTranspilerOutput UArcscriptTranspilerWrapper::RunScript(FString code, 
         result.Changes.Add(change);
     }
 
-    /*FString lines;
-    for (i = 0; i < dllResult.changesLen; i++) {
-        FString line = dllResult.changes[i].varId + FString(": ");
-        if (strcmp(dllResult.changes[i].type, "string") == 0) {
-            line += dllResult.changes[i].string_result;
-        }
-        else if (strcmp(dllResult.changes[i].type, "integer") == 0) {
-            line += FString::FromInt(dllResult.changes[i].int_result);
-        }
-        else if (strcmp(dllResult.changes[i].type, "double") == 0) {
-            line += FString::SanitizeFloat(dllResult.changes[i].double_result);
-        }
-        else if (strcmp(dllResult.changes[i].type, "bool") == 0) {
-            line += dllResult.changes[i].bool_result ? FString("true") : FString("false");
-        }
-        line += FString("\n");
-
-        lines += line;
-    }*/
-    //FMessageDialog::Open(EAppMsgType::Ok, FText::FromString(lines));
-
     // Clean up allocated memory before returning
     free((char*)dllCode);
     free((char*)dllElId);
