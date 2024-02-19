@@ -25,9 +25,11 @@ Refer to [this chapter](https://arcweave.com/docs/1.0/api) in the Arcweave Docum
 
 Navigate to Project Settings -> Plugins -> Arcweave. Here, you can input your APIToken and the project hash obtained in the previous step.
 
-### Fetching the Data
+## Data Collection Methods
+There are two primary methods for collecting data:
 
-Once the project credentials are correctly set, the Arcweave plugin will automatically fetch the data and populate the UArcweaveSubsystem upon project initialization. Any additional data fetching during runtime must be manually configured. Example usage can be found in the **Demo scene**.
+**Web API:** This involves fetching data directly from the Arcweave Web API.
+**JSON Import:** For this method, you'll need to import a JSON file from your Arcweave project. Ensure that the JSON file, along with all required assets, is placed in the **Content->ArcweaveExport directory**. If this directory does not exist, you will need to create it.
 
 ### Important Classes and Functions
 
@@ -36,7 +38,7 @@ It provides a range of functions that can be utilized in both Blueprints and C++
 
 #### List of Important Functions in `UArcweaveSubsystem`:
 
-1. **Fetch Data from Arcweave API**
+1. **Fetch Data from Arcweave API or local JSON**
    - This function allows you to fetch data from the Arcweave API by providing the API token and project hash.
 
 2. **Load Arcweave API Token from Settings**
@@ -58,5 +60,5 @@ These functions provide a comprehensive set of tools for interacting with the Ar
 
 ## Using the Demo Project
 
-You can explore the plugin implementation and see examples of its usage in our demo project, [Arcweave]([https://arcweave.com/](https://github.com/Arcweave/arcweave-unreal-example). 
+You can explore the plugin implementation and see examples of its usage in our demo project, [Arcweave demo project](https://github.com/Arcweave/arcweave-unreal-example). 
 This project includes a demo scene and samples of logic implementation using Arcweave's Web API, showcasing all the capabilities of the plugin.
