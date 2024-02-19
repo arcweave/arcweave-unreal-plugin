@@ -22,7 +22,7 @@ public:
      * API token that you can find in your Arcweave account settings.
      */
     UPROPERTY(Config, EditAnywhere, Category = ArcweaveSettings)
-    bool EnableRecieveMethodFromLocalJSON = false;
+    bool EnableReceiveMethodFromLocalJSON = false;
 
     /*
      * API token that you can find in your Arcweave account settings.
