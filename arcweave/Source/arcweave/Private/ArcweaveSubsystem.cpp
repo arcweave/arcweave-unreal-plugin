@@ -12,7 +12,7 @@
 
 void UArcweaveSubsystem::FetchDataFromAPI(FString APIToken, FString ProjectHash)
 {
-    FString ApiUrl = FString::Printf(TEXT("https://arcweave.com/api/%s/json"), *ProjectHash);
+    FString ApiUrl = FString::Printf(TEXT("https://arcweave.com/api/%s/unreal"), *ProjectHash);
 
     TSharedRef<IHttpRequest, ESPMode::ThreadSafe> Request = FHttpModule::Get().CreateRequest();
     Request->SetVerb("GET");
@@ -29,7 +29,8 @@ void UArcweaveSubsystem::FetchDataFromAPI(FString APIToken, FString ProjectHash)
 
 void UArcweaveSubsystem::FetchData(FString APIToken, FString ProjectHash)
 {
-    if (ArcweaveAPISettings.EnableRecieveMethodFromLocalJSON)
+    FArcweaveAPISettings NewArcweaveAPISettings = LoadArcweaveSettings();
+    if (NewArcweaveAPISettings.EnableRecieveMethodFromLocalJSON)
     {
         LoadJsonFile();
     }
@@ -83,7 +84,7 @@ FArcweaveAPISettings UArcweaveSubsystem::LoadArcweaveSettings() const
         ArcweaveSettings->ReloadConfig();
         if (GConfig)
         {
-            if(GConfig->GetBool(ARCWEAVE_SETTINGS_SECTION, TEXT("EnableRecieveMethodFromLocalJSON"), OutSetttings.EnableRecieveMethodFromLocalJSON, GGameIni))
+            if(GConfig->GetBool(ARCWEAVE_SETTINGS_SECTION, TEXT("EnableReceiveMethodFromLocalJSON"), OutSetttings.EnableRecieveMethodFromLocalJSON, GGameIni))
             {
                 UE_LOG(LogTemp, Warning, TEXT("Read EnableRecieveMethodFromLocalJSON: %d"), OutSetttings.EnableRecieveMethodFromLocalJSON);
             }
@@ -799,6 +800,7 @@ FArcweaveCoverData UArcweaveSubsystem::ParseCoverData(const TSharedPtr<FJsonObje
 
 void UArcweaveSubsystem::ParseResponse(const FString& ResponseString)
 {
+    TSharedPtr<FJsonObject> RootObject;
     // Convert the response to a JSON object
     TSharedPtr<FJsonObject> JsonObject;
     TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(ResponseString);
@@ -810,13 +812,21 @@ void UArcweaveSubsystem::ParseResponse(const FString& ResponseString)
         return;
     }
 
-    // Extract project name and cover data     
-    if (JsonObject->TryGetStringField("name", ProjectData.Name))
+    RootObject = JsonObject;
+    const TSharedPtr<FJsonObject>* OutObject;
+    // this should be true when retriving from the web API
+    if (JsonObject->TryGetObjectField("project", OutObject))
     {
-        ProjectData.Cover = ParseCoverData(JsonObject);        
-        ProjectData.CurrentVars = ParseVariables(JsonObject);
-        ProjectData.Components = ParseAllComponents(JsonObject);
-        ProjectData.Boards = ParseBoard(JsonObject);
+        RootObject = *OutObject;
+    }
+
+    // Extract project name and cover data     
+    if (RootObject->TryGetStringField("name", ProjectData.Name))
+    {
+        ProjectData.Cover = ParseCoverData(RootObject);        
+        ProjectData.CurrentVars = ParseVariables(RootObject);
+        ProjectData.Components = ParseAllComponents(RootObject);
+        ProjectData.Boards = ParseBoard(RootObject);
         OnArcweaveResponseReceived.Broadcast(ProjectData);
         //LogStructFieldsRecursive(&ProjectData, FArcweaveProjectData::StaticStruct(),0);
     }
@@ -953,7 +963,7 @@ void UArcweaveSubsystem::Initialize(FSubsystemCollectionBase& Collection)
     Super::Initialize(Collection);
 
     // we must read from engine config here
-    ArcweaveAPISettings = LoadArcweaveSettings();
+    //ArcweaveAPISettings = LoadArcweaveSettings();
 }
 
 void UArcweaveSubsystem::HandleFetch(FHttpRequestPtr Request, FHttpResponsePtr Response, bool bWasSuccessful)

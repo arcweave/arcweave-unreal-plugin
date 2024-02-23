@@ -103,7 +103,7 @@ private:
     FArcweaveProjectData ProjectData = FArcweaveProjectData();
     UPROPERTY()
     FArcweaveBoardData BoardObj = FArcweaveBoardData();
-    UPROPERTY()
-    FArcweaveAPISettings ArcweaveAPISettings = FArcweaveAPISettings();
+    /*UPROPERTY()
+    FArcweaveAPISettings ArcweaveAPISettings = FArcweaveAPISettings();*/
 
 };
