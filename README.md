@@ -1,7 +1,8 @@
 # Arcweave Plugin for Unreal Engine
+[![IMAGE ALT TEXT HERE](https://img.youtube.com/vi/Ws_Cz-IQQYg/0.jpg)](https://www.youtube.com/watch?v=Ws_Cz-IQQYg)
 
-This is the official README file for the Arcweave plugin repository, which facilitates the importation of [Arcweave](https://arcweave.com/) projects into Unreal Engine (version 5.0 and later). 
-The plugin utilizes Arcweave's web API to fetch data, a feature available exclusively to Team account users.
+This is the official README file for the Arcweave plugin repository, which facilitates the import of [Arcweave](https://arcweave.com/) projects into Unreal Engine (version 5.0 and later). 
+The plugin can import data from an exported Arcweave's JSON fine (available to all Arcweave users) or it can directly utilize Arcweave's web API to fetch data, a feature available to Arcweave Team account owners. You can watch a [full video tutorial series](https://www.youtube.com/playlist?list=PLP2s5PcDiBdYRg0zHpJTuiDVf9JF_inyH) on how to install and use the plugin.
 
 ## Plugin Installation
 
@@ -12,24 +13,19 @@ To install the Arcweave Plugin for Unreal Engine, follow these steps:
 3. Open your project.
 4. If prompted to rebuild the Arcweave plugin, click **Yes**.
 
-### Arcweave's Web API
-
-This feature is available only to Team account holders. It allows you to fetch your Arcweave project's data directly within Unreal Engine, via Arcweave's web API. You will need:
-
-- Your **API key** as an Arcweave user.
-- Your **project's hash**.
-
-Refer to [this chapter](https://arcweave.com/docs/1.0/api) in the Arcweave Documentation for details on how to find these.
-
-### Arcweave's Web API Credentials in Unreal Engine
-
-Navigate to Project Settings -> Plugins -> Arcweave. Here, you can input your APIToken and the project hash obtained in the previous step.
-
 ## Data Collection Methods
-There are two primary methods for collecting data:
+There are two primary methods for collecting Arcweave project data:
 
-**Web API:** This involves fetching data directly from the Arcweave Web API.
-**JSON Import:** For this method, you'll need to import a JSON file from your Arcweave project. Ensure that the JSON file, along with all required assets, is placed in the **Content->ArcweaveExport directory**. If this directory does not exist, you will need to create it.
+### JSON Import: 
+For this method, you'll need to do the following: 
+- Export you Arcweave project for Unreal Engine and unzip it.
+- Move the exported JSON file along with all required assets in the **Content->ArcweaveExport** directory. If this directory does not exist create it.
+  
+### Web API:
+This involves fetching data directly from the Arcweave Web API within Unreal Engine. You will need:
+
+- Your **Arcweave API key** and your **project's hash** (Refer to the [Arcweave Documentation](https://arcweave.com/docs/1.0/api) for more info on how to find these).
+- Navigate to Project Settings -> Plugins -> Arcweave. Here, you can input your APIToken and the project hash obtained in the previous step.
 
 ### Important Classes and Functions
 
