@@ -71,7 +71,8 @@ public:
 protected:
     //override init function
     virtual void Initialize(FSubsystemCollectionBase& Collection) override;
-    
+    void LogFetchStatus(const bool& Success, const FString& Message);
+
 private:
 	void HandleFetch(FHttpRequestPtr Request, FHttpResponsePtr Response, bool bWasSuccessful);
     FString RemoveHtmlTags(const FString& InputString);

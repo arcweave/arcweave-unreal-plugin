@@ -27,13 +27,13 @@ public:
     /*
      * API token that you can find in your Arcweave account settings.
      */
-    UPROPERTY(Config, EditAnywhere, Category = ArcweaveSettings)
+    UPROPERTY(Config, EditAnywhere, meta = (EditCondition = "!EnableReceiveMethodFromLocalJSON"), Category = ArcweaveSettings)
     FString APIToken = FString("");
 
     /*
      * Project hash that we want to retrieve the information for. You can find it by looking at the URL of your project.
      */
-    UPROPERTY(Config, EditAnywhere, Category = ArcweaveSettings)
+    UPROPERTY(Config, EditAnywhere, meta = (EditCondition = "!EnableReceiveMethodFromLocalJSON"), Category = ArcweaveSettings)
     FString Hash = FString("");
 
     //override post init properties to check if the settings are valid

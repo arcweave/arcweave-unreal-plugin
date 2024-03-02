@@ -56,19 +56,20 @@ bool UArcweaveSubsystem::LoadJsonFile()
     {
         // Convert the relative path to an absolute path
         File = FPaths::ConvertRelativePathToFull(File);
-        UE_LOG(LogArcwarePlugin, Log, TEXT("Found file: %s"), *File);
-        // Add on-screen message
-        GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red, FString::Printf(TEXT("Found file: %s"), *File));
+        FString Message = FString::Printf(TEXT("Found file: %s"), *File);
+        LogFetchStatus(true, Message);
     }
     //always get the 0 one if there are mutiple ones
     if (Files.IsValidIndex(0) == false)
     {
-        UE_LOG(LogArcwarePlugin, Log, TEXT("There is no JSON folder in the ArcweaveExport directory"));
+        FString Message = FString::Printf(TEXT("There is no JSON folder in the ArcweaveExport directory!"));
+        LogFetchStatus(true, Message);
         return false;
     }
     if (!FFileHelper::LoadFileToString(JsonRaw, *Files[0]))
     {
-        UE_LOG(LogArcwarePlugin, Log, TEXT("Failed to load JSON file!"));
+        FString Message = FString::Printf(TEXT("Failed to load JSON file!"));
+        LogFetchStatus(true, Message);
         return false;
     }
     ParseResponse(JsonRaw);
@@ -966,6 +967,24 @@ void UArcweaveSubsystem::Initialize(FSubsystemCollectionBase& Collection)
     //ArcweaveAPISettings = LoadArcweaveSettings();
 }
 
+void UArcweaveSubsystem::LogFetchStatus(const bool& Success, const FString& Message)
+{
+    //is suceces color green, if not red
+    FColor Color = Success ? FColor::Green : FColor::Red;
+    if (Success)
+    {
+        UE_LOG(LogArcwarePlugin, Log, TEXT("%s"), *Message);        
+    }
+    else
+    {
+        UE_LOG(LogArcwarePlugin, Error, TEXT("%s"), *Message);
+    }
+    if (GEngine)
+    {
+        GEngine->AddOnScreenDebugMessage(-1, 5.f, Color, Message);        
+    }
+}
+
 void UArcweaveSubsystem::HandleFetch(FHttpRequestPtr Request, FHttpResponsePtr Response, bool bWasSuccessful)
 {
     if (bWasSuccessful && Response.IsValid())
@@ -977,5 +996,6 @@ void UArcweaveSubsystem::HandleFetch(FHttpRequestPtr Request, FHttpResponsePtr R
     {
         // Handle error here.
         UE_LOG(LogArcwarePlugin, Error, TEXT("HTTP Request failed!"));
+        LogFetchStatus(false, Response->GetContentAsString());
     }
 }
