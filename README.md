@@ -56,5 +56,5 @@ These functions provide a comprehensive set of tools for interacting with the Ar
 
 ## Using the Demo Project
 
-You can explore the plugin implementation and see examples of its usage in our demo project, [Arcweave demo project](https://github.com/Arcweave/arcweave-unreal-example). 
+You can explore the plugin implementation and see examples of its usage in our [Arcweave demo project](https://github.com/Arcweave/arcweave-unreal-example). 
 This project includes a demo scene and samples of logic implementation using Arcweave's Web API, showcasing all the capabilities of the plugin.
