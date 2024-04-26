@@ -1,5 +1,5 @@
 
-// Generated from ArcscriptParser.g4 by ANTLR 4.13.0
+// Generated from ArcscriptParser.g4 by ANTLR 4.13.1
 
 #pragma once
 
@@ -26,6 +26,26 @@ public:
   }
 
   virtual std::any visitScript_section(ArcscriptParser::Script_sectionContext *ctx) override {
+    return visitChildren(ctx);
+  }
+
+  virtual std::any visitBlockquote(ArcscriptParser::BlockquoteContext *ctx) override {
+    return visitChildren(ctx);
+  }
+
+  virtual std::any visitParagraph(ArcscriptParser::ParagraphContext *ctx) override {
+    return visitChildren(ctx);
+  }
+
+  virtual std::any visitParagraph_start(ArcscriptParser::Paragraph_startContext *ctx) override {
+    return visitChildren(ctx);
+  }
+
+  virtual std::any visitCodestart(ArcscriptParser::CodestartContext *ctx) override {
+    return visitChildren(ctx);
+  }
+
+  virtual std::any visitCodeend(ArcscriptParser::CodeendContext *ctx) override {
     return visitChildren(ctx);
   }
 

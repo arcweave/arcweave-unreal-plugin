@@ -27,6 +27,7 @@
     <ClCompile Include="src\ArcscriptErrorListener.cpp" />
     <ClCompile Include="src\ArcscriptExpression.cpp" />
     <ClCompile Include="src\ArcscriptFunctions.cpp" />
+    <ClCompile Include="src\ArcscriptOutputs.cpp" />
     <ClCompile Include="src\ArcscriptParserBase.cpp" />
     <ClCompile Include="src\ArcscriptTranspiler.cpp" />
     <ClCompile Include="src\ArcscriptVisitor.cpp" />
@@ -41,6 +42,7 @@
     <ClInclude Include="src\ArcscriptExpression.h" />
     <ClInclude Include="src\ArcscriptFunctions.h" />
     <ClInclude Include="src\ArcscriptHelpers.h" />
+    <ClInclude Include="src\ArcscriptOutputs.h" />
     <ClInclude Include="src\ArcscriptParserBase.h" />
     <ClInclude Include="src\ArcscriptTranspiler.h" />
     <ClInclude Include="src\ArcscriptVisitor.h" />

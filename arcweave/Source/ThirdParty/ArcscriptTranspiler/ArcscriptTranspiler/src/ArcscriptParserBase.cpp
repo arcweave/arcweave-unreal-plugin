@@ -92,3 +92,8 @@ bool ArcscriptParserBase::assertFunctionArguments(Token *fname, std::any argumen
   
   return true;
 }
+
+void ArcscriptParserBase::setLineStart(antlr4::Token* token)
+{
+  openTagEndPos = token->getStartIndex() + token->getText().length();
+}

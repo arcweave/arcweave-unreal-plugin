@@ -131,7 +131,7 @@ namespace Arcweave {
                 result += std::any_cast<std::string>(arg);
             }
         }
-        _state->outputs.push_back("<p>" + result + "</p>");
+        _state->outputs.AddScriptOutput(result);
         return std::any();
     }
 

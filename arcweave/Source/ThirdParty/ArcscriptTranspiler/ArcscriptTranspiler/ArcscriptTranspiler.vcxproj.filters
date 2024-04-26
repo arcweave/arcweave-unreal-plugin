@@ -48,6 +48,9 @@
     <ClCompile Include="src\ArcscriptVisitor.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="src\ArcscriptOutputs.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\Generated\ArcscriptLexer\ArcscriptLexer.h">
@@ -84,6 +87,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="src\ArcscriptVisitor.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\ArcscriptOutputs.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

@@ -44,13 +44,8 @@ TranspilerOutput ArcscriptTranspiler::runScript(std::string code) {
   std::any res(visitor.visitInput(tree));
 
   result.changes = visitor.state->variableChanges;
-  std::vector<std::string> outputs = visitor.state->outputs;
-
-  // concatenate the outputs
-  const char* const delim = "";
-  std::ostringstream imploded;
-  std::copy(outputs.begin(), outputs.end(), std::ostream_iterator<std::string>(imploded, delim));
-  result.output = imploded.str();
+  
+  result.output = visitor.state->outputs.GetText();
   result.result = res;
   
   if (tree->script() != NULL) {
