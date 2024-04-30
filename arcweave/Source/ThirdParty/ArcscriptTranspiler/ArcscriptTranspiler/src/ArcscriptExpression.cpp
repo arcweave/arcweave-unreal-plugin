@@ -1,7 +1,33 @@
 #include "ArcscriptExpression.h"
+#include <sstream>
 
 namespace Arcweave {
 
+std::string Expression::valueToString(std::any value)
+{
+  if (value.type() == typeid(std::string))
+  {
+    return std::any_cast<std::string>(value);
+  }
+  if (value.type() == typeid(bool))
+  {
+    return std::any_cast<bool>(value) ? "true" : "false";
+  }
+  if (value.type() == typeid(int))
+  {
+    return std::to_string(std::any_cast<int>(value));
+  }
+  if (value.type() == typeid(double))
+  {
+    std::stringstream ss;
+    ss << std::any_cast<double>(value);
+    return ss.str();
+  }
+
+  return NULL;
+}
+
+  
 Expression::NumberValues Expression::doubleValues(std::any value1, std::any value2) {
   int intValue1, intValue2;
   double dblValue1, dblValue2;
@@ -55,6 +81,10 @@ bool Expression::valueToBool(std::any value) {
 }
 
 Expression Expression::operator+ (const Expression &other) {
+  if (value.type() == typeid(std::string) || other.value.type() == typeid(std::string))
+  {
+    return new Expression(valueToString(value) + valueToString(other.value));
+  }
   NumberValues values = doubleValues(value, other.value);
   Expression* result;
   if (!values.hasDoubles) {

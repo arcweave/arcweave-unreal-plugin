@@ -1,5 +1,5 @@
 
-// Generated from ArcscriptParser.g4 by ANTLR 4.13.0
+// Generated from ArcscriptParser.g4 by ANTLR 4.13.1
 
 #pragma once
 
@@ -25,6 +25,16 @@ public:
     virtual std::any visitScript(ArcscriptParser::ScriptContext *context) = 0;
 
     virtual std::any visitScript_section(ArcscriptParser::Script_sectionContext *context) = 0;
+
+    virtual std::any visitBlockquote(ArcscriptParser::BlockquoteContext *context) = 0;
+
+    virtual std::any visitParagraph(ArcscriptParser::ParagraphContext *context) = 0;
+
+    virtual std::any visitParagraph_start(ArcscriptParser::Paragraph_startContext *context) = 0;
+
+    virtual std::any visitCodestart(ArcscriptParser::CodestartContext *context) = 0;
+
+    virtual std::any visitCodeend(ArcscriptParser::CodeendContext *context) = 0;
 
     virtual std::any visitAssignment_segment(ArcscriptParser::Assignment_segmentContext *context) = 0;
 

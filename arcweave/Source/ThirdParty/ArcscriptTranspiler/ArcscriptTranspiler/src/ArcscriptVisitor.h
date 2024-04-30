@@ -47,4 +47,6 @@ public:
   std::any visitArgument(ArcscriptParser::ArgumentContext *ctx) override;
   std::any visitMention(ArcscriptParser::MentionContext *ctx) override;
   std::any visitMention_attributes(ArcscriptParser::Mention_attributesContext *ctx) override;
+  std::any visitParagraph(ArcscriptParser::ParagraphContext* context) override;
+  std::any visitBlockquote(ArcscriptParser::BlockquoteContext* context) override;
 };

@@ -71,7 +71,7 @@ UVisit* getVisits(json initVisits) {
 int testFile(std::filesystem::path path) {
     std::ifstream f(path);
     json data = json::parse(f);
-    std::cout << data << std::endl;
+    // ssstd::cout << data << std::endl;
     json initVarsJson = data["initialVars"];
     UVariable* initVars = getInitialVars(initVarsJson);
     size_t initVarLen = initVarsJson.size();
@@ -96,6 +96,16 @@ int testFile(std::filesystem::path path) {
         }
         
         UTranspilerOutput* result = runScriptExport(code, currentElement, initVars, initVarLen, visits, visitsLen);
+        if ((*it).contains("output"))
+        {
+            std::string output = (*it)["output"].template get<std::string>();
+            if (output.compare(result->output) != 0)
+            {
+                std::cout << "DIFFERENT" << std::endl;
+                std::cout << "EXPECTED: \"" << output << "\"" << std::endl << "ACTUAL: \"" << result->output << "\"" << std::endl;
+            }
+        }
+
         deallocateOutput(result);
         
         /*for (int i = 0; i < visitsLen; i++) {
@@ -120,8 +130,8 @@ int testFile(std::filesystem::path path) {
 
 int main()
 {
-    const std::filesystem::path path{ "D:\\arcweave\\unreal\\arcweave-unreal-example\\ArcweaveDemo\\Plugins\\arcweave\\Source\\arcweave\\test\\valid.json" };
+    const std::filesystem::path path{ "D:\\arcweave\\arcscript-interpreters\\CSharp\\__tests__\\stringConcat.json" };
     testFile(path);
-                
+
     system("pause");
 }

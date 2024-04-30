@@ -9,6 +9,7 @@
 #include <set>
 #include "ArcscriptExpression.h"
 #include "ArcscriptErrorExceptions.h"
+#include "ArcscriptOutputs.h"
 
 namespace Arcweave {
 
@@ -32,7 +33,7 @@ public:
   std::map<std::string, std::any> variableChanges;
   std::map<std::string, Variable> variableValues;
   std::map<std::string, std::string> varNameToID;
-  std::vector<std::string> outputs;
+  ArcscriptOutputs outputs;
   std::string currentElement;
   std::map<std::string, int> visits;
 

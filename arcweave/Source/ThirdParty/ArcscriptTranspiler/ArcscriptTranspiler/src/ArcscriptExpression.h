@@ -15,6 +15,7 @@ private:
 
   static NumberValues doubleValues(std::any value1, std::any value2) ;
 
+  static std::string valueToString(std::any value);
   static bool valueToBool(std::any value);
 public:
   std::any value;

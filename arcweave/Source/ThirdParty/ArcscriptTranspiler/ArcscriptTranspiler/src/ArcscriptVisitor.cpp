@@ -18,25 +18,61 @@ std::any ArcscriptVisitor::visitScript_section(ArcscriptParser::Script_sectionCo
     return std::any();
   }
 
-  if (ctx->NORMALTEXT().size() > 0) {
-    state->outputs.push_back(ctx->getText());
-    return ctx->getText();
+  if (const auto blockquote_contexts = ctx->blockquote(); !blockquote_contexts.empty())
+  {
+    std::vector<std::any> result;
+    for (const auto blockquote_context : blockquote_contexts)
+    {
+      result.push_back(visitBlockquote(blockquote_context));
+    }
+    return result;
+  }
+
+  if (const auto paragraph_contexts = ctx->paragraph(); !paragraph_contexts.empty())
+  {
+    std::vector<std::any> result;
+    for (const auto paragraph_context : paragraph_contexts)
+    {
+      result.push_back(visitParagraph(paragraph_context));
+    }
+    return result;
   }
 
   return visitChildren(ctx);
 }
 
+std::any ArcscriptVisitor::visitBlockquote(ArcscriptParser::BlockquoteContext* context)
+{
+  state->outputs.AddBlockquote();
+  visitChildren(context);
+  state->outputs.ExitBlockquote();
+  return context->getText();
+}
+
+std::any ArcscriptVisitor::visitParagraph(ArcscriptParser::ParagraphContext* context)
+{
+  auto paragraph_end = context->PARAGRAPHEND()->getText();
+  auto paragraph_content = paragraph_end.substr(0, paragraph_end.size() - 4); // size of "</p>"
+  state->outputs.AddParagraph(paragraph_content);
+  return context->getText();
+}
+
+
 std::any ArcscriptVisitor::visitAssignment_segment(ArcscriptParser::Assignment_segmentContext *ctx) {
+  state->outputs.AddScript();
   return visitStatement_assignment(ctx->statement_assignment());
 }
 
 std::any ArcscriptVisitor::visitFunction_call_segment(ArcscriptParser::Function_call_segmentContext *ctx) {
+  state->outputs.AddScript();
   return visitStatement_function_call(ctx->statement_function_call());
 }
 
 std::any ArcscriptVisitor::visitConditional_section(ArcscriptParser::Conditional_sectionContext *ctx) {
+  state->outputs.AddScript();
   ConditionalSection ifSection = std::any_cast<ConditionalSection>(visitIf_section(ctx->if_section()));
   if (ifSection.clause) {
+    state->outputs.AddScript();
     return ifSection.script;
   }
   for (ArcscriptParser::Else_if_sectionContext *else_if_section : ctx->else_if_section()) {
@@ -47,9 +83,10 @@ std::any ArcscriptVisitor::visitConditional_section(ArcscriptParser::Conditional
   }
   if (ctx->else_section() != NULL) {
     ConditionalSection elseSection = std::any_cast<ConditionalSection>(visitElse_section(ctx->else_section()));
+    state->outputs.AddScript();
     return elseSection.script;
   }
-
+  state->outputs.AddScript();
   return std::any();
 }
 
@@ -212,32 +249,34 @@ std::any ArcscriptVisitor::visitExpression(ArcscriptParser::ExpressionContext *c
 }
 
 std::any ArcscriptVisitor::visitAdditive_numeric_expression(ArcscriptParser::Additive_numeric_expressionContext *ctx) {
-  Expression mult_num_expr = std::any_cast<Expression>(visitMultiplicative_numeric_expression(ctx->multiplicative_numeric_expression()));
   if (ctx->additive_numeric_expression() != NULL) {
     Expression result = std::any_cast<Expression>(visitAdditive_numeric_expression(ctx->additive_numeric_expression()));
+    Expression mult_num_expr = std::any_cast<Expression>(visitMultiplicative_numeric_expression(ctx->multiplicative_numeric_expression()));
+
     if (ctx->ADD() != NULL) {
-      mult_num_expr = mult_num_expr + result;
+      mult_num_expr = result + mult_num_expr;
     }
     else if (ctx->SUB() != NULL) {
-      mult_num_expr = mult_num_expr - result;
+      mult_num_expr = result - mult_num_expr;
     }
   }
-  return mult_num_expr;
+  return std::any_cast<Expression>(visitMultiplicative_numeric_expression(ctx->multiplicative_numeric_expression()));
 }
 
 std::any ArcscriptVisitor::visitMultiplicative_numeric_expression(ArcscriptParser::Multiplicative_numeric_expressionContext *ctx) {
-  Expression signed_unary_num_expr = std::any_cast<Expression>(visitSigned_unary_numeric_expression(ctx->signed_unary_numeric_expression()));
   if (ctx->multiplicative_numeric_expression() != NULL) {
     Expression result = std::any_cast<Expression>(visitMultiplicative_numeric_expression(ctx->multiplicative_numeric_expression()));
+    Expression signed_unary_num_expr = std::any_cast<Expression>(visitSigned_unary_numeric_expression(ctx->signed_unary_numeric_expression()));
+
     if (ctx->MUL() != NULL) {
-      signed_unary_num_expr = signed_unary_num_expr * result;
+      signed_unary_num_expr = result * signed_unary_num_expr;
     }
     else if (ctx->DIV() != NULL) {
-      signed_unary_num_expr = signed_unary_num_expr / result;
+      signed_unary_num_expr = result / signed_unary_num_expr;
     }
   }
 
-  return signed_unary_num_expr;
+  return std::any_cast<Expression>(visitSigned_unary_numeric_expression(ctx->signed_unary_numeric_expression()));
 }
 
 std::any ArcscriptVisitor::visitSigned_unary_numeric_expression(ArcscriptParser::Signed_unary_numeric_expressionContext *ctx) {
@@ -263,6 +302,14 @@ std::any ArcscriptVisitor::visitUnary_numeric_expression(ArcscriptParser::Unary_
   if (ctx->INTEGER() != NULL) {
     Expression result(std::stoi(ctx->INTEGER()->getText()));
     return result;
+  }
+  if (ctx->STRING() != NULL) {
+    std::string result = ctx->STRING()->getText();
+    result = result.substr(1, result.size() - 2);
+    return Expression(result);
+  }
+  if (ctx->BOOLEAN() != NULL) {
+    return Expression(ctx->BOOLEAN()->getText() == "true");
   }
   if (ctx->VARIABLE() != NULL) {
     std::string variableName = ctx->VARIABLE()->getText();
