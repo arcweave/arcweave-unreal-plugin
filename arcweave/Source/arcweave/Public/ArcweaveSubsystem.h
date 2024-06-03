@@ -60,6 +60,14 @@ public:
     FArcscriptTranspilerOutput TranspileCondition(FString ConditionId, bool& Success);
     bool GetBoardForObject(FString ObjectId, FArcweaveElementData& OutElement, FArcweaveBoardData*& OutBoardObj);
 
+    /*
+     * Sets the current state of the variable
+     * This will not change the value in the Arcweave project
+     * Be careful with new values, they should be in the same format as the original value
+     */
+    UFUNCTION(BlueprintCallable, Category = "Arcweave")
+    void SetVariable(FString Id, FString NewValue);
+
 public:
     
 	UPROPERTY(BlueprintAssignable, Category = "Arcweave")

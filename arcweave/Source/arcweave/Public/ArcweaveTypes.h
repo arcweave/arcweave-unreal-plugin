@@ -48,7 +48,7 @@ struct FArcweaveVariable
     UPROPERTY(BlueprintReadWrite, Category = "Arcweave")
 	FString Type;
     UPROPERTY(BlueprintReadWrite, Category = "Arcweave")
-	FString Value; // we can easily convert this to a more specific type later
+	FString Value;
 
 	FArcweaveVariable() {
 		Id = FString("");

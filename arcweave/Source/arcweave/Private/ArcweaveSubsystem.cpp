@@ -244,6 +244,26 @@ bool UArcweaveSubsystem::GetBoardForObject(FString ObjectId, FArcweaveElementDat
     return false;
 }
 
+void UArcweaveSubsystem::SetVariable(FString Id, FString NewValue)
+{
+    if (Id.IsEmpty())
+    {
+        UE_LOG(LogArcwarePlugin, Error, TEXT("Cannot change the variable wothout the id, exiting"));
+        return;
+    }
+    TArray<FArcweaveVariable> ChangedVariables;
+    if (ProjectData.CurrentVars.Contains(Id))
+    {
+        ProjectData.CurrentVars[Id].Value = NewValue;
+        ChangedVariables.Add(ProjectData.CurrentVars[Id]);
+        OnArcweaveVariableChanged.Broadcast(ChangedVariables);
+    }
+    else
+    {
+        UE_LOG(LogArcwarePlugin, Error, TEXT("Varible with id: %s, cannot be found in the project variables"), *Id);
+    }
+}
+
 FArcweaveElementData UArcweaveSubsystem::TranspileObject(FString ObjectId, bool& Success)
 {
     Success = false;
