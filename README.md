@@ -52,6 +52,9 @@ It provides a range of functions that can be utilized in both Blueprints and C++
 6. **Run Transpiler for the Condition**
    - This function runs the transpiler for a specific condition. It requires the condition ID as an input.
 
+7. **Set Variable**
+   - This function lets you modify the current variable value outside the dialogue logic. From anywhere in the project. You only need to provide the variable ID.
+
 These functions provide a comprehensive set of tools for interacting with the Arcweave API and managing project data within your Unreal Engine project.
 
 ## Using the Demo Project
