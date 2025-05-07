@@ -264,7 +264,127 @@ void UArcweaveSubsystem::SetVariable(FString Id, FString NewValue)
     }
 }
 
-FArcweaveElementData UArcweaveSubsystem::TranspileObject(FString ObjectId, bool& Success)
+void UArcweaveSubsystem::EvaluateCondition(const FArcweaveConditionData& Condition, FArcscriptTranspilerOutput& TranspilerOutput)
+{
+    UE_LOG(LogArcwarePlugin, Warning,
+        TEXT("Transpiling condition %s..."), *Condition.Id);
+
+    bool bTranspileSucceeded = false;
+    TranspilerOutput = TranspileCondition(Condition.Id, bTranspileSucceeded);
+
+    if (!bTranspileSucceeded)
+    {
+        UE_LOG(LogArcwarePlugin, Error,
+            TEXT("Transpile failed for condition %s"), *Condition.Id);
+    }
+
+    //log the result
+    if (TranspilerOutput.ConditionResult)
+    {
+        UE_LOG(LogArcwarePlugin, Log,
+            TEXT("Condition %s is true"), *Condition.Id);
+    }
+    else
+    {
+        UE_LOG(LogArcwarePlugin, Log,
+            TEXT("Condition %s is false"), *Condition.Id);
+    }
+}
+
+FArcweaveConnectionsData UArcweaveSubsystem::TryGetNExtConnectionData(const FArcweaveBoardData& BoardData,
+    const FArcweaveBranchData& Branch, const FArcweaveConditionData* FiredConditionData)
+{
+    FArcweaveConnectionsData Next = GetConnectionsData(BoardData, FiredConditionData->Output);
+    if (Next.Id.IsEmpty())
+    {
+        UE_LOG(LogArcwarePlugin, Error,
+               TEXT("No connection found for branch %s → output %s"),
+               *Branch.Id, *FiredConditionData->Output);
+    }
+    return Next;
+}
+
+FGetIsTargetBranchOutput UArcweaveSubsystem::GetIsTargetBranch(
+    const FArcweaveBoardData& BoardData,
+    const FArcweaveConnectionsData& TargetConnection)
+{
+    FGetIsTargetBranchOutput Result;
+
+    for (const FArcweaveBranchData& Branch : BoardData.Branches)
+    {
+        if (Branch.Id != TargetConnection.Targetid)
+        {
+            continue;
+        }
+
+        Result.IsBranch = true;
+        Result.BranchData = Branch;
+        const FArcweaveConditionData* FiredConditionData = nullptr;
+        FArcscriptTranspilerOutput TranspilerOutput = FArcscriptTranspilerOutput();
+        EvaluateCondition(Branch.IfCondition, TranspilerOutput);
+        Result.BranchConditionResult = TranspilerOutput.ConditionResult;
+
+        if (Result.BranchConditionResult)
+        {
+            FiredConditionData = &Branch.IfCondition;
+            FArcweaveConnectionsData Next = TryGetNExtConnectionData(BoardData, Branch, FiredConditionData);
+            if (!Next.Id.IsEmpty())
+            {
+                Result.BranchConnections.Add(MoveTemp(Next));
+            }
+            break;
+        }
+        else
+        {
+            for (const auto& ElseIf : Branch.ElseIfConditions)
+            {
+                EvaluateCondition(ElseIf, TranspilerOutput);
+                if (TranspilerOutput.ConditionResult)
+                {
+                    FiredConditionData = &ElseIf;
+                    break;
+                }
+            }
+
+            if (!Branch.ElseCondition.Id.IsEmpty())
+            {
+                if (!FiredConditionData)
+                {
+                    FiredConditionData = &Branch.ElseCondition;
+                }
+            }
+
+            if (FiredConditionData)
+            {
+                FArcweaveConnectionsData Next = TryGetNExtConnectionData(BoardData, Branch, FiredConditionData);
+                if (!Next.Id.IsEmpty())
+                {
+                    Result.BranchConnections.Add(MoveTemp(Next));
+                }
+            }
+            break;
+        }
+
+    }
+
+    return Result;
+}
+
+FArcweaveConnectionsData UArcweaveSubsystem::GetConnectionsData(const FArcweaveBoardData BoardData, const FString& ConnectionId) const
+{
+    FArcweaveConnectionsData Result = FArcweaveConnectionsData();
+    for (const auto& Connection : BoardData.Connections)
+    {
+        if (Connection.Id == ConnectionId)
+        {
+            Result = Connection;
+            break;
+        }
+    }
+        return Result;
+}
+
+FArcweaveElementData UArcweaveSubsystem::TranspileObject(FString ObjectId, bool& Success, bool bStripHtmlTags /*true*/)
 {
     Success = false;
     FArcweaveElementData Element;
@@ -286,7 +406,14 @@ FArcweaveElementData UArcweaveSubsystem::TranspileObject(FString ObjectId, bool&
         FArcscriptTranspilerOutput Output = RunTranspiler(Element.Content, Element.Id, ProjectData.CurrentVars, NewBoardObj->Visits);
         NewBoardObj->Visits[ObjectId] += 1;
         //UE_LOG(LogArcwarePlugin, Log, TEXT("Visits counter for id: %s is: %d"), *ObjectId, NewBoardObj->Visits[ObjectId]);
-        Element.Content = RemoveHtmlTags(Output.Output);
+        if (bStripHtmlTags)
+        {
+            Element.Content = RemoveHtmlTags(Output.Output);            
+        }
+        else
+        {
+            Element.Content = Output.Output;
+        }
         Success = true;
     }
     catch (...)
@@ -294,6 +421,66 @@ FArcweaveElementData UArcweaveSubsystem::TranspileObject(FString ObjectId, bool&
     }
         
     return Element;
+}
+
+FArcscriptTranspilerOutput UArcweaveSubsystem::TranspileConnection(
+    FString ConnectionId,
+    const FString ScriptData,
+    bool& Success,
+    bool bStripHtmlTags,
+    FArcweaveBoardData& BoardObjRef)
+{
+    Success = false;
+    FArcscriptTranspilerOutput Output;
+    FArcweaveConnectionsData Connection;
+    if (BoardObjRef.BoardId.IsEmpty() || ConnectionId.IsEmpty())
+    {
+        UE_LOG(LogArcwarePlugin, Error, TEXT(" Cannot find transpile data for connection id: %s"), *ConnectionId);
+        return Output;
+    }
+    //run the transpiler
+    try
+    {
+        //FString ScriptModified = FString("<pre><code>") + ConditionData.Script + FString("</code></pre>");
+        Output = RunTranspiler(ScriptData, ConnectionId, ProjectData.CurrentVars, BoardObjRef.Visits);
+        if (BoardObjRef.Visits.Contains(ConnectionId))
+        {
+            BoardObjRef.Visits[ConnectionId] += 1;
+        }
+        else
+        {
+            BoardObjRef.Visits.Add(ConnectionId, 1);
+        }
+        if (bStripHtmlTags)
+        {
+            Output.Output = RemoveHtmlTags(Output.Output);
+        }
+        //UE_LOG(LogArcwarePlugin, Log, TEXT("Visits counter for id: %s is: %d"), *ObjectId, NewBoardObj->Visits[ObjectId]);
+        Success = true;
+    }
+    catch (...)
+    {
+    }
+        
+    return Output;
+}
+
+bool UArcweaveSubsystem::GetBoardForConnection(FString ConnectionId, FArcweaveConnectionsData& OutConnection,
+    FArcweaveBoardData*& OutBoardObj)
+{
+    for (auto& Board : ProjectData.Boards)
+    {
+        for (auto& ConnectionObj : Board.Connections)
+        {
+            if (ConnectionObj.Id == ConnectionId)
+            {
+                OutBoardObj = &Board;
+                OutConnection = ConnectionObj;
+                return true;
+            }
+        }
+    }
+    return false;
 }
 
 FString UArcweaveSubsystem::RemoveHtmlTags(const FString& InputString)
@@ -418,17 +605,20 @@ TArray<FArcweaveBoardData> UArcweaveSubsystem::ParseBoard(const TSharedPtr<FJson
             FArcweaveBoardData Board;
             Board.BoardId = BoardPair.Key;
 
-            FString BoardName;
-            if (BoardValueObject->TryGetStringField("name", BoardName))
+            if (!BoardValueObject->TryGetStringField("name",  Board.Name))
             {
-                Board.Name = BoardName;
+                UE_LOG(LogArcwarePlugin, Error, TEXT("Board name not found for board %s"), *Board.BoardId);
+            }
+            if (BoardValueObject->TryGetStringField("customId", Board.CustomId))
+            {
+                UE_LOG(LogArcwarePlugin, Log, TEXT("Custom id for board %s is: %s"), *Board.BoardId, *Board.CustomId);
             }
             
            Board.Visits = InitVisist(BoardValueObject, Board);
            Board.Elements = ParseElements(MainJsonObject, BoardValueObject, Board);
-           Board.Connections = ParseConnections(FString("connections"), MainJsonObject, BoardValueObject);
            Board.Branches = ParseBranches(MainJsonObject, BoardValueObject,Board);
            Board.Jumpers = ParseJumpers(MainJsonObject, BoardValueObject, Board);
+           Board.Connections = ParseConnections(FString("connections"), MainJsonObject, BoardValueObject, Board);
            Boards.Add(Board);
         }
     }
@@ -470,9 +660,12 @@ TMap<FString, FArcweaveVariable> UArcweaveSubsystem::ParseVariables(const TShare
     return InitialVars;
 }
 
-TArray<FArcweaveConnectionsData> UArcweaveSubsystem::ParseConnections(const FString& FieldName, const TSharedPtr<FJsonObject>& MainJsonObject, const TSharedPtr<FJsonObject>& ParentValueObject)
+TArray<FArcweaveConnectionsData> UArcweaveSubsystem::ParseConnections(const FString& FieldName,
+    const TSharedPtr<FJsonObject>& MainJsonObject,
+    const TSharedPtr<FJsonObject>& ParentValueObject,
+    FArcweaveBoardData& BoardObjRef)
 {
-      // Parse "connections" as an array of connection data structs
+    // Parse "connections" as an array of connection data structs
     TArray<FArcweaveConnectionsData> Connections;
     TArray<FString> ConnectionsArrayStrings;
     if (ParentValueObject->TryGetStringArrayField(FieldName, ConnectionsArrayStrings))
@@ -493,9 +686,35 @@ TArray<FArcweaveConnectionsData> UArcweaveSubsystem::ParseConnections(const FStr
 
                         if (ConObject.IsValid())
                         {
-                            FString DirtyLabel = FString("");
-                            ConObject->TryGetStringField("label", DirtyLabel);
-                            Connection.Label = RemoveHtmlTags(DirtyLabel);                            
+                            FString RawLabel = FString("");
+
+                                if (ConObject->TryGetStringField("label", RawLabel))
+                                {
+                                    const FRegexPattern CodeBlockPattern(TEXT(R"(<pre><code>[\s\S]*?</code></pre>)"));
+                                    FRegexMatcher Matcher(CodeBlockPattern, RawLabel);
+                                    if (Matcher.FindNext())
+                                    {
+                                        bool bTranspileSucceeded = false;
+                                        FArcscriptTranspilerOutput TranspilerOutput = TranspileConnection(
+                                            Connection.Id,
+                                            RawLabel,
+                                            bTranspileSucceeded,
+                                            true,
+                                            BoardObjRef);
+
+                                        if (!bTranspileSucceeded)
+                                        {
+                                            UE_LOG(LogArcwarePlugin, Error,
+                                                TEXT("Transpile failed for connection %s"), *Connection.Id);
+                                            //Connection.Label = RemoveHtmlTags(RawLabel);
+                                        }
+                                        Connection.Label = TranspilerOutput.Output;
+                                    }
+                                    else
+                                    {
+                                        Connection.Label = RemoveHtmlTags(RawLabel);
+                                    }
+                                }
                             ConObject->TryGetStringField("type", Connection.Type);
                             ConObject->TryGetStringField("theme", Connection.Theme);
                             ConObject->TryGetStringField("sourceid", Connection.Sourceid);
@@ -504,7 +723,6 @@ TArray<FArcweaveConnectionsData> UArcweaveSubsystem::ParseConnections(const FStr
                             ConObject->TryGetStringField("targetType", Connection.TargetType);
                             //LogStructFields(&Connection, FArcweaveConnectionsData::StaticStruct());
                         }
-
                         Connections.Add(Connection);
                     }
                 }
@@ -514,7 +732,10 @@ TArray<FArcweaveConnectionsData> UArcweaveSubsystem::ParseConnections(const FStr
     return Connections;
 }
 
-TArray<FArcweaveElementData> UArcweaveSubsystem::ParseElements(const TSharedPtr<FJsonObject>& MainJsonObject, const TSharedPtr<FJsonObject>& BoardValueObject, FArcweaveBoardData& OutBoardObj)
+TArray<FArcweaveElementData> UArcweaveSubsystem::ParseElements(
+    const TSharedPtr<FJsonObject>& MainJsonObject,
+    const TSharedPtr<FJsonObject>& BoardValueObject,
+    FArcweaveBoardData& BoardObjRef)
 {
     TArray<FArcweaveElementData> Elements;
      // Parse "elements" as an array of element data structs
@@ -523,12 +744,12 @@ TArray<FArcweaveElementData> UArcweaveSubsystem::ParseElements(const TSharedPtr<
     {
         for (const FString& ElementId : ElementArrayStrings)
         {
-            OutBoardObj.Visits.Add(ElementId, 0);
+            BoardObjRef.Visits.Add(ElementId, 0);
         }
         //then search for the element pairs
         for (const FString& ElementId : ElementArrayStrings)
         {
-            FArcweaveElementData Element = ExtractElementData(MainJsonObject, ElementId);
+            FArcweaveElementData Element = ExtractElementData(MainJsonObject, ElementId, BoardObjRef);
             Elements.Add(Element);
         }        
     }
@@ -569,13 +790,15 @@ TArray<FArcweaveBranchData> UArcweaveSubsystem::ParseBranches(const TSharedPtr<F
                         Branch.ElseCondition = ParseConditionData(MainJsonObject, ConditionsObject, FString("elseCondition"), OutBoardObj);
                         
                         // Extract "elseIfConditions" array
-                        const TArray<TSharedPtr<FJsonValue>>* ElseIfConditionsArray;
+                        const TArray<TSharedPtr<FJsonValue>>* ElseIfConditionsArray = nullptr;
                         if (ConditionsObject->TryGetArrayField("elseIfConditions", ElseIfConditionsArray))
                         {
-                            for (const TSharedPtr<FJsonValue>& ElseIfValue : *ElseIfConditionsArray)
+                            for (const auto& ElseIfValue : *ElseIfConditionsArray)
                             {
-                                FArcweaveConditionData ElseIfConditionSingle = ParseConditionData(MainJsonObject, ConditionsObject, FString("elseIfCondition"), OutBoardObj);
-                                Branch.ElseIfConditions.Add(ElseIfConditionSingle);
+                                FString ElseIfId = ElseIfValue->AsString();
+                                FArcweaveConditionData ElseIfData = ParseConditionById(MainJsonObject, ElseIfId, OutBoardObj);
+
+                                Branch.ElseIfConditions.Add(MoveTemp(ElseIfData));
                             }
                         }
 
@@ -588,6 +811,39 @@ TArray<FArcweaveBranchData> UArcweaveSubsystem::ParseBranches(const TSharedPtr<F
     }
     return Branches;            
 }
+
+FArcweaveConditionData UArcweaveSubsystem::ParseConditionById(
+    const TSharedPtr<FJsonObject>& MainJsonObject,
+    const FString& ConditionId,
+    FArcweaveBoardData& OutBoardObj)
+{
+    FArcweaveConditionData ConditionData;
+    ConditionData.Id = ConditionId;
+    OutBoardObj.Visits.Add(ConditionId, 0);
+
+    // Pull out the "conditions" block from the root
+    const TSharedPtr<FJsonObject>* ConditionsRoot = nullptr;
+    if (!MainJsonObject->TryGetObjectField("conditions", ConditionsRoot))
+    {
+        return ConditionData;
+    }
+
+    if (const TSharedPtr<FJsonValue>* Found = ConditionsRoot->Get()->Values.Find(ConditionId))
+    {
+        const TSharedPtr<FJsonObject>& Obj = (*Found)->AsObject();
+
+        FString Output;
+        if (Obj->TryGetStringField("output", Output))
+            ConditionData.Output = Output.IsEmpty() ? TEXT("empty") : Output;
+
+        FString Script;
+        if (Obj->TryGetStringField("script", Script))
+            ConditionData.Script = Script.IsEmpty() ? TEXT("empty") : Script;
+    }
+
+    return ConditionData;
+}
+
 
 TArray<FArcweaveJumpersData> UArcweaveSubsystem::ParseJumpers(const TSharedPtr<FJsonObject>& MainJsonObject,
     const TSharedPtr<FJsonObject>& BoardValueObject, FArcweaveBoardData& OutBoardObj)
@@ -620,7 +876,7 @@ TArray<FArcweaveJumpersData> UArcweaveSubsystem::ParseJumpers(const TSharedPtr<F
                         {
                             FString ElementId = FString("");
                             JumperDataObject->TryGetStringField("elementId", ElementId);
-                            FArcweaveElementData Element = ExtractElementData(MainJsonObject, ElementId);
+                            FArcweaveElementData Element = ExtractElementData(MainJsonObject, ElementId, OutBoardObj);
                             Jumper.ElementData = Element;
                         }
                         Jumpers.Add(Jumper); 
@@ -632,7 +888,10 @@ TArray<FArcweaveJumpersData> UArcweaveSubsystem::ParseJumpers(const TSharedPtr<F
     return Jumpers;            
 }
 
-FArcweaveElementData UArcweaveSubsystem::ExtractElementData(const TSharedPtr<FJsonObject>& MainJsonObject, const FString& ElementId)
+FArcweaveElementData UArcweaveSubsystem::ExtractElementData(
+    const TSharedPtr<FJsonObject>& MainJsonObject,
+    const FString& ElementId,
+    FArcweaveBoardData& BoardObjRef)
 {
     FArcweaveElementData Element;
     const TSharedPtr<FJsonObject>* ElementsObject;
@@ -657,7 +916,7 @@ FArcweaveElementData UArcweaveSubsystem::ExtractElementData(const TSharedPtr<FJs
                     FString DirtyContent = FString("");
                     ElementValueObject->TryGetStringField("content", Element.Content);
                     //FArcscriptTranspilerOutput Output = RunTranspiler(DirtyContent, Element.Id, ProjectData.InitialVars, BoardObj.Visits);
-                    Element.Outputs = ParseConnections(FString("outputs"), MainJsonObject, ElementValueObject);
+                    Element.Outputs = ParseConnections(FString("outputs"), MainJsonObject, ElementValueObject, BoardObjRef);
                     Element.Components = ParseComponents(MainJsonObject, ElementValueObject);
                     Element.Attributes = ParseObjectAttributes(MainJsonObject, ElementValueObject);
                 }
@@ -724,11 +983,19 @@ TMap<FString, int> UArcweaveSubsystem::InitVisist(const TSharedPtr<FJsonObject>&
     //add the visits to the board data
     TMap<FString, int> AllVisits;
     TArray<FString> ElementArrayStrings;
+    TArray<FString> ConnectionsArrayStrings;
     if (BoardValueObject->TryGetStringArrayField("elements", ElementArrayStrings))
     {
         for (const FString& ElementId : ElementArrayStrings)
         {
            AllVisits.Add(ElementId, 0);
+        }
+    }
+    if (BoardValueObject->TryGetStringArrayField("connections", ConnectionsArrayStrings))
+    {
+        for (const FString& ConnectionId : ConnectionsArrayStrings)
+        {
+            AllVisits.Add(ConnectionId, 0);
         }
     }
     return AllVisits;
@@ -804,6 +1071,57 @@ TArray<FArcweaveComponentData> UArcweaveSubsystem::ParseAllComponents(const TSha
     return Components;
 }
 
+TArray<FArcweaveConditionData> UArcweaveSubsystem::ParseAllConditions(const TSharedPtr<FJsonObject>& MainJsonObject)
+{
+    TArray<FArcweaveConditionData> Conditions;
+    const TSharedPtr<FJsonObject>* CondObject;
+    if (MainJsonObject->TryGetObjectField("conditions", CondObject))
+    {
+        for (const auto& CompPair : CondObject->Get()->Values)
+        {
+            FArcweaveConditionData ConditionData;
+            ConditionData.Id = CompPair.Key;
+            const TSharedPtr<FJsonObject> ComponentValueObject = CompPair.Value->AsObject();
+
+            if (ComponentValueObject.IsValid())
+            {
+                ComponentValueObject->TryGetStringField("output", ConditionData.Output);
+                ComponentValueObject->TryGetStringField("script", ConditionData.Script);
+                Conditions.Add(ConditionData);
+            }
+        }
+    }                          
+    return Conditions;
+}
+
+TArray<FArcweaveConnectionsData> UArcweaveSubsystem::ParseAllConnections(const TSharedPtr<FJsonObject>& MainJsonObject)
+{
+    TArray<FArcweaveConnectionsData> Connections;
+    const TSharedPtr<FJsonObject>* CondObject;
+    if (MainJsonObject->TryGetObjectField("connections", CondObject))
+    {
+        for (const auto& CompPair : CondObject->Get()->Values)
+        {
+            FArcweaveConnectionsData ConditionData;
+            ConditionData.Id = CompPair.Key;
+            const TSharedPtr<FJsonObject> ComponentValueObject = CompPair.Value->AsObject();
+
+            if (ComponentValueObject.IsValid())
+            {
+                ComponentValueObject->TryGetStringField("type", ConditionData.Type);
+                ComponentValueObject->TryGetStringField("label", ConditionData.Label);
+                ComponentValueObject->TryGetStringField("theme", ConditionData.Theme);
+                ComponentValueObject->TryGetStringField("sourceid", ConditionData.Sourceid);
+                ComponentValueObject->TryGetStringField("targetid", ConditionData.Targetid);
+                ComponentValueObject->TryGetStringField("sourceType", ConditionData.SourceType);
+                ComponentValueObject->TryGetStringField("targetType", ConditionData.TargetType);
+                Connections.Add(ConditionData);
+            }
+        }
+    }                          
+    return Connections;
+}
+
 FArcweaveCoverData UArcweaveSubsystem::ParseCoverData(const TSharedPtr<FJsonObject>& CoverValueObject)
 {
     FArcweaveCoverData CoverData;
@@ -847,6 +1165,8 @@ void UArcweaveSubsystem::ParseResponse(const FString& ResponseString)
         ProjectData.Cover = ParseCoverData(RootObject);        
         ProjectData.CurrentVars = ParseVariables(RootObject);
         ProjectData.Components = ParseAllComponents(RootObject);
+        ProjectData.Conditions = ParseAllConditions(RootObject);
+        ProjectData.Connections = ParseAllConnections(RootObject);
         ProjectData.Boards = ParseBoard(RootObject);
         OnArcweaveResponseReceived.Broadcast(ProjectData);
         //LogStructFieldsRecursive(&ProjectData, FArcweaveProjectData::StaticStruct(),0);
@@ -1007,15 +1327,22 @@ void UArcweaveSubsystem::LogFetchStatus(const bool& Success, const FString& Mess
 
 void UArcweaveSubsystem::HandleFetch(FHttpRequestPtr Request, FHttpResponsePtr Response, bool bWasSuccessful)
 {
-    if (bWasSuccessful && Response.IsValid())
+    if (!bWasSuccessful || !Response.IsValid())
     {
-        FString ResponseString = Response->GetContentAsString();
-        ParseResponse(ResponseString);
+        UE_LOG(LogArcwarePlugin, Error, TEXT("HTTP request failed outright."));
+        return;
+    }
+
+    int32 StatusCode = Response->GetResponseCode();
+    FString ResponseBody = Response->GetContentAsString();
+
+    if (StatusCode == 200)
+    {
+        ParseResponse(ResponseBody);
     }
     else
     {
-        // Handle error here.
-        UE_LOG(LogArcwarePlugin, Error, TEXT("HTTP Request failed!"));
-        LogFetchStatus(false, Response->GetContentAsString());
+        FString ErrorMessage = FString::Printf(TEXT("HTTP Error %d: %s"), StatusCode, *ResponseBody);
+        LogFetchStatus(false, ErrorMessage);
     }
 }

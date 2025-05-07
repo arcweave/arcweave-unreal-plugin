@@ -19,7 +19,8 @@ public:
     UArcweaveSettings();
 
     /*
-     * API token that you can find in your Arcweave account settings.
+     * Enable to receive the data from local JSON file instead of API.
+     * The JSON file and resource files should be located in the Content/ArcweaveExport folder.
      */
     UPROPERTY(Config, EditAnywhere, Category = ArcweaveSettings)
     bool EnableReceiveMethodFromLocalJSON = false;
