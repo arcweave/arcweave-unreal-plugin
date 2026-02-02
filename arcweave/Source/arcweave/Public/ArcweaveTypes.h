@@ -425,9 +425,6 @@ struct FArcweaveBoardData
     TArray<FArcweaveBranchData>  Branches = TArray<FArcweaveBranchData>();
 
     UPROPERTY(BlueprintReadWrite, Category = "Arcweave")
-    TMap<FString, int>  Visits =TMap<FString, int>();
-
-    UPROPERTY(BlueprintReadWrite, Category = "Arcweave")
     TArray<FArcweaveConnectionsData> Connections = TArray<FArcweaveConnectionsData>();
 
     FArcweaveBoardData()
@@ -437,7 +434,6 @@ struct FArcweaveBoardData
         , Jumpers(TArray<FArcweaveJumpersData>())
         , Elements(TArray<FArcweaveElementData>())
         , Branches(TArray<FArcweaveBranchData>())
-        , Visits(TMap<FString, int>())
         , Connections(TArray<FArcweaveConnectionsData>())
     {}
 };
@@ -473,6 +469,9 @@ struct FArcweaveProjectData
     //project connections
     UPROPERTY(BlueprintReadWrite, Category = "Arcweave")
     TArray<FArcweaveConnectionsData> Connections = TArray<FArcweaveConnectionsData>();
+
+    UPROPERTY(BlueprintReadWrite, Category = "Arcweave")
+    TMap<FString, int> Visits = TMap<FString, int>();
     
     //constructor
     FArcweaveProjectData()
@@ -481,6 +480,7 @@ struct FArcweaveProjectData
         , CurrentVars(TMap<FString, FArcweaveVariable>())
         , Boards(TArray<FArcweaveBoardData>())
         , Components(TArray<FArcweaveComponentData>())
+        , Visits(TMap<FString, int>())
     {}
 };
 

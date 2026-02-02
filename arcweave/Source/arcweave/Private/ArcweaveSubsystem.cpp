@@ -201,13 +201,13 @@ FArcscriptTranspilerOutput UArcweaveSubsystem::TranspileCondition(FString Condit
         {
             //run the transpiler
             FString ScriptModified = FString("<pre><code>") + ConditionData.Script + FString("</code></pre>");
-            Output = RunTranspiler(ScriptModified, ConditionData.Id, ProjectData.CurrentVars, NewBoardObj->Visits);
-            NewBoardObj->Visits[ConditionId] += 1;
+            ProjectData.Visits[ConditionId] += 1;
+            Output = RunTranspiler(ScriptModified, ConditionData.Id, ProjectData.CurrentVars, ProjectData.Visits);
         }
         else
         {
             bool IsScriptsVisitsPositive = IsScriptVisitsPositive(ConditionData.Script);
-            const int* VisitsCounter = NewBoardObj->Visits.Find(ScriptDataId);
+            const int* VisitsCounter = ProjectData.Visits.Find(ScriptDataId);
             if (VisitsCounter)
             {
                 Output.ConditionResult = *VisitsCounter > 0;
@@ -404,8 +404,8 @@ FArcweaveElementData UArcweaveSubsystem::TranspileObject(FString ObjectId, bool&
     //run the transpiler
     try
     {
-        FArcscriptTranspilerOutput Output = RunTranspiler(Element.Content, Element.Id, ProjectData.CurrentVars, NewBoardObj->Visits);
-        NewBoardObj->Visits[ObjectId] += 1;
+        ProjectData.Visits[ObjectId] += 1;
+        FArcscriptTranspilerOutput Output = RunTranspiler(Element.Content, Element.Id, ProjectData.CurrentVars, ProjectData.Visits);
         //UE_LOG(LogArcwarePlugin, Log, TEXT("Visits counter for id: %s is: %d"), *ObjectId, NewBoardObj->Visits[ObjectId]);
         if (bStripHtmlTags)
         {
@@ -443,20 +443,20 @@ FArcscriptTranspilerOutput UArcweaveSubsystem::TranspileConnection(
     try
     {
         //FString ScriptModified = FString("<pre><code>") + ConditionData.Script + FString("</code></pre>");
-        Output = RunTranspiler(ScriptData, ConnectionId, ProjectData.CurrentVars, BoardObjRef.Visits);
-        if (BoardObjRef.Visits.Contains(ConnectionId))
+        if (ProjectData.Visits.Contains(ConnectionId))
         {
-            BoardObjRef.Visits[ConnectionId] += 1;
+            ProjectData.Visits[ConnectionId] += 1;
         }
         else
         {
-            BoardObjRef.Visits.Add(ConnectionId, 1);
+            ProjectData.Visits.Add(ConnectionId, 1);
         }
+        Output = RunTranspiler(ScriptData, ConnectionId, ProjectData.CurrentVars, ProjectData.Visits);
         if (bStripHtmlTags)
         {
             Output.Output = RemoveHtmlTags(Output.Output);
         }
-        //UE_LOG(LogArcwarePlugin, Log, TEXT("Visits counter for id: %s is: %d"), *ObjectId, NewBoardObj->Visits[ObjectId]);
+        //UE_LOG(LogArcwarePlugin, Log, TEXT("Visits counter for id: %s is: %d"), *ObjectId, ProjectData.Visits[ObjectId]);
         Success = true;
     }
     catch (...)
@@ -615,7 +615,6 @@ TArray<FArcweaveBoardData> UArcweaveSubsystem::ParseBoard(const TSharedPtr<FJson
                 UE_LOG(LogArcwarePlugin, Log, TEXT("Custom id for board %s is: %s"), *Board.BoardId, *Board.CustomId);
             }
             
-           Board.Visits = InitVisist(BoardValueObject, Board);
            Board.Elements = ParseElements(MainJsonObject, BoardValueObject, Board);
            Board.Branches = ParseBranches(MainJsonObject, BoardValueObject,Board);
            Board.Jumpers = ParseJumpers(MainJsonObject, BoardValueObject, Board);
@@ -743,10 +742,6 @@ TArray<FArcweaveElementData> UArcweaveSubsystem::ParseElements(
     TArray<FString> ElementArrayStrings;
     if (BoardValueObject->TryGetStringArrayField(TEXT("elements"), ElementArrayStrings))
     {
-        for (const FString& ElementId : ElementArrayStrings)
-        {
-            BoardObjRef.Visits.Add(ElementId, 0);
-        }
         //then search for the element pairs
         for (const FString& ElementId : ElementArrayStrings)
         {
@@ -763,10 +758,6 @@ TArray<FArcweaveBranchData> UArcweaveSubsystem::ParseBranches(const TSharedPtr<F
     TArray<FString> BranchesArrayStrings;
     if (BoardValueObject->TryGetStringArrayField(TEXT("branches"), BranchesArrayStrings))
     {
-        for (const FString& BranchId : BranchesArrayStrings)
-        {
-            OutBoardObj.Visits.Add(BranchId, 0);
-        }
         //then search for the element pairs
         for (const FString& BranchId : BranchesArrayStrings)
         {
@@ -797,7 +788,7 @@ TArray<FArcweaveBranchData> UArcweaveSubsystem::ParseBranches(const TSharedPtr<F
                             for (const auto& ElseIfValue : *ElseIfConditionsArray)
                             {
                                 FString ElseIfId = ElseIfValue->AsString();
-                                FArcweaveConditionData ElseIfData = ParseConditionById(MainJsonObject, ElseIfId, OutBoardObj);
+                                FArcweaveConditionData ElseIfData = ParseConditionById(MainJsonObject, ElseIfId);
 
                                 Branch.ElseIfConditions.Add(MoveTemp(ElseIfData));
                             }
@@ -815,12 +806,10 @@ TArray<FArcweaveBranchData> UArcweaveSubsystem::ParseBranches(const TSharedPtr<F
 
 FArcweaveConditionData UArcweaveSubsystem::ParseConditionById(
     const TSharedPtr<FJsonObject>& MainJsonObject,
-    const FString& ConditionId,
-    FArcweaveBoardData& OutBoardObj)
+    const FString& ConditionId)
 {
     FArcweaveConditionData ConditionData;
     ConditionData.Id = ConditionId;
-    OutBoardObj.Visits.Add(ConditionId, 0);
 
     // Pull out the "conditions" block from the root
     const TSharedPtr<FJsonObject>* ConditionsRoot = nullptr;
@@ -853,10 +842,6 @@ TArray<FArcweaveJumpersData> UArcweaveSubsystem::ParseJumpers(const TSharedPtr<F
     TArray<FString> JumpersArrayStrings;
     if (BoardValueObject->TryGetStringArrayField(TEXT("jumpers"), JumpersArrayStrings))
     {
-        for (const FString& JumperId : JumpersArrayStrings)
-        {
-            OutBoardObj.Visits.Add(JumperId, 0);
-        }
         //then search for the elements for jumpers
         for (const FString& JumperId : JumpersArrayStrings)
         {
@@ -943,7 +928,6 @@ FArcweaveConditionData UArcweaveSubsystem::ParseConditionData(const TSharedPtr<F
                 {
                     const TSharedPtr<FJsonObject>& ConditionDataObject = ConditionPair.Value->AsObject();
                     ConditionData.Id = ConditionPair.Key;
-                    OutBoardObj.Visits.Add(ConditionData.Id, 0);
                     //output
                     FString Output = FString("");
                     if (ConditionDataObject->TryGetStringField(TEXT("output"), Output))
@@ -979,26 +963,35 @@ FArcweaveConditionData UArcweaveSubsystem::ParseConditionData(const TSharedPtr<F
 }
 
 
-TMap<FString, int> UArcweaveSubsystem::InitVisist(const TSharedPtr<FJsonObject>& BoardValueObject, FArcweaveBoardData& OutBoardObj)
+TMap<FString, int> UArcweaveSubsystem::InitVisits(const TSharedPtr<FJsonObject>& MainJsonObject)
 {
     //add the visits to the board data
     TMap<FString, int> AllVisits;
-    TArray<FString> ElementArrayStrings;
-    TArray<FString> ConnectionsArrayStrings;
-    if (BoardValueObject->TryGetStringArrayField(TEXT("elements"), ElementArrayStrings))
+    const TSharedPtr<FJsonObject>* ElementsObject;
+    if (MainJsonObject->TryGetObjectField(TEXT("elements"), ElementsObject))
     {
-        for (const FString& ElementId : ElementArrayStrings)
+        for (const auto& ElementPair : ElementsObject->Get()->Values)
         {
-           AllVisits.Add(ElementId, 0);
+            AllVisits.Add(ElementPair.Key, 0);
         }
     }
-    if (BoardValueObject->TryGetStringArrayField(TEXT("connections"), ConnectionsArrayStrings))
+    const TSharedPtr<FJsonObject>* ConnectionsObject;
+    if (MainJsonObject->TryGetObjectField(TEXT("connections"), ConnectionsObject))
     {
-        for (const FString& ConnectionId : ConnectionsArrayStrings)
+        for (const auto& ConnectionPair : ConnectionsObject->Get()->Values)
         {
-            AllVisits.Add(ConnectionId, 0);
+            AllVisits.Add(ConnectionPair.Key, 0);
         }
     }
+    const TSharedPtr<FJsonObject>* BranchesObject;
+    if (MainJsonObject->TryGetObjectField(TEXT("branches"), BranchesObject))
+    {
+        for (const auto& BranchPair : BranchesObject->Get()->Values)
+        {
+            AllVisits.Add(BranchPair.Key, 0);
+        }
+    }
+    
     return AllVisits;
 }
 
@@ -1169,6 +1162,7 @@ void UArcweaveSubsystem::ParseResponse(const FString& ResponseString)
         ProjectData.Conditions = ParseAllConditions(RootObject);
         ProjectData.Connections = ParseAllConnections(RootObject);
         ProjectData.Boards = ParseBoard(RootObject);
+        ProjectData.Visits = InitVisits(RootObject);
         OnArcweaveResponseReceived.Broadcast(ProjectData);
         //LogStructFieldsRecursive(&ProjectData, FArcweaveProjectData::StaticStruct(),0);
     }
