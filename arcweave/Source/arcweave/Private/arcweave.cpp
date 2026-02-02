@@ -79,7 +79,12 @@ void FarcweaveModule::ShutdownModule()
 #endif
 }
 
-
+void OnEventCallback(const char* EventName)
+{
+        FString EventNameFString = FString(EventName);
+        UE_LOG(LogArcweavePlugin, Log, TEXT("Arcscript event received: %s"), *EventNameFString);
+        // You can add additional handling for the event here if needed.
+}
 
 bool FarcweaveModule::TestJsonFile()
 {
@@ -150,7 +155,7 @@ bool FarcweaveModule::TestJsonFile()
 				FArcscriptTranspilerOutput result;
 				bool transpilerFailed = false;
 				try {
-					result = ArcscriptWrapper->RunScript(code, currentElement, initialVars, currentVisits);
+					result = ArcscriptWrapper->RunScript(code, currentElement, initialVars, currentVisits, OnEventCallback);
 				}
 				catch (std::exception& e) {
 					transpilerFailed = true;

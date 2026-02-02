@@ -1179,6 +1179,23 @@ void UArcweaveSubsystem::ParseResponse(const FString& ResponseString)
     }
 }
 
+void UArcweaveSubsystem::OnEventCallback(const char* EventName)
+{
+    FString EventNameFString = FString(EventName);
+    
+    if (EventNameFString == "resetVisits")
+    {
+        // Reset visits in ProjectData
+        for (auto& VisitPair : ProjectData.Visits)
+        {
+            VisitPair.Value = 0;
+        }
+    }
+
+    // Broadcast the event to any listeners
+    OnArcscriptEventReceived.Broadcast(EventNameFString);
+}
+
 FArcscriptTranspilerOutput UArcweaveSubsystem::RunTranspiler(FString Code, FString ElementId,
     TMap<FString, FArcweaveVariable> InitialVars, TMap<FString, int> Visits)
 {
@@ -1191,7 +1208,7 @@ FArcscriptTranspilerOutput UArcweaveSubsystem::RunTranspiler(FString Code, FStri
     {
         UE_LOG(LogArcwarePlugin, Display, TEXT("Code=%s"), *Code);
         UE_LOG(LogArcwarePlugin, Display, TEXT("ElementId=%s"), *ElementId);
-        Output = ArcscriptWrapper->RunScript(Code, ElementId, InitialVars, Visits);
+        Output = ArcscriptWrapper->RunScript(Code, ElementId, InitialVars, Visits, std::bind(&UArcweaveSubsystem::OnEventCallback, this, std::placeholders::_1));
         LogTranspilerOutput(Output);
         // brodacast event if there where any changes
         TArray<FArcweaveVariable> ChangedVariables;

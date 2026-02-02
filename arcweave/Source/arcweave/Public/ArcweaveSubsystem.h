@@ -22,6 +22,7 @@ class UArcscriptTranspilerWrapper;
  */
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnArcweaveResponseReceived, const FArcweaveProjectData&, ArcweaveProjectData);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnArcweaveVariableChanged, const TArray<FArcweaveVariable>&, ArcweaveVariables);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnArcweaveArcscriptEventReceived, const FString&, EventName);
 UCLASS()
 class ARCWEAVE_API UArcweaveSubsystem : public UGameInstanceSubsystem
 {
@@ -109,6 +110,9 @@ public:
     UPROPERTY(BlueprintAssignable, Category = "Arcweave")
     FOnArcweaveVariableChanged OnArcweaveVariableChanged;
 
+    UPROPERTY(BlueprintAssignable, Category = "Arcweave")
+    FOnArcweaveArcscriptEventReceived OnArcscriptEventReceived;
+
 protected:
     //override init function
     virtual void Initialize(FSubsystemCollectionBase& Collection) override;
@@ -139,6 +143,7 @@ private:
     TArray<FArcweaveConnectionsData> ParseAllConnections(const TSharedPtr<FJsonObject>& MainJsonObject);
     FArcweaveCoverData ParseCoverData(const TSharedPtr<FJsonObject>& CoverValueObject);
     void ParseResponse(const FString& ResponseString);
+    void OnEventCallback(const char* EventName);
     FArcscriptTranspilerOutput RunTranspiler(FString Code, FString ElementId, TMap<FString, FArcweaveVariable> InitialVars, TMap<FString, int> Visits);
     FArcweaveElementData ExtractElementData(const TSharedPtr<FJsonObject>& MainJsonObject, const FString& ElementId, FArcweaveBoardData& BoardObjRef);
     void EvaluateCondition(const FArcweaveConditionData& Condition, FArcscriptTranspilerOutput& TranspilerOutput);

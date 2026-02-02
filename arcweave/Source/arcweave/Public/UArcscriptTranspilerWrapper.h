@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "UObject/Object.h"
 #include "ArcweaveTypes.h"
+#include  <functional>
 
 #include "UArcscriptTranspilerWrapper.generated.h"
 
@@ -27,6 +28,6 @@ public:
 	UArcscriptTranspilerWrapper() { };
 
     /** Run Arcscript code using the external library DLL */
-	FArcscriptTranspilerOutput RunScript(FString code, FString elementId, TMap<FString, FArcweaveVariable>& initialVars, TMap<FString, int> visits);
+	FArcscriptTranspilerOutput RunScript(FString code, FString elementId, TMap<FString, FArcweaveVariable>& initialVars, TMap<FString, int> visits, std::function<void(const char*)> onEvent);
 	// Additional helper methods can be added here if needed.
 };
