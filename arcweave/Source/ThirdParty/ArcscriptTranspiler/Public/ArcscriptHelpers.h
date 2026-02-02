@@ -5,6 +5,7 @@
 #include <map>
 #include <vector>
 #include <set>
+#include <functional>
 #include "ArcscriptOutputs.h"
 
 namespace Arcweave {
@@ -33,14 +34,17 @@ public:
   std::string currentElement;
   std::map<std::string, int> visits;
 
-  ArcscriptState(std::string elementId, std::map<std::string, Variable> varValues, std::map<std::string, int> _visits) {
+  std::function<void(const char*)> emit;
+
+  ArcscriptState(std::string elementId, std::map<std::string, Variable> varValues, std::map<std::string, int> _visits, std::function<void(const char*)> _emit) {
     currentElement = elementId;
     variableValues = varValues;
     for(const auto var : variableValues) {
       varNameToID[var.second.name] = var.first;
     }
     visits = _visits;
-  };
+    emit = _emit;
+  }
 
   inline Variable getVar(std::string name) {
     std::string varId = varNameToID[name];
@@ -62,7 +66,7 @@ public:
     variableChanges[varId] = value;
   }
   inline void setVarValues(std::vector<std::string> names, std::vector<std::any> values) {
-    for (int i = 0; i < names.size(); i++) {
+    for (size_t i = 0; i < names.size(); i++) {
       variableChanges[names[i]] = values[i];
     }
   }
@@ -86,6 +90,13 @@ public:
       }
       it++;
     }
+  }
+
+  inline void resetVisits() {
+    for (auto visit: visits) {
+      visits[visit.first] = 0;
+    }
+    emit("resetVisits");
   }
 };
 
