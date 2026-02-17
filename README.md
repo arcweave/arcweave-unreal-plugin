@@ -2,7 +2,21 @@
 [![IMAGE ALT TEXT HERE](https://img.youtube.com/vi/Ws_Cz-IQQYg/0.jpg)](https://www.youtube.com/watch?v=Ws_Cz-IQQYg)
 
 This is the official README file for the Arcweave plugin repository, which facilitates the import of [Arcweave](https://arcweave.com/) projects into Unreal Engine (version 5.0 and later). 
-The plugin can import data from an exported Arcweave's JSON fine (available to all Arcweave users) or it can directly utilize Arcweave's web API to fetch data, a feature available to Arcweave Team account owners. You can watch a [full video tutorial series](https://www.youtube.com/playlist?list=PLP2s5PcDiBdYRg0zHpJTuiDVf9JF_inyH) on how to install and use the plugin.
+The plugin can import data from an exported Arcweave JSON file (available to all Arcweave users) or it can directly utilize Arcweave's web API to fetch data, a feature available to Arcweave Team account owners. You can watch a [full video tutorial series](https://www.youtube.com/playlist?list=PLP2s5PcDiBdYRg0zHpJTuiDVf9JF_inyH) on how to install and use the plugin.
+
+## Table of Contents
+
+- [Plugin Installation](#plugin-installation)
+- [Data Collection Methods](#data-collection-methods)
+   - [JSON Import](#json-import)
+   - [Web API](#web-api)
+- [Important Classes and Functions](#important-classes-and-functions)
+   - [UArcweaveSubsystem Functions](#list-of-important-functions-in-uarcweavesubsystem)
+   - [ArcscriptTranspilerWrapper](#arcweave-transpiler-script-wrapper-arcscripttranspilerwrapper)
+   - [ArcweaveModule](#plugin-module-arcweavemodule)
+   - [ArcweaveTypes](#data-wrapper-arcweavetypes)
+- [Using the Demo Project](#using-the-demo-project)
+- [Support](#support)
 
 ## Plugin Installation
 
@@ -18,7 +32,7 @@ There are two primary methods for collecting Arcweave project data:
 
 ### JSON Import: 
 For this method, you'll need to do the following: 
-- Export you Arcweave project for Unreal Engine and unzip it.
+- Export your Arcweave project for Unreal Engine and unzip it.
 - Move the exported JSON file along with all required assets in the **Content->ArcweaveExport** directory. If this directory does not exist create it.
   
 ### Web API:
@@ -27,13 +41,38 @@ This involves fetching data directly from the Arcweave Web API within Unreal Eng
 - Your **Arcweave API key** and your **project's hash** (Refer to the [Arcweave Documentation](https://arcweave.com/docs/1.0/api) for more info on how to find these).
 - Navigate to Project Settings -> Plugins -> Arcweave. Here, you can input your APIToken and the project hash obtained in the previous step.
 
-### Important Classes and Functions
+## Important Classes and Functions
 
+``` mermaid
+   classDiagram
+   class ArcweaveSubsystem{}
+
+   class ArcscriptTranspilerWrapper{}
+   class Arcweave {}
+   class ArcweaveTypes {}
+   ArcweaveSubsystem --|> GameInstanceSubsystem
+   ArcweaveSubsystem "1"--"1..*" ArcweaveTypes
+   ArcweaveSubsystem ..> ArcscriptTranspilerWrapper
+   ArcscriptTranspilerWrapper ..> ArcweaveTypes
+   ArcweaveSubsystem ..> Arcweave
+   Arcweave *--> ArcscriptTranspilerWrapper
+```
 The primary class that contains all the blueprint-exposed functions and data is **UArcweaveSubsystem**. This class is located in the file path `Plugins\arcweave\Source\arcweave\Public\ArcweaveSubsystem.h`. 
 It provides a range of functions that can be utilized in both Blueprints and C++ to interact with, modify, and retrieve data.
 
 #### List of Important Functions in `UArcweaveSubsystem`:
+``` mermaid
+   classDiagram
+   class ArcweaveSubsystem{
+      +HandleApiCall
+      +HandleSettings
+      +HandleArcweaveProjectData
+      +ParseDataFromJson
+      +TranspileData
+   }
 
+   ArcweaveSubsystem --|> GameInstanceSubsystem
+```
 1. **Fetch Data from Arcweave API or local JSON**
    - This function allows you to fetch data from the Arcweave API by providing the API token and project hash.
 
@@ -57,7 +96,44 @@ It provides a range of functions that can be utilized in both Blueprints and C++
 
 These functions provide a comprehensive set of tools for interacting with the Arcweave API and managing project data within your Unreal Engine project.
 
+### Arcweave Transpiler script wrapper `ArcscriptTranspilerWrapper`:
+```mermaid
+
+   classDiagram
+   class ArcweaveSubsystem{}
+   class ArcscriptTranspilerWrapper{
+      +RunScript()
+      +HandleArcweaveDll()
+   }
+   ArcweaveSubsystem ..> ArcscriptTranspilerWrapper: run the code throught
+```
+Run scripts fetched from JSON or through the Web API using Arcweave DLLs from the plugin.
+
+### Plugin module `ArcweaveModule`:
+```mermaid
+
+   classDiagram
+   class ArcweaveModule{
+      + HandlePluginModule()
+      + ProvidesHookToReachTranspiler()
+   }
+   ArcweaveModule ..> ArcscriptTranspilerWrapper: gets
+```
+This class provides the possibility to access the Arcweave wrapper to call the DLL functions that interpret the code inside the Arcweave app.
+
+```cpp   
+         FarcweaveModule* arcweaveModule = FModuleManager::GetModulePtr<FarcweaveModule>("Arcweave");
+         UArcscriptTranspilerWrapper* ArcscriptWrapper = arcweaveModule->getArcscriptWrapper();
+```
+### Data wrapper `ArcweaveTypes`:
+Class wrapper containing a series of Blueprint-type structs needed to use the transpiler, and convert the data from and to JSON.
+
 ## Using the Demo Project
 
 You can explore the plugin implementation and see examples of its usage in our [Arcweave demo project](https://github.com/Arcweave/arcweave-unreal-example). 
 This project includes a demo scene and samples of logic implementation using Arcweave's Web API, showcasing all the capabilities of the plugin.
+
+## Support
+
+If you need support for an issue, you can open it using the CONTRIBUTING.md guide on GitHub or you can reach out on the  [🔗 Discord server](https://discord.gg/kb4FxBxw).
+.
