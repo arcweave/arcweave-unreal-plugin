@@ -55,7 +55,7 @@ void UArcweaveSubsystem::TryAddLanguageOptionToURL(FString& ApiUrl)
     }
 
     const FString DefaultLocale = ArcweaveSettings->GetLocale();
-    if (!DefaultLocale.IsEmpty())
+    if (ArcweaveSettings->GetUseLocale() && !DefaultLocale.IsEmpty())
     {
         // Ensure the variable can be safely inserted in a URL by encoding it
         FString EscapedDefaultLocale = FGenericPlatformHttp::UrlEncode(DefaultLocale);
