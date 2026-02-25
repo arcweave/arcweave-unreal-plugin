@@ -530,6 +530,11 @@ FString UArcweaveSubsystem::TranspileConnectionLabel(const FArcweaveConnectionsD
     return Connection.Label;
 }
 
+bool UArcweaveSubsystem::HasLocales() const
+{
+    return ProjectData.Locales.Num() > 0;
+}
+
 FArcweaveElementData UArcweaveSubsystem::TranspileObject(FString ObjectId, bool& Success, bool bStripHtmlTags /*true*/)
 {
     Success = false;
