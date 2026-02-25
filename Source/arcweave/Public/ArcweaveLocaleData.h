@@ -1,6 +1,8 @@
 
 #pragma once
 
+#include "ArcweaveLocaleData.generated.h"
+
 USTRUCT(BlueprintType)
 struct FArcweaveLocaleData
 {
