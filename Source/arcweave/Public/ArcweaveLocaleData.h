@@ -17,6 +17,11 @@ struct FArcweaveLocaleData
     UPROPERTY(BlueprintReadWrite, Category = "Arcweave")
     FString Name = FString("");
 
+    bool HasFallbackLanguage() const
+    {
+        return !Base.IsEmpty();
+    }
+
     FArcweaveLocaleData()
         : Iso(FString(""))
         , Base()
