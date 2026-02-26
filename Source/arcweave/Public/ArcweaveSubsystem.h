@@ -189,7 +189,8 @@ private:
     TArray<FArcweaveConnectionsData> ParseAllConnections(const TSharedPtr<FJsonObject>& MainJsonObject);
     FArcweaveCoverData ParseCoverData(const TSharedPtr<FJsonObject>& CoverValueObject);
     /** Looks for the locales configuration in the project and try to parse it */
-    TArray<FArcweaveLocaleData> ParseLocales(const TSharedPtr<FJsonObject>& MainJsonObject);
+    TArray<FArcweaveLocaleData> ParseProjectLocales(const TSharedPtr<FJsonObject>& MainJsonObject);
+    FArcweaveLocalizedText ParseElementTranslations(const TSharedPtr<FJsonObject> ComponentValueObject,const FStringView& FieldName);
     void ParseResponse(const FString& ResponseString);
     void OnEventCallback(const char* EventName);
     FArcscriptTranspilerOutput RunTranspiler(const FString& NodeCode, const FString& OriginElementId,
