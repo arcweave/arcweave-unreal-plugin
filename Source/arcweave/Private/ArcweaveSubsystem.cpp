@@ -1408,32 +1408,6 @@ TArray<FArcweaveLocaleData> UArcweaveSubsystem::ParseProjectLocales(const TShare
     return Locales;
 }
 
-FArcweaveLocalizedText UArcweaveSubsystem::ParseElementTranslations(const TSharedPtr<FJsonObject> ComponentValueObject, const FStringView& FieldName)
-{
-    FArcweaveLocalizedText Localizations;
-    const TSharedPtr<FJsonObject>* NameLocalizedObject;
-    if (ComponentValueObject->TryGetObjectField(FieldName, NameLocalizedObject))
-    {
-        for (const auto& LocalePair : NameLocalizedObject->Get()->Values)
-        {
-            FString Locale = LocalePair.Key;
-            const TSharedPtr<FJsonObject> LocaleTextObject = LocalePair.Value->AsObject();
-            FString Translation;
-            if (LocaleTextObject.IsValid() && LocaleTextObject->TryGetStringField(TEXT("text"), Translation))
-            {
-
-                Localizations.AddTranslation(Locale, Translation);
-            }
-        }
-    }
-    else
-    {
-        UE_LOG(LogArcwarePlugin, Error, TEXT("Failed to get localized object field '%s'."), *FString(FieldName));
-    }
-
-    return Localizations;
-}
-
 void UArcweaveSubsystem::ParseResponse(const FString& ResponseString)
 {
     TSharedPtr<FJsonObject> RootObject;
