@@ -23,6 +23,8 @@ struct FArcweaveLocalizedText
     */
     bool GetTranslation(FString& OutTranslation, const FString& Locale) const;
 
+    void PrintTranslations() const;
+
 private:
     TMap<FString, FString> TextTranslations;
 };

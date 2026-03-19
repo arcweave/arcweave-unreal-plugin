@@ -22,9 +22,11 @@ struct ARCWEAVE_API FArcweaveContents
 {
     GENERATED_BODY()
 
-    FArcweaveContent GetContent(const FString& Id) const;
+    bool GetContent(FArcweaveContent& OutContent, const FString& Id) const;
 
     void AddContent(const FString& ContentKey, const FArcweaveContent& Content);
+
+    void PrintContents() const;
 
 private:
     /*

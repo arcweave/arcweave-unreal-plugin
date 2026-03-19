@@ -201,6 +201,12 @@ private:
     FArcweaveConnectionsData TryGetNExtConnectionData(const FArcweaveBoardData& BoardData, const FArcweaveBranchData& Branch, const FArcweaveConditionData* FiredConditionData);
     void LogTranspilerOutput(const FArcscriptTranspilerOutput& TranspilerOutput);
     bool GetBoardObjectForElement(FString ConditionId, FArcweaveConditionData& OutConditionData, FArcweaveBoardData*& OutBoardObj);
+    /* Given a locale iso, will look for the corresponding fallback locale*/
+    FString GetFallbackLanguageForLocale(const FString& Locale) const;
+    FString GetTranslatedContent(const FString& ContentKey, const FString& FieldName, const FString& CurrentLocale, bool ShouldFallback /* =true */) const;
+    // Helper function to get desired locale and fallback flag from ArcweaveSettings
+    void GetLanguageSettings(FString& OutDesiredLocale, bool& OutFallbackToDefaultLanguage);
+
     /* Increment visit counter for the given element id*/
     void IncrementVisits(const FString& ElementId);
     void ResetVisits();

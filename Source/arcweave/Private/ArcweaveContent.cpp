@@ -28,3 +28,19 @@ void FArcweaveContent::AddTranslationForKey(const FString& Locale, const FString
     }
 
 }
+
+void FArcweaveContent::PrintContent() const
+{
+    UE_LOG(LogTemp, Log, TEXT(" ---- ArcweaveContent: LocalizedStringFields count: %d ----"), LocalizedStringFields.Num());
+    UE_LOG(LogTemp, Log, TEXT("ArcweaveContent: LocalizedStringFields count: %d"), LocalizedStringFields.Num());
+    for (const TPair<FString, FArcweaveLocalizedText>& Pair : LocalizedStringFields)
+    {
+        const FString& Key = Pair.Key;
+        const FArcweaveLocalizedText& LocalizedText = Pair.Value;
+        UE_LOG(LogTemp, Log, TEXT("  Key: %s"), *Key);
+        LocalizedText.PrintTranslations();
+    }
+
+    UE_LOG(LogTemp, Log, TEXT(" ---- ------------------------------------------------- ----"));
+
+}

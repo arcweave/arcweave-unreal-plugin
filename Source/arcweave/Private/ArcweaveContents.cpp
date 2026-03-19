@@ -3,16 +3,34 @@
 // File include
 #include "ArcweaveContents.h"
 
-FArcweaveContent FArcweaveContents::GetContent(const FString& Id) const
+bool FArcweaveContents::GetContent(FArcweaveContent& OutContent, const FString& Id) const
 {
     if (Contents.Contains(Id))
     {
-        return Contents[Id];
+        OutContent = Contents[Id];
+        return true;
     }
-    return FArcweaveContent();
+    return false;
 }
 
 void FArcweaveContents::AddContent(const FString& ContentKey, const FArcweaveContent& Content)
 {
     Contents.Add(ContentKey, Content);
+}
+
+void FArcweaveContents::PrintContents() const
+{
+    //Print contents
+    UE_LOG(LogTemp, Log, TEXT(" ---- CONTENTS ---- "));
+
+    for (const TPair<FString, FArcweaveContent>& Pair : Contents)
+    {
+        const FString& Key = Pair.Key;
+        const FArcweaveContent& LocalizedText = Pair.Value;
+        UE_LOG(LogTemp, Log, TEXT(" Key: %s"), *Key);
+        LocalizedText.PrintContent();
+    }
+
+    UE_LOG(LogTemp, Log, TEXT(" ---- ---------- ---- "));
+
 }

@@ -22,6 +22,8 @@ struct FArcweaveContent {
 
     void AddTranslationForKey(const FString& Locale, const FString& Translation, const FString& Key);
 
+    void PrintContent() const;
+
 private: 
     /*
     * Will contain value for the content fields (e.g label, title, text)
