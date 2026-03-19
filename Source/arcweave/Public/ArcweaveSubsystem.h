@@ -191,6 +191,7 @@ private:
     /** Looks for the locales configuration in the project and try to parse it */
     TArray<FArcweaveLocaleData> ParseProjectLocales(const TSharedPtr<FJsonObject>& MainJsonObject);
     void ParseResponse(const FString& ResponseString);
+    FArcweaveContents ParseAllContents(const TSharedPtr<FJsonObject>& MainJsonObject);
     void OnEventCallback(const char* EventName);
     FArcscriptTranspilerOutput RunTranspiler(const FString& NodeCode, const FString& OriginElementId,
         const TMap<FString, FArcweaveVariable>& InitialVars, const TMap<FString, int>& Visits, bool bShouldUpdateVariables = true);
@@ -208,12 +209,11 @@ private:
 
     UFUNCTION(BlueprintCallable, Category = "Arcweave | Debug")
     void PrintBranchData(const FArcweaveBranchData &InData);
+
 private:
     UPROPERTY()
     FArcweaveProjectData ProjectData = FArcweaveProjectData();
     UPROPERTY()
     FArcweaveBoardData BoardObj = FArcweaveBoardData();
-    /*UPROPERTY()
-    FArcweaveAPISettings ArcweaveAPISettings = FArcweaveAPISettings();*/
 
 };

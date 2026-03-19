@@ -1461,6 +1461,7 @@ void UArcweaveSubsystem::ParseResponse(const FString& ResponseString)
     {
         // Locales are used later so they need to be on top
         ProjectData.Locales = ParseProjectLocales(RootObject);
+        ProjectData.Contents = ParseAllContents(RootObject);
         ProjectData.Cover = ParseCoverData(RootObject);
         ProjectData.CurrentVars = ParseVariables(RootObject);
         ProjectData.Components = ParseAllComponents(RootObject);
@@ -1477,6 +1478,69 @@ void UArcweaveSubsystem::ParseResponse(const FString& ResponseString)
         // Handle error here.
         UE_LOG(LogArcwarePlugin, Error, TEXT("Project name is invalid!"));
     }
+}
+
+FArcweaveContents UArcweaveSubsystem::ParseAllContents(const TSharedPtr<FJsonObject>& MainJsonObject)
+{
+    FArcweaveContents ParsedContents;
+
+    const TSharedPtr<FJsonObject>* ContentsObject;
+    if (MainJsonObject->TryGetObjectField(TEXT("contents"), ContentsObject))
+    {
+        // Iterate through all entries in the "contents" object
+        for (const auto& ContentPair : ContentsObject->Get()->Values)
+        {
+            FString ContentId = ContentPair.Key;
+            const TSharedPtr<FJsonObject> ContentData = ContentPair.Value->AsObject();
+
+            if (!ContentData.IsValid())
+            {
+                return ParsedContents;
+            }
+
+            FArcweaveContent ArcweaveContent;
+
+            // Parse localized string fields (e.g., label, title, content)
+            for (const auto& FieldPair : ContentData->Values)
+            {
+                FString FieldKey = FieldPair.Key;
+
+                /* For the moment we will ignore status*/
+                if (FieldKey.Compare(TEXT("_status")) == 0)
+                {
+                    continue;
+                }
+                const TSharedPtr<FJsonObject> LocalizedObject = FieldPair.Value->AsObject();
+
+                if (LocalizedObject.IsValid())
+                {
+                    FArcweaveLocalizedText LocalizedText;
+
+                    // Parse translations for each locale
+                    for (const auto& LocalePair : LocalizedObject->Values)
+                    {
+                        FString Locale = LocalePair.Key;
+                        const TSharedPtr<FJsonObject> LocaleData = LocalePair.Value->AsObject();
+
+                        if (LocaleData.IsValid())
+                        {
+                            FString Translation;
+                            if (LocaleData->TryGetStringField(TEXT("text"), Translation))
+                            {
+                                ArcweaveContent.AddTranslationForKey(FieldKey, Translation, FieldKey);
+                            }
+                        }
+                    }
+
+                }
+            }
+
+            // Add the parsed content to the contents map
+            ParsedContents.AddContent(ContentId, ArcweaveContent);
+        }
+    }
+
+    return ParsedContents;
 }
 
 void UArcweaveSubsystem::OnEventCallback(const char* EventName)
