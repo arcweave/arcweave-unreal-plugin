@@ -35,6 +35,8 @@ class UArcscriptTranspilerWrapper;
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnArcweaveResponseReceived, const FArcweaveProjectData&, ArcweaveProjectData);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnArcweaveVariableChanged, const TArray<FArcweaveVariable>&, ArcweaveVariables);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnArcweaveArcscriptEventReceived, const FString&, EventName);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnArcweaveLanguageChanged, const FString&, DesiredLocale);
+
 UCLASS()
 class ARCWEAVE_API UArcweaveSubsystem : public UEngineSubsystem
 {
@@ -117,6 +119,9 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Arcweave")
     void UpdateVariablesFromConnection(const FArcweaveConnectionsData& Connection);
 
+    /* Update the language of the boards with the specified desired locale (e.g. "en", "fr"..) */
+    UFUNCTION(BlueprintCallable, Category = "Arcweave| Languages")
+    void UpdateContentsWithLocale(const FString& DesiredLocale);
     /*
      * Check if the target is the branch
      */    
@@ -148,6 +153,9 @@ public:
 
     UPROPERTY(BlueprintAssignable, Category = "Arcweave")
     FOnArcweaveArcscriptEventReceived OnArcscriptEventReceived;
+
+    UPROPERTY(BlueprintAssignable, Category = "Arcweave| Languages")
+    FOnArcweaveLanguageChanged OnArcweaveLanguageChanged;
 
 protected:
     //override init function

@@ -1503,6 +1503,52 @@ void UArcweaveSubsystem::GetLanguageSettings(FString& OutDesiredLocale, bool& Ou
     }
 }
 
+void UArcweaveSubsystem::UpdateContentsWithLocale(const FString& DesiredLocale)
+{
+
+    if (!HasLocales())
+    {
+        UE_LOG(LogArcwarePlugin, Warning, TEXT("No other locale is available - can't update the locale to %s"), *DesiredLocale);
+        return;
+    }
+
+    UArcweaveSettings* ArcweaveSettings = GetMutableDefault<UArcweaveSettings>();
+    bool bFallbackToDefaultLanguage = false;
+    if (!IsValid(ArcweaveSettings))
+    {
+        UE_LOG(LogArcwarePlugin, Error, TEXT("Unable to change settings locale to %s - settings not available"), *DesiredLocale);
+        return;
+    }
+
+    ArcweaveSettings->SetLocale(DesiredLocale);
+    bFallbackToDefaultLanguage = ArcweaveSettings->GetFallbackToDefaultLocale();
+
+    for (auto& board : ProjectData.Boards)
+    {
+        for (FArcweaveElementData& element : board.Elements)
+        {
+            element.Title = GetTranslatedContent(element.Id, TEXT("title"), DesiredLocale, bFallbackToDefaultLanguage);
+            element.Content = GetTranslatedContent(element.Id, TEXT("content"), DesiredLocale, bFallbackToDefaultLanguage);
+
+            for (auto& component : element.Components)
+            {
+                component.Name = GetTranslatedContent(component.Id, TEXT("name"), DesiredLocale, bFallbackToDefaultLanguage);
+            }
+        }
+
+        for (FArcweaveConnectionsData& connection : board.Connections)
+        {
+            connection.Label = GetTranslatedContent(connection.Id, TEXT("label"), DesiredLocale, bFallbackToDefaultLanguage);
+        }
+
+    }
+
+    if (OnArcweaveLanguageChanged.IsBound())
+    {
+        OnArcweaveLanguageChanged.Broadcast(DesiredLocale);
+    }
+}
+
 void UArcweaveSubsystem::ParseResponse(const FString& ResponseString)
 {
     TSharedPtr<FJsonObject> RootObject;
