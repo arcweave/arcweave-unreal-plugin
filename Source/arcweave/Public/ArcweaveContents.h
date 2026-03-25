@@ -30,7 +30,7 @@ struct ARCWEAVE_API FArcweaveContents
 
 private:
     /*
-    * Map containg all the contents of the project, indexed by their id.
+    * Map containing all the contents of the project, indexed by their id.
     */
     TMap<FString, FArcweaveContent> Contents;
 };
