@@ -1387,10 +1387,15 @@ TArray<FArcweaveConditionData> UArcweaveSubsystem::ParseAllConditions(const TSha
 
 TArray<FArcweaveConnectionsData> UArcweaveSubsystem::ParseAllConnections(const TSharedPtr<FJsonObject>& MainJsonObject)
 {
+    FString DesiredLocale = FString("");
+    bool bFallbackToDefaultLanguage = false;
+    GetLanguageSettings(DesiredLocale, bFallbackToDefaultLanguage);
+
     TArray<FArcweaveConnectionsData> Connections;
     const TSharedPtr<FJsonObject>* CondObject;
     if (MainJsonObject->TryGetObjectField(TEXT("connections"), CondObject))
     {
+        
         for (const auto& CompPair : CondObject->Get()->Values)
         {
             FArcweaveConnectionsData ConditionData;
@@ -1399,8 +1404,17 @@ TArray<FArcweaveConnectionsData> UArcweaveSubsystem::ParseAllConnections(const T
 
             if (ComponentValueObject.IsValid())
             {
+                
+                if (HasLocales())
+                {
+                    ConditionData.Label = GetTranslatedContent(ConditionData.Id, TEXT("label"), DesiredLocale, bFallbackToDefaultLanguage);
+                }
+                else 
+                {
+                    ComponentValueObject->TryGetStringField(TEXT("label"), ConditionData.Label);
+                }
+
                 ComponentValueObject->TryGetStringField(TEXT("type"), ConditionData.Type);
-                ComponentValueObject->TryGetStringField(TEXT("label"), ConditionData.Label);
                 ComponentValueObject->TryGetStringField(TEXT("theme"), ConditionData.Theme);
                 ComponentValueObject->TryGetStringField(TEXT("sourceid"), ConditionData.Sourceid);
                 ComponentValueObject->TryGetStringField(TEXT("targetid"), ConditionData.Targetid);
