@@ -211,7 +211,7 @@ private:
     bool GetBoardObjectForElement(FString ConditionId, FArcweaveConditionData& OutConditionData, FArcweaveBoardData*& OutBoardObj);
     /* Given a locale iso, will look for the corresponding fallback locale*/
     FString GetFallbackLanguageForLocale(const FString& Locale) const;
-    FString GetTranslatedContent(const FString& ContentKey, const FString& FieldName, const FString& CurrentLocale, bool ShouldFallback /* =true */) const;
+    FString GetTranslatedContent(const FString& ContentKey, const FString& FieldName, const FString& CurrentLocale, bool ShouldFallback /*= true*/) const;
     // Helper function to get desired locale and fallback flag from ArcweaveSettings
     void GetLanguageSettings(FString& OutDesiredLocale, bool& OutFallbackToDefaultLanguage);
 

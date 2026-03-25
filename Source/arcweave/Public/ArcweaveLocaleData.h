@@ -1,6 +1,10 @@
 
 #pragma once
 
+// Engine include
+#include "CoreMinimal.h"
+
+// Generated include
 #include "ArcweaveLocaleData.generated.h"
 
 USTRUCT(BlueprintType)

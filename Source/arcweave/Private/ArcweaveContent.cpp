@@ -5,9 +5,11 @@
 
 bool FArcweaveContent::GetTranslationForKey(FString& OutTranslation, const FString& Locale, const FString& Key) const
 {
-    if (LocalizedStringFields.Contains(Key))
+    const FArcweaveLocalizedText* localizedText = LocalizedStringFields.Find(Key);
+
+    if (localizedText != nullptr)
     {
-        return LocalizedStringFields[Key].GetTranslation(OutTranslation, Locale);
+        return localizedText->GetTranslation(OutTranslation, Locale);
     }
 
     return false;
@@ -32,7 +34,6 @@ void FArcweaveContent::AddTranslationForKey(const FString& Locale, const FString
 void FArcweaveContent::PrintContent() const
 {
     UE_LOG(LogTemp, Log, TEXT(" ---- ArcweaveContent: LocalizedStringFields count: %d ----"), LocalizedStringFields.Num());
-    UE_LOG(LogTemp, Log, TEXT("ArcweaveContent: LocalizedStringFields count: %d"), LocalizedStringFields.Num());
     for (const TPair<FString, FArcweaveLocalizedText>& Pair : LocalizedStringFields)
     {
         const FString& Key = Pair.Key;

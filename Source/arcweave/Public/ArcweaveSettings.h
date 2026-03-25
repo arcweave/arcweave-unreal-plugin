@@ -58,11 +58,18 @@ public:
     void SetFallbackToDefaultLocale(bool bValue) { bFallbackToDefaultLocale = bValue; }
 
 private:
-    UPROPERTY(EditAnywhere, Category = "ArcweaveSettings| Languages", meta = (ToolTip = "Allow using a custom language for the application if available (e.g. en, it, fr ...)"))
+    UPROPERTY(Config,
+        EditAnywhere,
+        Category = "ArcweaveSettings| Languages",
+        meta = (
+            ToolTip = "Allow using a custom language for the application if available (e.g. en, it, fr ...)"
+            )
+    )
     bool bUseLocale = false;
 
 
-    UPROPERTY(EditAnywhere,
+    UPROPERTY(Config,
+        EditAnywhere,
         Category = "ArcweaveSettings| Languages",
         meta = (
             EditCondition = "bUseLocale",
@@ -71,7 +78,8 @@ private:
     )
     FString Locale = FString("fr");
 
-    UPROPERTY(EditAnywhere,
+    UPROPERTY(Config,
+        EditAnywhere,
         Category = "ArcweaveSettings| Languages",
         meta = (
             EditCondition = "bUseLocale",

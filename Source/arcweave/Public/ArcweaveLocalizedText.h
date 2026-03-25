@@ -3,6 +3,7 @@
 // Engine include
 #include "Containers/Map.h"
 #include "Containers/UnrealString.h"
+#include "CoreMinimal.h"
 
 // Generate include
 #include "ArcweaveLocalizedText.generated.h"

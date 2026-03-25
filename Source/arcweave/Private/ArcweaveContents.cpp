@@ -5,11 +5,13 @@
 
 bool FArcweaveContents::GetContent(FArcweaveContent& OutContent, const FString& Id) const
 {
-    if (Contents.Contains(Id))
+    const FArcweaveContent* FoundContent = Contents.Find(Id);
+    if (FoundContent != nullptr)
     {
-        OutContent = Contents[Id];
+        OutContent = *FoundContent;
         return true;
     }
+
     return false;
 }
 
