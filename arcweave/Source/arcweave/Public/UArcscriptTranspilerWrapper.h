@@ -2,9 +2,12 @@
 
 #pragma once
 
+// Plugin headers
+#include "ArcweaveTypes.h"
+
 #include "CoreMinimal.h"
 #include "UObject/Object.h"
-#include "ArcweaveTypes.h"
+#include  <functional>
 
 #include "UArcscriptTranspilerWrapper.generated.h"
 
@@ -26,7 +29,22 @@ public:
 
 	UArcscriptTranspilerWrapper() { };
 
-    /** Run Arcscript code using the external library DLL */
-	FArcscriptTranspilerOutput RunScript(FString code, FString elementId, TMap<FString, FArcweaveVariable>& initialVars, TMap<FString, int> visits);
-	// Additional helper methods can be added here if needed.
+    /**
+    * Executes Arcscript code using the external library DLL.
+    *
+    * @param code The Arcscript code to execute.
+    * @param elementId The ID of the Arcweave element parent of the script execution
+    * (e.g. if you want to run a condition code, send the element id of the object from which the condition starts from).
+    * @param initialVars A map of variable IDs to their initial values for the script context.
+    * @param visits A map tracking the number of visits per element, used for script logic (The code may involve more than one element e.g. visit(node_name)).
+    * @param onEvent Callback function invoked when an event occurs during script execution.
+    * @return FArcscriptTranspilerOutput containing the result of the script execution, including output, type, variable changes, and condition result.
+    */
+    FArcscriptTranspilerOutput RunScript(
+        const FString& code,
+        const FString& elementId,
+        const TMap<FString, FArcweaveVariable>& initialVars,
+        const TMap<FString, int>& visits,
+        std::function<void(const char*)> onEvent
+    );
 };

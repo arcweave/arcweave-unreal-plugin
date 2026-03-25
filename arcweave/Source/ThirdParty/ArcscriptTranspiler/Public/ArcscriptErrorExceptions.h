@@ -2,8 +2,13 @@
 
 #include <iostream>
 #include <string>
+#include <string.h>
 #include <sstream>
 #include <exception>
+
+#ifdef _WIN64
+#define strdup _strdup
+#endif
 
 namespace Arcweave {
   class RuntimeErrorException : public std::exception {

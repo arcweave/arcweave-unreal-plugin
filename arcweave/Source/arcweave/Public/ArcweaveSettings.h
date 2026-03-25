@@ -2,10 +2,11 @@
 
 #pragma once
 
+// Engine includes
 #include "CoreMinimal.h"
+
+// Generated include
 #include "ArcweaveSettings.generated.h"
-
-
 
 /**
  * 
@@ -39,4 +40,46 @@ public:
 
     //override post init properties to check if the settings are valid
     virtual void PostInitProperties() override;
+
+
+#pragma region Language
+
+public:
+    bool GetUseLocale() const { return bUseLocale; }
+
+    void SetUseLocale(bool bValue) { bUseLocale = bValue; }
+
+    FString GetLocale() const { return Locale; }
+
+    void SetLocale(const FString& CustomLocale) { Locale = CustomLocale; }
+
+    bool GetFallbackToDefaultLocale() const { return bFallbackToDefaultLocale; }
+
+    void SetFallbackToDefaultLocale(bool bValue) { bFallbackToDefaultLocale = bValue; }
+
+private:
+    UPROPERTY(EditAnywhere, Category = ArcweaveSettings, meta = (ToolTip = "Allow using a custom language for the application if available (e.g. en, it, fr ...)"))
+    bool bUseLocale = false;
+
+
+    UPROPERTY(EditAnywhere,
+        Category = ArcweaveSettings,
+        meta = (
+            EditCondition = "bUseLocale",
+            ToolTip = "Default language used for the application if available (e.g. en, it, fr ...)"
+            )
+    )
+    FString Locale = FString("fr");
+
+    UPROPERTY(EditAnywhere,
+        Category = ArcweaveSettings,
+        meta = (
+            EditCondition = "!EnableReceiveMethodFromLocalJSON && bUseLocale",
+            ToolTip = "If the specified language is not available, fallback to the standard language (usually en-us). This option is available only from web api"
+            )
+    )
+    bool bFallbackToDefaultLocale = true;
+
+#pragma endregion
+
 };

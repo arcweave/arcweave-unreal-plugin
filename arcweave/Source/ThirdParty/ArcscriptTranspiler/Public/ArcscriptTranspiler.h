@@ -124,7 +124,7 @@ namespace Arcweave
 			visits = 0;
 		}
 	};
-  
+
   /**
    * Implementation of the Arcscript Transpiler in C++. Uses the ANTLR4 runtime library
    * to run the code and it needs the initial variables and the current element ID it is
@@ -137,7 +137,7 @@ namespace Arcweave
 
 	ArcscriptState state;
 
-	ArcscriptTranspiler(std::string elId, std::map<std::string, Variable> initVars, std::map<std::string, int> _visits) : state(elId, initVars, _visits) { };
+	ArcscriptTranspiler(std::string elId, std::map<std::string, Variable> initVars, std::map<std::string, int> _visits, std::function<void(const char*)> onEvent) : state(elId, initVars, _visits, onEvent) { };
 
 	/**
 	 * Runs the arcscript code and returns it's results.
@@ -149,5 +149,5 @@ namespace Arcweave
 	//ARCSCRIPTTRANSPILER_API UTranspilerOutput URunScript(char* code);
   };
 };
-EXPORTED Arcweave::UTranspilerOutput* runScriptExport(const char* code, const char* elId, Arcweave::UVariable* variables, size_t varLength, Arcweave::UVisit* visits, size_t visitsLength);
+EXPORTED Arcweave::UTranspilerOutput* runScriptExport(const char* code, const char* elId, Arcweave::UVariable* variables, size_t varLength, Arcweave::UVisit* visits, size_t visitsLength, std::function<void(const char*)> onEvent);
 EXPORTED void deallocateOutput(Arcweave::UTranspilerOutput* output);

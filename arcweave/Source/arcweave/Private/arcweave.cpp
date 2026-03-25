@@ -1,7 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Arcweave.h"
-#include "Core.h"
+#include "Misc/Paths.h"
+#include "Misc/MessageDialog.h"
+#include "Misc/FileHelper.h"
 #include "Modules/ModuleManager.h"
 #include "Interfaces/IPluginManager.h"
 #include "ArcweaveSettings.h"
@@ -77,7 +79,12 @@ void FarcweaveModule::ShutdownModule()
 #endif
 }
 
-
+void OnEventCallback(const char* EventName)
+{
+        FString EventNameFString = FString(EventName);
+        UE_LOG(LogArcweavePlugin, Log, TEXT("Arcscript event received: %s"), *EventNameFString);
+        // You can add additional handling for the event here if needed.
+}
 
 bool FarcweaveModule::TestJsonFile()
 {
@@ -97,20 +104,20 @@ bool FarcweaveModule::TestJsonFile()
 	if (FJsonSerializer::Deserialize(Reader, JsonObject) && JsonObject.IsValid())
 	{
 		TMap<FString, FArcweaveVariable> initialVars;
-		if (JsonObject->HasField("initialVars"))
+		if (JsonObject->HasField(TEXT("initialVars")))
 		{
 			initialVars = GetInitialVars(JsonObject);
 		}
 		
 		const TArray<TSharedPtr<FJsonValue>>* CasesArray = nullptr;
-		if (JsonObject->TryGetArrayField("cases", CasesArray))
+		if (JsonObject->TryGetArrayField(TEXT("cases"), CasesArray))
 		{
 			for (TSharedPtr<FJsonValue> CaseValue : *CasesArray)
 			{
 				UE_LOG(LogArcwarePlugin, Log, TEXT("---- Case object ----"));
 
 				TSharedPtr<FJsonObject> CaseObject = CaseValue->AsObject();
-				FString code = CaseObject->GetStringField("code");
+				FString code = CaseObject->GetStringField(TEXT("code"));
 				if (code.IsEmpty())
 				{
 					UE_LOG(LogArcwarePlugin, Log, TEXT("//// code field is empty, exiting ///// "));
@@ -120,15 +127,15 @@ bool FarcweaveModule::TestJsonFile()
 				TMap<FString, int> currentVisits;
 				FString currentElement = "";
 
-				if (CaseObject->HasField("elementId"))
+				if (CaseObject->HasField(TEXT("elementId")))
 				{
-					currentElement = CaseObject->GetStringField("elementId");
+					currentElement = CaseObject->GetStringField(TEXT("elementId"));
 					UE_LOG(LogArcwarePlugin, Log, TEXT("elementId %s"), *currentElement);
 				}
 
-				if (CaseObject->HasField("visits"))
+				if (CaseObject->HasField(TEXT("visits")))
 				{
-					TSharedPtr<FJsonObject> visitsObject = CaseObject->GetObjectField("visits");
+					TSharedPtr<FJsonObject> visitsObject = CaseObject->GetObjectField(TEXT("visits"));
 	
 					for (auto& VisitPair : visitsObject->Values)
 					{
@@ -141,14 +148,14 @@ bool FarcweaveModule::TestJsonFile()
 				}
 
 				bool hasError = false;
-				if (CaseObject->HasField("error"))
+				if (CaseObject->HasField(TEXT("error")))
 				{
 					hasError = true;
 				}
 				FArcscriptTranspilerOutput result;
 				bool transpilerFailed = false;
 				try {
-					result = ArcscriptWrapper->RunScript(code, currentElement, initialVars, currentVisits);
+					result = ArcscriptWrapper->RunScript(code, currentElement, initialVars, currentVisits, OnEventCallback);
 				}
 				catch (std::exception& e) {
 					transpilerFailed = true;
@@ -156,9 +163,9 @@ bool FarcweaveModule::TestJsonFile()
 					return false;
 				}
 				// Compare the result (Only applicable in conditions)
-				if (CaseObject->HasField("result"))
+				if (CaseObject->HasField(TEXT("result")))
 				{
-					bool expectedResult = CaseObject->GetBoolField("result");
+					bool expectedResult = CaseObject->GetBoolField(TEXT("result"));
 					if (result.Type == FArcscriptInputType::CONDITION) {
 						if (expectedResult != result.ConditionResult) {
 							UE_LOG(LogArcwarePlugin, Log, TEXT("Errors in code:\n%s"), *code);
@@ -168,9 +175,9 @@ bool FarcweaveModule::TestJsonFile()
 					}
 				}
 				//// Compare the outputs
-				if (CaseObject->HasField("output"))
+				if (CaseObject->HasField(TEXT("output")))
 				{
-					FString expectedOutput = CaseObject->GetStringField("output");
+					FString expectedOutput = CaseObject->GetStringField(TEXT("output"));
 					if (result.Output != expectedOutput) {
 						UE_LOG(LogArcwarePlugin, Log, TEXT("Errors in code:\n%s"), *code);
 						UE_LOG(LogArcwarePlugin, Log, TEXT("Expected output different from actual:"));
@@ -196,29 +203,29 @@ TMap<FString, FArcweaveVariable> FarcweaveModule::GetInitialVars(TSharedPtr<FJso
 	const TSharedPtr<FJsonObject>* InitialVarsObject;
 	TMap<FString, FArcweaveVariable> initialVars;
 
-	if (JsonObject->TryGetObjectField("initialVars", InitialVarsObject))
+	if (JsonObject->TryGetObjectField(TEXT("initialVars"), InitialVarsObject))
 	{
 		for (const auto& VarObj : (*InitialVarsObject)->Values)
 		{
 			FArcweaveVariable var;
 			TSharedPtr<FJsonObject> VarObject = VarObj.Value->AsObject();
-			if(VarObject.IsValid() && VarObject->HasField("type"))
+			if(VarObject.IsValid() && VarObject->HasField(TEXT("type")))
 			{
-				var.Id = VarObject->GetStringField("id");
-				var.Name = VarObject->GetStringField("name");
-				var.Type = VarObject->GetStringField("type");
+				var.Id = VarObject->GetStringField(TEXT("id"));
+				var.Name = VarObject->GetStringField(TEXT("name"));
+				var.Type = VarObject->GetStringField(TEXT("type"));
 
 				if (var.Type == "string") {
-					var.Value = VarObject->GetStringField("value");
+					var.Value = VarObject->GetStringField(TEXT("value"));
 				}
 				else if (var.Type == "integer") {
-					var.Value.AppendInt(VarObject->GetIntegerField("value"));
+					var.Value.AppendInt(VarObject->GetIntegerField(TEXT("value")));
 				}
 				else if (var.Type == "boolean") {
-					var.Value = FString::Printf(TEXT("%s"), VarObject->GetBoolField("value") ? TEXT("true") : TEXT("false"));
+					var.Value = FString::Printf(TEXT("%s"), VarObject->GetBoolField(TEXT("value")) ? TEXT("true") : TEXT("false"));
 				}
 				else if (var.Type == "float") {
-					var.Value = FString::SanitizeFloat(VarObject->GetNumberField("value"));
+					var.Value = FString::SanitizeFloat(VarObject->GetNumberField(TEXT("value")));
 				}
 				initialVars.Add(var.Id, var);
 			}
@@ -248,7 +255,7 @@ FString FarcweaveModule::CompareResults(TSharedPtr<FJsonObject> expected, TShare
 	}
 	else if (actual->Type == EJson::String) {
 		FString actualStr = actual->AsString();
-		FString expectedStr = expected->GetStringField("result");
+		FString expectedStr = expected->GetStringField(TEXT("result"));
 
 		if (actualStr != expectedStr) {
 			errors += TEXT("Expected result != Actual result:\n");
@@ -258,7 +265,7 @@ FString FarcweaveModule::CompareResults(TSharedPtr<FJsonObject> expected, TShare
 	}
 	else if (actual->Type == EJson::Number) {
 		double actualNum = actual->AsNumber();
-		double expectedNum = expected->GetNumberField("result");
+		double expectedNum = expected->GetNumberField(TEXT("result"));
 
 		if (FMath::Abs(actualNum - expectedNum) > KINDA_SMALL_NUMBER) {
 			errors += TEXT("Expected result != Actual result:\n");
@@ -267,7 +274,7 @@ FString FarcweaveModule::CompareResults(TSharedPtr<FJsonObject> expected, TShare
 	}
 	else if (actual->Type == EJson::Boolean) {
 		bool actualBool = actual->AsBool();
-		bool expectedBool = expected->GetBoolField("result");
+		bool expectedBool = expected->GetBoolField(TEXT("result"));
 
 		if (actualBool != expectedBool) {
 			errors += TEXT("Expected result != Actual result:\n");

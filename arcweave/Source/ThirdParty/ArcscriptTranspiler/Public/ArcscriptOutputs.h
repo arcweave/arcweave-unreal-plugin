@@ -9,6 +9,8 @@ namespace Arcweave
     class IOutputNode
     {
     public:
+        virtual ~IOutputNode() = default;
+
         virtual std::string GetText() = 0;
         virtual void MergeScriptOutput(std::string text) = 0;
     };
@@ -16,6 +18,8 @@ namespace Arcweave
     class IHasParagraphs
     {
     public:
+        virtual ~IHasParagraphs() = default;
+
         virtual void AppendParagraph(std::string text) = 0;
     };
 
@@ -26,15 +30,15 @@ namespace Arcweave
 
     public:
 
-        Paragraph(std::string text)
+        explicit Paragraph(const std::string &text)
         {
             text_ = text;
         }
         
         inline void MergeScriptOutput(std::string text) override
         {
-            if (text.length() > 0) {
-                if (text_.length() > 0)
+            if (!text.empty()) {
+                if (!text_.empty())
                 {
                     text_ += ' ' + text;
                 } else {

@@ -3,9 +3,10 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Dom/JsonValue.h"
 #include "UObject/Object.h"
-#include "ArcweaveTypes.generated.h"
 
+#include "ArcweaveTypes.generated.h"
 /**
  * Types for arweave to unreal engine
  */
@@ -122,20 +123,50 @@ struct FArcweaveAPISettings
 	/*
 	 * API token that you can find in your Arcweave account settings.
 	 */
-	UPROPERTY(BlueprintReadWrite, Category = "Arcweave")
+	UPROPERTY(BlueprintReadWrite, Category = "Arcweave| Settings")
 	FString APIToken = FString("");
 
 	/*
 	 * Project hash that we want to retrieve the information for. You can find it by looking at the URL of your project.
 	 */
-	UPROPERTY(BlueprintReadWrite, Category = "Arcweave")
+	UPROPERTY(BlueprintReadWrite, Category = "Arcweave| Settings")
 	FString Hash = FString("");
 
-	FArcweaveAPISettings()
-		: EnableRecieveMethodFromLocalJSON(false)
-		, APIToken(FString(""))
-		, Hash(FString(""))
-	{}
+#pragma region Language
+
+    UPROPERTY(BlueprintReadWrite, Category = "Arcweave| Settings", meta = (ToolTip = "Allow using a custom language for the application if available (e.g. en, it, fr ...)"))
+    bool bUseLocale = false;
+
+
+    UPROPERTY(
+        BlueprintReadWrite,
+        Category = "Arcweave| Settings",
+        meta = (
+            EditCondition = "bUseLocale",
+            ToolTip = "Default language used for the application if available (e.g. en, it, fr ...)"
+            )
+    )
+    FString Locale = FString("");
+
+    UPROPERTY(BlueprintReadWrite,
+        Category = "Arcweave| Settings",
+        meta = (
+            EditCondition = "!EnableReceiveMethodFromLocalJSON && bUseLocale",
+            ToolTip = "If the specified language is not available, fallback to the standard language (usually en-us). This option is available only from web api"
+            )
+    )
+    bool bFallbackToDefaultLocale = true;
+
+#pragma endregion
+
+    FArcweaveAPISettings()
+        : EnableRecieveMethodFromLocalJSON(false)
+        , APIToken(FString(""))
+        , Hash(FString(""))
+        , bUseLocale(false)
+        , Locale(FString(""))
+        , bFallbackToDefaultLocale(true)
+    {}
 };
 
 USTRUCT(BlueprintType)
@@ -381,6 +412,7 @@ struct FArcweaveElementData
         , Assets(TMap<FString, FArcweaveAssetData>())
         , Attributes(TArray<FArcweaveAttributeData>())
     {}
+
 };
 
 USTRUCT(BlueprintType)
@@ -414,10 +446,10 @@ struct FArcweaveBoardData
     UPROPERTY(BlueprintReadWrite, Category = "Arcweave")
     FString Name = FString("");
 
-    UPROPERTY(BlueprintReadWrite)
+    UPROPERTY(BlueprintReadWrite, Category = "Arcweave")
     TArray<FString> Notes;
 
-    UPROPERTY(BlueprintReadWrite)
+    UPROPERTY(BlueprintReadWrite, Category = "Arcweave")
     TArray<FArcweaveJumpersData> Jumpers;
 
     UPROPERTY(BlueprintReadWrite, Category = "Arcweave")
@@ -425,9 +457,6 @@ struct FArcweaveBoardData
 
     UPROPERTY(BlueprintReadWrite, Category = "Arcweave")
     TArray<FArcweaveBranchData>  Branches = TArray<FArcweaveBranchData>();
-
-    UPROPERTY(BlueprintReadWrite, Category = "Arcweave")
-    TMap<FString, int>  Visits =TMap<FString, int>();
 
     UPROPERTY(BlueprintReadWrite, Category = "Arcweave")
     TArray<FArcweaveConnectionsData> Connections = TArray<FArcweaveConnectionsData>();
@@ -439,7 +468,6 @@ struct FArcweaveBoardData
         , Jumpers(TArray<FArcweaveJumpersData>())
         , Elements(TArray<FArcweaveElementData>())
         , Branches(TArray<FArcweaveBranchData>())
-        , Visits(TMap<FString, int>())
         , Connections(TArray<FArcweaveConnectionsData>())
     {}
 };
@@ -475,6 +503,9 @@ struct FArcweaveProjectData
     //project connections
     UPROPERTY(BlueprintReadWrite, Category = "Arcweave")
     TArray<FArcweaveConnectionsData> Connections = TArray<FArcweaveConnectionsData>();
+
+    UPROPERTY(BlueprintReadWrite, Category = "Arcweave")
+    TMap<FString, int> Visits = TMap<FString, int>();
     
     //constructor
     FArcweaveProjectData()
@@ -483,6 +514,7 @@ struct FArcweaveProjectData
         , CurrentVars(TMap<FString, FArcweaveVariable>())
         , Boards(TArray<FArcweaveBoardData>())
         , Components(TArray<FArcweaveComponentData>())
+        , Visits(TMap<FString, int>())
     {}
 };
 
@@ -491,7 +523,7 @@ struct FGetIsTargetBranchOutput
 {
     GENERATED_BODY()
 
-    UPROPERTY(BlueprintReadWrite, Category = "Arcweave")
+    UPROPERTY(BlueprintReadWrite, Category = "Arcweave", meta = (ToolTip = "Has at least one if condition"))
     bool IsBranch = false;
 
     UPROPERTY(BlueprintReadWrite, Category = "Arcweave")

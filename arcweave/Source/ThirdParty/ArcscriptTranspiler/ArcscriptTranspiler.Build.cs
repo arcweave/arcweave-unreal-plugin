@@ -1,4 +1,3 @@
-using System;
 using System.IO;
 using UnrealBuildTool;
 public class ArcscriptTranspiler : ModuleRules
@@ -15,12 +14,14 @@ public class ArcscriptTranspiler : ModuleRules
             PublicDelayLoadDLLs.Add("ArcscriptTranspiler.dll");
             // Ensure that the DLL is staged along with the executable
             RuntimeDependencies.Add("$(PluginDir)/Source/ThirdParty/ArcscriptTranspiler/lib/ArcscriptTranspiler.dll");
+            RuntimeDependencies.Add("$(PluginDir)/Source/ThirdParty/ArcscriptTranspiler/lib/antlr4-runtime.dll");
 
         }
         else if (Target.Platform == UnrealTargetPlatform.Mac)
         {
             // Absolute path to the dynamic library that ships with the plugin
             string DylibPath = Path.Combine(ModuleDirectory, "lib", "libArcscriptTranspiler.dylib");
+            string Antlr4DylibPath = Path.Combine(ModuleDirectory, "lib", "libantlr4-runtime.dylib");
 
             // On macOS the linker still needs to see the library which provides the
             // symbols referenced from the headers (e.g. runScriptExport). Therefore
@@ -34,6 +35,7 @@ public class ArcscriptTranspiler : ModuleRules
             // Finally stage the library so it is copied next to the packaged
             // application / plugin.
             RuntimeDependencies.Add(DylibPath);
+            RuntimeDependencies.Add(Antlr4DylibPath);
         }
 
         PublicIncludePaths.AddRange(new string[]

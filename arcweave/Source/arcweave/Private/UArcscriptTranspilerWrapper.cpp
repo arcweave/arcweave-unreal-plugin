@@ -1,9 +1,8 @@
 ﻿// Fill out your copyright notice in the Description page of Project Settings.
 
-
+// File header
 #include "UArcscriptTranspilerWrapper.h"
 
-#include "Core.h"
 #include <string>
 
 THIRD_PARTY_INCLUDES_START
@@ -17,7 +16,8 @@ THIRD_PARTY_INCLUDES_END
 DEFINE_LOG_CATEGORY(LogArcweavePlugin);
 using namespace Arcweave;
 
-FArcscriptTranspilerOutput UArcscriptTranspilerWrapper::RunScript(FString code, FString elementId, TMap<FString, FArcweaveVariable>& initialVars, TMap<FString, int> visits) {
+
+FArcscriptTranspilerOutput UArcscriptTranspilerWrapper::RunScript(const FString& code, const FString& elementId, const TMap<FString, FArcweaveVariable>& initialVars, const TMap<FString, int>& visits, std::function<void(const char*)> onEvent) {
 	size_t varLength = initialVars.Num();
 	size_t visitsLength = visits.Num();
 	const char* dllCode = strdup(TCHAR_TO_UTF8(*code));
@@ -66,7 +66,7 @@ FArcscriptTranspilerOutput UArcscriptTranspilerWrapper::RunScript(FString code, 
 
     UTranspilerOutput* dllResult = nullptr;
     try {
-        dllResult = runScriptExport(dllCode, dllElId, dllVars, varLength, dllVisits, visitsLength);
+        dllResult = runScriptExport(dllCode, dllElId, dllVars, varLength, dllVisits, visitsLength, onEvent);
     }
     catch (Arcweave::ParseErrorException& e) {
         UE_LOG(LogArcweavePlugin, Error, TEXT("ParseErrorException %s"), *FString(e.what()));
