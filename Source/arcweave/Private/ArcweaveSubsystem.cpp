@@ -1535,6 +1535,7 @@ void UArcweaveSubsystem::UpdateContentsWithLocale(const FString& DesiredLocale)
     }
 
     ArcweaveSettings->SetLocale(DesiredLocale);
+    ArcweaveSettings->SetUseLocale(true);
     bFallbackToDefaultLanguage = ArcweaveSettings->GetFallbackToDefaultLocale();
 
     for (auto& board : ProjectData.Boards)
