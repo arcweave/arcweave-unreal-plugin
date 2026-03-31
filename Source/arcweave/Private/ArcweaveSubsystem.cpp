@@ -355,19 +355,32 @@ FArcscriptTranspilerOutput UArcweaveSubsystem::TranspileCondition(const FString&
     return Output;
 }
 
-bool UArcweaveSubsystem::GetBoardForObject(FString ObjectId, FArcweaveElementData& OutElement, FArcweaveBoardData*& OutBoardObj)
+bool UArcweaveSubsystem::GetBoardForObject(FString ElementId, FArcweaveElementData& OutElement, FArcweaveBoardData*& OutBoardObj)
 {
     for (auto& Board : ProjectData.Boards)
     {
         for (auto& ElementObj : Board.Elements)
         {
-            if (ElementObj.Id == ObjectId)
+            if (ElementObj.Id == ElementId)
             {
                 OutBoardObj = &Board;
                 OutElement = ElementObj;
                 return true;
             }
         }
+    }
+    return false;
+}
+
+bool UArcweaveSubsystem::GetBoard(FArcweaveBoardData& OutBoardObj, const FString& BoardId)
+{
+    for (auto& Board : ProjectData.Boards)
+    {
+            if (Board.BoardId == BoardId)
+            {
+                OutBoardObj = Board;
+                return true;
+            }
     }
     return false;
 }

@@ -104,7 +104,11 @@ public:
      */
     UFUNCTION(BlueprintCallable, Category = "Arcweave")
     FArcscriptTranspilerOutput TranspileCondition(const FString& ConditionId, const FString& OriginElementId, bool& Success);
+    /* Given an element id, get it's board */
     bool GetBoardForObject(FString ObjectId, FArcweaveElementData& OutElement, FArcweaveBoardData*& OutBoardObj);
+    /* Given a board id it will get the board object*/
+    UFUNCTION(BlueprintCallable, Category = "Arcweave")
+    bool GetBoard(FArcweaveBoardData& OutBoardObj, const FString& BoardId);
     /* Given a condition Id (e.g. if visit()) gets the corresponding branch id */
     bool GetBranchForObject(FArcweaveBranchData& OutBranch, const FString& ObjectId, const FArcweaveBoardData& InBoardObj) const;
 
