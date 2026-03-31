@@ -1549,6 +1549,11 @@ void UArcweaveSubsystem::UpdateContentsWithLocale(const FString& DesiredLocale)
             {
                 component.Name = GetTranslatedContent(component.Id, TEXT("name"), DesiredLocale, bFallbackToDefaultLanguage);
             }
+
+            for (auto& output : element.Outputs)
+            {
+                output.Label = GetTranslatedContent(output.Id, TEXT("label"), DesiredLocale, bFallbackToDefaultLanguage);
+            }
         }
 
         for (FArcweaveConnectionsData& connection : board.Connections)
