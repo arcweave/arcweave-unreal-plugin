@@ -961,11 +961,6 @@ TArray<FArcweaveConnectionsData> UArcweaveSubsystem::ParseConnections(const FStr
                                     Connection.Label = RemoveHtmlTags(RawLabel);
                                 }
                             }
-                            else
-                            {
-                                UE_LOG(LogArcwarePlugin, Warning, TEXT("No label text was provided for connection with ID: %s"), *ConnectionId);
-                            }
-
 
                             ConObject->TryGetStringField(TEXT("type"), Connection.Type);
                             ConObject->TryGetStringField(TEXT("theme"), Connection.Theme);
@@ -1486,10 +1481,9 @@ TArray<FArcweaveLocaleData> UArcweaveSubsystem::ParseProjectLocales(const TShare
     return Locales;
 }
 
-FString UArcweaveSubsystem::GetTranslatedContent(const FString& ContentKey, const FString& FieldName, const FString& CurrentLocale, bool ShouldFallback = true) const
+FString UArcweaveSubsystem::GetTranslatedContent(const FString& ContentKey, const FString& FieldName, const FString& CurrentLocale, bool ShouldFallback) const
 {
     FString OutTranslation;
-
     FArcweaveContent Content;
     if (!ProjectData.Contents.GetContent(Content, ContentKey))
     {
@@ -1497,24 +1491,69 @@ FString UArcweaveSubsystem::GetTranslatedContent(const FString& ContentKey, cons
         return FString();
     }
 
+    // Try direct translation first
     if (Content.GetTranslationForKey(OutTranslation, CurrentLocale, FieldName))
     {
         return OutTranslation;
     }
 
-    // If fallback is allowed, try to find a fallback locale
     if (ShouldFallback)
     {
-        FString FallbackLocale = GetFallbackLanguageForLocale(CurrentLocale);
-        if (!FallbackLocale.IsEmpty() && Content.GetTranslationForKey(OutTranslation, FallbackLocale, FieldName))
+        return TryToFindFallbackTranslation(Content, FieldName, CurrentLocale);
+    }
+
+    UE_LOG(LogArcwarePlugin, Warning, TEXT("No translation found for ContentKey '%s', FieldName '%s', Locale '%s'."), *ContentKey, *FieldName, *CurrentLocale);
+    return FString();
+}
+
+FString UArcweaveSubsystem::TryToFindFallbackTranslation(const FArcweaveContent& Content, const FString& FieldName, const FString& CurrentLocale) const
+{
+    FString OutTranslation;
+    TSet<FString> VisitedLocales;
+
+    FString NextLocale = CurrentLocale;
+    while (true)
+    {
+        VisitedLocales.Add(NextLocale);
+        FString FallbackLocale = GetFallbackLanguageForLocale(NextLocale);
+        if (FallbackLocale.IsEmpty())
+        {
+            UE_LOG(LogArcwarePlugin, Warning, TEXT("No fallback translation found for FieldName '%s', Locale '%s'."), *FieldName, *CurrentLocale);
+            break;
+        }
+
+        if (VisitedLocales.Contains(FallbackLocale))
+        {
+            UE_LOG(
+                LogArcwarePlugin,
+                Warning,
+                TEXT("Loop of fallback locales identified while trying to find fallback locale for '%s' while visiting locale '%s' (e.g. fr->it, it->dt, dt->it)."),
+                *CurrentLocale,
+                *NextLocale
+            );
+            break;
+        }
+
+        if (Content.GetTranslationForKey(OutTranslation, FallbackLocale, FieldName))
         {
             return OutTranslation;
         }
+        NextLocale = FallbackLocale;
     }
 
-    // If nothing found, return empty string
-    UE_LOG(LogArcwarePlugin, Warning, TEXT("No translation found for ContentKey '%s', FieldName '%s', Locale '%s'."), *ContentKey, *FieldName, *CurrentLocale);
-    return FString();
+    // As a last resort, try any available translation for the field
+    for (const FArcweaveLocaleData& LocaleData : ProjectData.Locales)
+    {
+        if (!VisitedLocales.Contains(LocaleData.Iso))
+        {
+            if (Content.GetTranslationForKey(OutTranslation, LocaleData.Iso, FieldName))
+            {
+                return OutTranslation;
+            }
+        }
+    }
+
+    return OutTranslation;
 }
 
 void UArcweaveSubsystem::GetLanguageSettings(FString& OutDesiredLocale, bool& OutFallbackToDefaultLanguage)
@@ -1574,6 +1613,11 @@ void UArcweaveSubsystem::UpdateContentsWithLocale(const FString& DesiredLocale)
             connection.Label = GetTranslatedContent(connection.Id, TEXT("label"), DesiredLocale, bFallbackToDefaultLanguage);
         }
 
+    }
+
+    for (FArcweaveComponentData& component : ProjectData.Components)
+    {
+        component.Name = GetTranslatedContent(component.Id, TEXT("name"), DesiredLocale, bFallbackToDefaultLanguage);
     }
 
     if (OnArcweaveLanguageChanged.IsBound())

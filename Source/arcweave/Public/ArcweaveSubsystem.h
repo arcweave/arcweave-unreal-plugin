@@ -216,6 +216,8 @@ private:
     /* Given a locale iso, will look for the corresponding fallback locale*/
     FString GetFallbackLanguageForLocale(const FString& Locale) const;
     FString GetTranslatedContent(const FString& ContentKey, const FString& FieldName, const FString& CurrentLocale, bool ShouldFallback /*= true*/) const;
+    /* Tries to find a fallback translation for the specified content and locale*/
+    FString TryToFindFallbackTranslation(const struct FArcweaveContent& Content, const FString& FieldName, const FString& CurrentLocale) const;
     // Helper function to get desired locale and fallback flag from ArcweaveSettings
     void GetLanguageSettings(FString& OutDesiredLocale, bool& OutFallbackToDefaultLanguage);
 
