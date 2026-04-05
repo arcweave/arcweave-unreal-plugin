@@ -28,14 +28,17 @@ public class ArcscriptTranspiler : ModuleRules
             // we add the dylib to the list of libraries to link against.
             PublicAdditionalLibraries.Add(DylibPath);
 
-            // Ask UE's ModuleManager to try to load the dylib at runtime as well so
-            // that it is available both in the editor and in packaged builds.
-            PublicDelayLoadDLLs.Add(DylibPath);
+            // Stage the dylibs to the plugin's Binaries/Mac folder, which is the
+            // standard UE location for plugin binaries and where arcweave.cpp loads
+            // them from at runtime. The single-argument form of RuntimeDependencies
+            // would copy to the wrong location in packaged builds.
+            string OutputDir = Path.Combine(PluginDirectory, "Binaries", "Mac");
+            RuntimeDependencies.Add(Path.Combine(OutputDir, "libArcscriptTranspiler.dylib"), DylibPath);
+            RuntimeDependencies.Add(Path.Combine(OutputDir, "libantlr4-runtime.dylib"), Antlr4DylibPath);
 
-            // Finally stage the library so it is copied next to the packaged
-            // application / plugin.
-            RuntimeDependencies.Add(DylibPath);
-            RuntimeDependencies.Add(Antlr4DylibPath);
+            // Also stage to the target output directory for packaged game builds.
+            RuntimeDependencies.Add("$(BinaryOutputDir)/libArcscriptTranspiler.dylib", DylibPath);
+            RuntimeDependencies.Add("$(BinaryOutputDir)/libantlr4-runtime.dylib", Antlr4DylibPath);
         }
 
         PublicIncludePaths.AddRange(new string[]
