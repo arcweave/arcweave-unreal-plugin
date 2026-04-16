@@ -220,6 +220,9 @@ struct FArcweaveAttributeValueData
     FString Data = FString("");
 
     UPROPERTY(BlueprintReadWrite, Category = "Arcweave")
+    TArray<FString> ComponentIds = TArray<FString>();
+
+    UPROPERTY(BlueprintReadWrite, Category = "Arcweave")
     FString Type = FString("");
 
     UPROPERTY(BlueprintReadWrite, Category = "Arcweave")

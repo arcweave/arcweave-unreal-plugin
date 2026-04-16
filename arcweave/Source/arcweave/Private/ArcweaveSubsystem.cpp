@@ -724,9 +724,21 @@ TArray<FArcweaveAttributeData> UArcweaveSubsystem::ParseObjectAttributes(const T
 
 void UArcweaveSubsystem::ParseAttributeValue(const TSharedPtr<FJsonObject>& ValueObject, FArcweaveAttributeValueData& AttributeValue)
 {
-    ValueObject->TryGetStringField(TEXT("data"), AttributeValue.Data);
     ValueObject->TryGetStringField(TEXT("type"), AttributeValue.Type);
-    ValueObject->TryGetBoolField(TEXT("plain"), AttributeValue.Plain);
+    if (AttributeValue.Type == TEXT("component-list"))
+    {
+        const TArray<TSharedPtr<FJsonValue>>* ComponentIds = nullptr;
+        ValueObject->TryGetArrayField(TEXT("data"), ComponentIds);
+        for (const auto& ComponentId : *ComponentIds)
+        {
+            AttributeValue.ComponentIds.Add(ComponentId->AsString());
+        }
+    }
+    else
+    {
+        ValueObject->TryGetStringField(TEXT("data"), AttributeValue.Data);
+        ValueObject->TryGetBoolField(TEXT("plain"), AttributeValue.Plain);
+    }
 }
 
 TArray<FArcweaveBoardData> UArcweaveSubsystem::ParseBoard(const TSharedPtr<FJsonObject>& MainJsonObject)
