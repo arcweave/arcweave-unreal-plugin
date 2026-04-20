@@ -6,14 +6,26 @@
 // Arcweave includes
 #include "Arcweave.h"
 #include "ArcweaveSettings.h"
-#include "ArcweaveTypes.h"
+#include "UArcscriptTranspilerWrapper.h"
+#include "ArcweaveAPISettings.h"
+#include "GetIsTargetBranchOutput.h"
+#include "ArcweaveBranchData.h"
+#include "ArcweaveConnectionsData.h"
+#include "ArcweaveConditionData.h"
 
 // Engine includes
 #include "Engine/Engine.h"
+#include "GenericPlatform/GenericPlatformHttp.h"
+#include "HAL/FileManager.h"
 #include "Http.h"
 #include "HttpModule.h"
 #include "Interfaces/IHttpResponse.h"
 #include "Interfaces/IPluginManager.h"
+#include "Misc/ConfigCacheIni.h"
+#include "Misc/FileHelper.h"
+#include "Misc/Paths.h"
+#include "Serialization/JsonSerializer.h"
+#include "Dom/JsonObject.h"
 
 void UArcweaveSubsystem::FetchDataFromAPI(FString APIToken, FString ProjectHash)
 {

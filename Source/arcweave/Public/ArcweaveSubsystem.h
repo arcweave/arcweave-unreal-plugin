@@ -3,7 +3,13 @@
 #pragma once
 
 // Plugin includes
-#include "ArcweaveTypes.h"
+#include "ArcweaveComponentData.h"
+#include "ArcweaveAssetData.h"
+#include "ArcweaveAttributeData.h"
+#include "ArcweaveCoverData.h"
+#include "ArcweaveProjectData.h"
+#include "ArcweaveConditionData.h"
+#include "ArcweaveJumpersData.h"
 
 // Engine includes
 #include "CoreMinimal.h"
@@ -33,7 +39,6 @@ class ARCWEAVE_API UArcweaveSubsystem : public UEngineSubsystem
 	GENERATED_BODY()
 	
 public:
-
     void FetchDataFromAPI(FString APIToken, FString ProjectHash);
 
 	/*

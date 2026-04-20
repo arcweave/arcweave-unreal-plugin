@@ -3,12 +3,14 @@
 #pragma once
 
 // Plugin headers
-#include "ArcweaveTypes.h"
+#include "ArcscriptTranspilerOutput.h"
 
+// Engine headers
 #include "CoreMinimal.h"
 #include "UObject/Object.h"
-#include  <functional>
+#include "functional"
 
+// Generated include
 #include "UArcscriptTranspilerWrapper.generated.h"
 
 DECLARE_LOG_CATEGORY_EXTERN(LogArcweavePlugin, Log, All);
