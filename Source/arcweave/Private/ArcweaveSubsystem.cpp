@@ -80,7 +80,7 @@ void UArcweaveSubsystem::FetchData(FString APIToken, FString ProjectHash)
 bool UArcweaveSubsystem::LoadJsonFile()
 {
 	FString JsonRaw;
-    FString DirectoryPath = FPaths::ProjectDir() + TEXT("Content/ArcweaveExport/");
+    FString DirectoryPath = FPaths::ProjectDir() + TEXT("ArcweaveExport/");
     // Normalize the directory path
     FPaths::NormalizeDirectoryName(DirectoryPath);
     // Get the file manager instance
