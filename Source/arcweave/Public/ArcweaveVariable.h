@@ -1,5 +1,7 @@
-
 #pragma once
+
+// Engine includes
+#include "CoreMinimal.h"
 
 // Generated include
 #include "ArcweaveVariable.generated.h"
