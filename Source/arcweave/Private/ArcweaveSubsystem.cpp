@@ -79,7 +79,7 @@ void UArcweaveSubsystem::TryAddLanguageOptionToURL(FString& ApiUrl)
 void UArcweaveSubsystem::FetchData(FString APIToken, FString ProjectHash)
 {
     FArcweaveAPISettings NewArcweaveAPISettings = LoadArcweaveSettings();
-    if (NewArcweaveAPISettings.EnableRecieveMethodFromLocalJSON)
+    if (NewArcweaveAPISettings.EnableReceiveMethodFromLocalJSON)
     {
         LoadJsonFile();
     }
@@ -134,9 +134,9 @@ FArcweaveAPISettings UArcweaveSubsystem::LoadArcweaveSettings() const
         ArcweaveSettings->ReloadConfig();
         if (GConfig)
         {
-            if(GConfig->GetBool(ARCWEAVE_SETTINGS_SECTION, TEXT("EnableReceiveMethodFromLocalJSON"), OutSetttings.EnableRecieveMethodFromLocalJSON, GGameIni))
+            if(GConfig->GetBool(ARCWEAVE_SETTINGS_SECTION, TEXT("EnableReceiveMethodFromLocalJSON"), OutSetttings.EnableReceiveMethodFromLocalJSON, GGameIni))
             {
-                UE_LOG(LogTemp, Warning, TEXT("Read EnableRecieveMethodFromLocalJSON: %d"), OutSetttings.EnableRecieveMethodFromLocalJSON);
+                UE_LOG(LogTemp, Warning, TEXT("Read EnableReceiveMethodFromLocalJSON: %d"), OutSetttings.EnableReceiveMethodFromLocalJSON);
             }
             
             if(GConfig->GetString(ARCWEAVE_SETTINGS_SECTION, TEXT("APIToken"), OutSetttings.APIToken, GGameIni))

@@ -15,7 +15,7 @@ struct FArcweaveAPISettings
      * API token that you can find in your Arcweave account settings.
      */
     UPROPERTY(Config, EditAnywhere, Category = ArcweaveSettings)
-    bool EnableRecieveMethodFromLocalJSON = false;
+    bool EnableReceiveMethodFromLocalJSON = false;
 
 	/*
 	 * API token that you can find in your Arcweave account settings.
@@ -57,7 +57,7 @@ struct FArcweaveAPISettings
 #pragma endregion
 
     FArcweaveAPISettings()
-        : EnableRecieveMethodFromLocalJSON(false)
+        : EnableReceiveMethodFromLocalJSON(false)
         , APIToken(FString(""))
         , Hash(FString(""))
         , bUseLocale(false)
