@@ -7,8 +7,11 @@
 #define ARCWEAVE_API DLL_IMPORT
 #endif*/
 
-#include "ArcweaveTypes.h"
+// Plugin includes
+#include "ArcweaveVariable.h"
 #include "UArcscriptTranspilerWrapper.h"
+
+// Engine includes
 #include "Modules/ModuleManager.h"
 #include "UObject/ObjectMacros.h"
 

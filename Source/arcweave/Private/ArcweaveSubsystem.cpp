@@ -6,14 +6,26 @@
 // Arcweave includes
 #include "Arcweave.h"
 #include "ArcweaveSettings.h"
-#include "ArcweaveTypes.h"
+#include "UArcscriptTranspilerWrapper.h"
+#include "ArcweaveAPISettings.h"
+#include "GetIsTargetBranchOutput.h"
+#include "ArcweaveBranchData.h"
+#include "ArcweaveConnectionsData.h"
+#include "ArcweaveConditionData.h"
 
 // Engine includes
 #include "Engine/Engine.h"
+#include "GenericPlatform/GenericPlatformHttp.h"
+#include "HAL/FileManager.h"
 #include "Http.h"
 #include "HttpModule.h"
 #include "Interfaces/IHttpResponse.h"
 #include "Interfaces/IPluginManager.h"
+#include "Misc/ConfigCacheIni.h"
+#include "Misc/FileHelper.h"
+#include "Misc/Paths.h"
+#include "Serialization/JsonSerializer.h"
+#include "Dom/JsonObject.h"
 
 void UArcweaveSubsystem::FetchDataFromAPI(FString APIToken, FString ProjectHash)
 {
@@ -67,7 +79,7 @@ void UArcweaveSubsystem::TryAddLanguageOptionToURL(FString& ApiUrl)
 void UArcweaveSubsystem::FetchData(FString APIToken, FString ProjectHash)
 {
     FArcweaveAPISettings NewArcweaveAPISettings = LoadArcweaveSettings();
-    if (NewArcweaveAPISettings.EnableRecieveMethodFromLocalJSON)
+    if (NewArcweaveAPISettings.EnableReceiveMethodFromLocalJSON)
     {
         LoadJsonFile();
     }
@@ -122,9 +134,9 @@ FArcweaveAPISettings UArcweaveSubsystem::LoadArcweaveSettings() const
         ArcweaveSettings->ReloadConfig();
         if (GConfig)
         {
-            if(GConfig->GetBool(ARCWEAVE_SETTINGS_SECTION, TEXT("EnableReceiveMethodFromLocalJSON"), OutSetttings.EnableRecieveMethodFromLocalJSON, GGameIni))
+            if(GConfig->GetBool(ARCWEAVE_SETTINGS_SECTION, TEXT("EnableReceiveMethodFromLocalJSON"), OutSetttings.EnableReceiveMethodFromLocalJSON, GGameIni))
             {
-                UE_LOG(LogTemp, Warning, TEXT("Read EnableRecieveMethodFromLocalJSON: %d"), OutSetttings.EnableRecieveMethodFromLocalJSON);
+                UE_LOG(LogTemp, Warning, TEXT("Read EnableReceiveMethodFromLocalJSON: %d"), OutSetttings.EnableReceiveMethodFromLocalJSON);
             }
             
             if(GConfig->GetString(ARCWEAVE_SETTINGS_SECTION, TEXT("APIToken"), OutSetttings.APIToken, GGameIni))
