@@ -1,5 +1,5 @@
 # Ignore generated folders
-arcweave/Binaries/*
-arcweave/Intermediate/*
+Binaries/*
+Intermediate/*
 .DS_Store
 .vs
