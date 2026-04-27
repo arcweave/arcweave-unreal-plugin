@@ -91,8 +91,17 @@ void UArcweaveSubsystem::FetchData(FString APIToken, FString ProjectHash)
 
 bool UArcweaveSubsystem::LoadJsonFile()
 {
+    const FArcweaveAPISettings ArcweaveAPISettings = LoadArcweaveSettings();
+
+    if (ArcweaveAPISettings.JsonFilePath.IsEmpty())
+    {
+        FString Message = FString::Printf(TEXT("Json file path is empty in settings!"));
+        LogFetchStatus(true, Message);
+        return false;
+    }
+
     FString JsonRaw;
-    FString DirectoryPath = FPaths::ProjectDir() + TEXT("Content/ArcweaveExport/");
+    FString DirectoryPath = FPaths::ProjectDir() + ArcweaveAPISettings.JsonFilePath;
     // Normalize the directory path
     FPaths::NormalizeDirectoryName(DirectoryPath);
     // Get the file manager instance
@@ -147,6 +156,16 @@ FArcweaveAPISettings UArcweaveSubsystem::LoadArcweaveSettings() const
             if (GConfig->GetString(ARCWEAVE_SETTINGS_SECTION, TEXT("Hash"), OutSetttings.Hash, GGameIni))
             {
                 UE_LOG(LogTemp, Warning, TEXT("Read Hash: %s"), *OutSetttings.Hash);
+            }
+
+            if (GConfig->GetString(ARCWEAVE_SETTINGS_SECTION, TEXT("JsonFilePath"), OutSetttings.JsonFilePath, GGameIni))
+            {
+                UE_LOG(LogTemp, Warning, TEXT("Read JsonFilePath: %s"), *OutSetttings.JsonFilePath);
+            }
+
+            if (GConfig->GetString(ARCWEAVE_SETTINGS_SECTION, TEXT("JsonFilePath"), OutSetttings.JsonFilePath, GGameIni))
+            {
+                UE_LOG(LogTemp, Warning, TEXT("Read JsonFilePath: %s"), *OutSetttings.JsonFilePath);
             }
 
             if (GConfig->GetBool(ARCWEAVE_SETTINGS_SECTION, TEXT("bUseLocale"), OutSetttings.bUseLocale, GGameIni))

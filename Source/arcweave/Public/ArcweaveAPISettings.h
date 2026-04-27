@@ -29,6 +29,17 @@ struct FArcweaveAPISettings
 	UPROPERTY(BlueprintReadWrite, Category = "Arcweave| Settings")
 	FString Hash = FString("");
 
+    UPROPERTY(
+        BlueprintReadWrite,
+        Category = "Arcweave| Settings",
+        meta = (
+            EditCondition = "EnableReceiveMethodFromLocalJSON",
+            ToolTip = "Insert the folder path containing the .json file"
+            )
+    )
+    FString JsonFilePath = FString("Content/ArcweaveExport/");
+
+
 #pragma region Language
 
     UPROPERTY(BlueprintReadWrite, Category = "Arcweave| Settings", meta = (ToolTip = "Allow using a custom language for the application if available (e.g. en, it, fr ...)"))
