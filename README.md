@@ -15,7 +15,7 @@ The plugin can import data from an exported Arcweave JSON file (available to all
    - [UArcweaveSubsystem Functions](#list-of-important-functions-in-uarcweavesubsystem)
    - [ArcscriptTranspilerWrapper](#arcweave-transpiler-script-wrapper-arcscripttranspilerwrapper)
    - [ArcweaveModule](#plugin-module-arcweavemodule)
-   - [ArcweaveTypes](#data-wrapper-arcweavetypes)
+   - [Data structs](#data-structs)
 - [Using the Demo Project](#using-the-demo-project)
 - [Support](#support)
 
@@ -49,17 +49,17 @@ This involves fetching data directly from the Arcweave Web API within Unreal Eng
 
 ``` mermaid
    classDiagram
-   class ArcweaveSubsystem{}
+   class UArcweaveSubsystem{}
 
-   class ArcscriptTranspilerWrapper{}
-   class Arcweave {}
-   class ArcweaveTypes {}
-   ArcweaveSubsystem --|> GameInstanceSubsystem
-   ArcweaveSubsystem "1"--"1..*" ArcweaveTypes
-   ArcweaveSubsystem ..> ArcscriptTranspilerWrapper
-   ArcscriptTranspilerWrapper ..> ArcweaveTypes
-   ArcweaveSubsystem ..> Arcweave
-   Arcweave *--> ArcscriptTranspilerWrapper
+   class UArcscriptTranspilerWrapper{}
+   class FarcweaveModule {}
+   class FArcweaveProjectData {}
+   UArcweaveSubsystem --|> UEngineSubsystem
+   UArcweaveSubsystem *--> FArcweaveProjectData: provides
+   UArcweaveSubsystem ..> UArcscriptTranspilerWrapper
+   UArcscriptTranspilerWrapper ..> FArcweaveProjectData
+   UArcweaveSubsystem ..> FarcweaveModule
+   FarcweaveModule *--> UArcscriptTranspilerWrapper
 ```
 The primary class that contains all the blueprint-exposed functions and data is **UArcweaveSubsystem**. This class is located in the file path `Plugins\arcweave\Source\arcweave\Public\ArcweaveSubsystem.h`. 
 It provides a range of functions that can be utilized in both Blueprints and C++ to interact with, modify, and retrieve data.
@@ -67,7 +67,7 @@ It provides a range of functions that can be utilized in both Blueprints and C++
 #### List of Important Functions in `UArcweaveSubsystem`:
 ``` mermaid
    classDiagram
-   class ArcweaveSubsystem{
+   class UArcweaveSubsystem{
       +HandleApiCall
       +HandleSettings
       +HandleArcweaveProjectData
@@ -75,7 +75,7 @@ It provides a range of functions that can be utilized in both Blueprints and C++
       +TranspileData
    }
 
-   ArcweaveSubsystem --|> GameInstanceSubsystem
+   UArcweaveSubsystem --|> UEngineSubsystem
 ```
 1. **Fetch Data from Arcweave API or local JSON**
    - This function allows you to fetch data from the Arcweave API by providing the API token and project hash.
@@ -129,8 +129,122 @@ This class provides the possibility to access the Arcweave wrapper to call the D
          FarcweaveModule* arcweaveModule = FModuleManager::GetModulePtr<FarcweaveModule>("Arcweave");
          UArcscriptTranspilerWrapper* ArcscriptWrapper = arcweaveModule->getArcscriptWrapper();
 ```
-### Data wrapper `ArcweaveTypes`:
-Class wrapper containing a series of Blueprint-type structs needed to use the transpiler, and convert the data from and to JSON.
+### Data structs:
+Wrapper structs containing a series of Blueprint-type structs needed to use the transpiler, and convert the data from and to JSON.
+
+```mermaid
+
+classDiagram
+direction TB
+    class FArcweaveProjectData {
+	    +FString Name
+	    +TArray~FArcweaveBoardData~ Boards
+	    +TMap~FString, FArcweaveVariable~ Variables
+	    +FArcweaveCoverData Cover
+	    +TArray~FArcweaveComponentData~ Components
+	    +TArray~FArcweaveConditionData~ Conditions
+	    +TArray~FArcweaveConnectionsData~ Connections
+    }
+
+    class FArcweaveBoardData {
+	    +FString Id
+	    +FString Name
+	    +TArray~FArcweaveElementData~ Elements
+	    +TArray~FArcweaveConnectionsData~ Connections
+	    +TArray~FArcweaveBranchData~ Branches
+	    +TArray~FArcweaveJumpersData~ Jumpers
+    }
+
+    class FArcweaveElementData {
+	    +FString Id
+	    +FString Title
+	    +FString Content
+	    +TArray~FArcweaveConnectionsData~ Outputs
+	    +TArray~FArcweaveComponentData~ Components
+	    +TArray~FArcweaveAttributeData~ Attributes
+    }
+
+    class FArcweaveConnectionsData {
+	    +FString Id
+	    +FString Label
+	    +FString SourceId
+	    +FString TargetId
+    }
+
+    class FArcweaveVariable {
+	    +FString Id
+	    +FString Name
+	    +FString Type
+	    +FString Value
+    }
+
+    class FArcweaveBranchData {
+	    +FString Id
+	    +TArray~FArcweaveConditionData~ Conditions
+	    +TArray~FString~ ConnectionIds
+    }
+
+    class FArcweaveConditionData {
+	    +FString Id
+	    +FString Script
+	    +FString OutputConnectionId
+    }
+
+    class FArcweaveComponentData {
+	    +FString Id
+	    +FString Name
+	    +TArray~FArcweaveAttributeData~ Attributes
+	    +TArray~FArcweaveAssetData~ Assets
+    }
+
+    class FArcscriptTranspilerOutput {
+	    +FString Output
+	    +FArcscriptInputType Type
+	    +TArray~FArcscriptVariableChange~ Changes
+	    +bool ConditionResult
+    }
+
+    class FArcweaveAttributeData {
+    }
+
+    class FArcweaveAssetData {
+    }
+
+    class FArcscriptVariableChange {
+    }
+
+    class FArcweaveAttributeValueData {
+    }
+
+	<<USTRUCT>> FArcweaveProjectData
+	<<USTRUCT>> FArcweaveBoardData
+	<<USTRUCT>> FArcweaveElementData
+	<<USTRUCT>> FArcweaveConnectionsData
+	<<USTRUCT>> FArcweaveVariable
+	<<USTRUCT>> FArcweaveBranchData
+	<<USTRUCT>> FArcweaveConditionData
+	<<USTRUCT>> FArcweaveComponentData
+	<<USTRUCT>> FArcscriptTranspilerOutput
+	<<USTRUCT>> FArcweaveAttributeValueData
+	<<USTRUCT>> FArcweaveAttributeData
+
+    FArcweaveProjectData --> FArcweaveBoardData : contains
+    FArcweaveProjectData --> FArcweaveVariable : has
+    FArcweaveProjectData --> FArcweaveComponentData : uses
+    FArcweaveProjectData --> FArcweaveConditionData : defines
+    FArcweaveProjectData --> FArcweaveConnectionsData : links
+    FArcweaveBoardData --> FArcweaveElementData : has
+    FArcweaveBoardData --> FArcweaveConnectionsData : connects via
+    FArcweaveBoardData --> FArcweaveBranchData : manages
+    FArcweaveBranchData --> FArcweaveConditionData : evaluates
+    FArcweaveElementData --> FArcweaveConnectionsData : outputs
+    FArcweaveElementData --> FArcweaveComponentData : contains
+    FArcweaveComponentData --> FArcweaveAttributeData : contains
+    FArcweaveComponentData --> FArcweaveAssetData : includes
+    FArcscriptTranspilerOutput --> FArcscriptVariableChange : records
+    FArcweaveAttributeValueData --> FArcweaveComponentData : refers
+    FArcweaveAttributeData --> FArcweaveAttributeValueData : has
+```
 
 ## Using the Demo Project
 
