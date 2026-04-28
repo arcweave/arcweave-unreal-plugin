@@ -6,12 +6,16 @@
 // Arcweave includes
 #include "Arcweave.h"
 #include "ArcweaveAPISettings.h"
+#include "ArcweaveAttributeDataType.h"
+#include "ArcweaveAttributeValueData.h"
 #include "ArcweaveBranchData.h"
 #include "ArcweaveConditionData.h"
 #include "ArcweaveConnectionsData.h"
 #include "ArcweaveSettings.h"
 #include "GetIsTargetBranchOutput.h"
 #include "UArcscriptTranspilerWrapper.h"
+#include "ArcweaveElementData.h"
+#include "ArcweaveUtils.h"
 
 // Engine includes
 #include "Dom/JsonObject.h"
@@ -26,6 +30,7 @@
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 #include "Serialization/JsonSerializer.h"
+#include "UObject/Class.h"
 
 void UArcweaveSubsystem::FetchDataFromAPI(FString APIToken, FString ProjectHash)
 {
@@ -736,21 +741,54 @@ TArray<FArcweaveAttributeData> UArcweaveSubsystem::ParseObjectAttributes(const T
 
 void UArcweaveSubsystem::ParseAttributeValue(const TSharedPtr<FJsonObject>& ValueObject, FArcweaveAttributeValueData& AttributeValue)
 {
-    ValueObject->TryGetStringField(TEXT("type"), AttributeValue.Type);
-    if (AttributeValue.Type == TEXT("component-list"))
+    const UEnum* EnumPtr = StaticEnum<EArcweaveAttributeDataType>();
+
+
+    FString Type;
+    ValueObject->TryGetStringField(TEXT("type"), Type);
+    const EArcweaveAttributeDataType* FoundType = ArcweaveUtils::TryGetEnumFromString(Type);
+
+    if (!FoundType)
     {
-        const TArray<TSharedPtr<FJsonValue>>* ComponentIds = nullptr;
-        ValueObject->TryGetArrayField(TEXT("data"), ComponentIds);
-        for (const auto& ComponentId : *ComponentIds)
-        {
-            AttributeValue.ComponentIds.Add(ComponentId->AsString());
-        }
+        UE_LOG(LogArcwarePlugin, Error, TEXT("Could not find Enum value for string: %s"), *Type);
+        AttributeValue.Type = EArcweaveAttributeDataType::Undefined;
+
     }
     else
     {
-        ValueObject->TryGetStringField(TEXT("data"), AttributeValue.Data);
-        ValueObject->TryGetBoolField(TEXT("plain"), AttributeValue.Plain);
+        AttributeValue.Type = *FoundType;
+
+        switch (AttributeValue.Type)
+        {
+            case(EArcweaveAttributeDataType::ComponentList): {
+
+                const TArray<TSharedPtr<FJsonValue>>* ComponentIds = nullptr;
+                ValueObject->TryGetArrayField(TEXT("data"), ComponentIds);
+                for (const auto& ComponentId : *ComponentIds)
+                {
+                    AttributeValue.ComponentIds.Add(ComponentId->AsString());
+                }
+                break;
+
+            }
+
+            case(EArcweaveAttributeDataType::String):
+            case(EArcweaveAttributeDataType::StringRichText):
+            {
+                ValueObject->TryGetStringField(TEXT("data"), AttributeValue.Data);
+                ValueObject->TryGetBoolField(TEXT("plain"), AttributeValue.Plain);
+                break;
+            }
+
+            case(EArcweaveAttributeDataType::AssetList):
+            {
+                UE_LOG(LogArcwarePlugin, Warning, TEXT("Support for attributes %s not implemented yet:"), *Type);
+
+            }
+             break;
+        }
     }
+
 }
 
 TArray<FArcweaveBoardData> UArcweaveSubsystem::ParseBoard(const TSharedPtr<FJsonObject>& MainJsonObject)

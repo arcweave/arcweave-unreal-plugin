@@ -3,6 +3,9 @@
 // Engine include
 #include "CoreMinimal.h"
 
+// Arcweave includes
+#include "ArcweaveAttributeDataType.h"
+
 // Generated include
 #include "ArcweaveAttributeValueData.generated.h"
 
@@ -18,7 +21,7 @@ struct FArcweaveAttributeValueData
     TArray<FString> ComponentIds = TArray<FString>();
 
     UPROPERTY(BlueprintReadWrite, Category = "Arcweave")
-    FString Type = FString("");
+    EArcweaveAttributeDataType Type = EArcweaveAttributeDataType::Undefined;
 
     UPROPERTY(BlueprintReadWrite, Category = "Arcweave")
     bool Plain = false;
