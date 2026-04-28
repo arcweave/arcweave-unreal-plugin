@@ -21,7 +21,7 @@ public:
 
     /*
      * Enable to receive the data from local JSON file instead of API.
-     * The JSON file and resource files should be located in the Content/ArcweaveExport folder.
+     * The JSON file and resource files should be located in the JsonDirectoryPath folder.
      */
     UPROPERTY(Config, EditAnywhere, Category = ArcweaveSettings)
     bool EnableReceiveMethodFromLocalJSON = false;
@@ -31,11 +31,11 @@ public:
         EditAnywhere,
         meta = (
             EditCondition = "EnableReceiveMethodFromLocalJSON",
-            ToolTip = "Insert the folder path containing the .json file"
+            ToolTip = "Insert the folder path relative to the project folder containing the .json file"
             ),
         Category = ArcweaveSettings
     )
-    FString JsonFilePath = FString("Content/ArcweaveExport/");
+    FString JsonDirectoryPath = FString("Content/ArcweaveExport/");
 
     /*
      * API token that you can find in your Arcweave account settings.

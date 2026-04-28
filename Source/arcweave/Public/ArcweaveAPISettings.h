@@ -37,7 +37,7 @@ struct FArcweaveAPISettings
             ToolTip = "Insert the folder path containing the .json file"
             )
     )
-    FString JsonFilePath = FString("Content/ArcweaveExport/");
+    FString JsonDirectoryPath = FString("Content/ArcweaveExport/");
 
 
 #pragma region Language
