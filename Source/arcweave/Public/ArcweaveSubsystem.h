@@ -71,6 +71,10 @@ public:
     UFUNCTION(BlueprintPure, Category = "Arcweave")
     FArcweaveProjectData GetArcweaveProjectData() const {return ProjectData;};
 
+    /** Try to get the component data with the Id given for the current project data, returns true if success false otherwise */
+    UFUNCTION(BlueprintCallable, Category = "Arcweave")
+    bool TryGetArcweaveComponentById(FArcweaveComponentData& AWComponent, const FString& AWComponentId);
+
     /*
      * Run transpiler for the element
      * Increase visits counter for the element
@@ -178,7 +182,8 @@ private:
     FArcweaveConditionData ParseConditionById(const TSharedPtr<FJsonObject>& MainJsonObject, const FString& ConditionId);
     TMap<FString, int> InitVisits(const TSharedPtr<FJsonObject>& MainJsonObject);
     TArray<FArcweaveComponentData> ParseComponents(const TSharedPtr<FJsonObject>& MainJsonObject, const TSharedPtr<FJsonObject>& ElementValueObject);
-    TArray<FArcweaveComponentData> ParseAllComponents(const TSharedPtr<FJsonObject>& MainJsonObject);
+    TArray<FString> ParseComponentIds(const TSharedPtr<FJsonObject>& ElementValueObject);
+    TMap<FString, FArcweaveComponentData> ParseAllComponents(const TSharedPtr<FJsonObject>& MainJsonObject);
     TArray<FArcweaveConditionData> ParseAllConditions(const TSharedPtr<FJsonObject>& MainJsonObject);
     TArray<FArcweaveConnectionsData> ParseAllConnections(const TSharedPtr<FJsonObject>& MainJsonObject);
     FArcweaveCoverData ParseCoverData(const TSharedPtr<FJsonObject>& CoverValueObject);
@@ -200,12 +205,11 @@ private:
 
     UFUNCTION(BlueprintCallable, Category = "Arcweave | Debug")
     void PrintBranchData(const FArcweaveBranchData &InData);
+
 private:
     UPROPERTY()
     FArcweaveProjectData ProjectData = FArcweaveProjectData();
     UPROPERTY()
     FArcweaveBoardData BoardObj = FArcweaveBoardData();
-    /*UPROPERTY()
-    FArcweaveAPISettings ArcweaveAPISettings = FArcweaveAPISettings();*/
 
 };

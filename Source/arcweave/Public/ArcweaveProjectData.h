@@ -30,10 +30,9 @@ struct FArcweaveProjectData
     //project boards
     UPROPERTY(BlueprintReadWrite, Category = "Arcweave")
     TArray<FArcweaveBoardData> Boards = TArray<FArcweaveBoardData>();
-
-    //project components
+    /** Records all the componenets present in the project by their id */
     UPROPERTY(BlueprintReadWrite, Category = "Arcweave")
-    TArray<FArcweaveComponentData> Components = TArray<FArcweaveComponentData>();
+    TMap<FString, FArcweaveComponentData> ComponentsMap;
 
     //project conditions
     UPROPERTY(BlueprintReadWrite, Category = "Arcweave")
@@ -52,7 +51,6 @@ struct FArcweaveProjectData
         , Cover(FArcweaveCoverData())
         , CurrentVars(TMap<FString, FArcweaveVariable>())
         , Boards(TArray<FArcweaveBoardData>())
-        , Components(TArray<FArcweaveComponentData>())
         , Visits(TMap<FString, int>())
     {}
 };
