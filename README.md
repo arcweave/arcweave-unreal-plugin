@@ -1,4 +1,13 @@
 # Arcweave Plugin for Unreal Engine
+
+[![Version](https://img.shields.io/badge/version-1.1-blue.svg)](https://github.com/arcweave/arcweave-unreal-plugin)
+[![Unreal Engine](https://img.shields.io/badge/Unreal%20Engine-5.0%2B-0E1128?logo=unrealengine)](https://www.unrealengine.com/)
+[![Language](https://img.shields.io/badge/language-C%2B%2B-00599C?logo=cplusplus)](https://isocpp.org/)
+[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![GitHub Issues](https://img.shields.io/github/issues/arcweave/arcweave-unreal-plugin)](https://github.com/arcweave/arcweave-unreal-plugin/issues)
+[![Discord](https://img.shields.io/badge/Discord-Join%20Us-7289DA?logo=discord&logoColor=white)](https://discord.gg/kb4FxBxw)
+[![YouTube](https://img.shields.io/badge/YouTube-Tutorial%20Series-FF0000?logo=youtube&logoColor=white)](https://www.youtube.com/playlist?list=PLP2s5PcDiBdYRg0zHpJTuiDVf9JF_inyH)
+
 [![IMAGE ALT TEXT HERE](https://img.youtube.com/vi/Ws_Cz-IQQYg/0.jpg)](https://www.youtube.com/watch?v=Ws_Cz-IQQYg)
 
 This is the official README file for the Arcweave plugin repository, which facilitates the import of [Arcweave](https://arcweave.com/) projects into Unreal Engine (version 5.0 and later). 
@@ -132,43 +141,34 @@ This class provides the possibility to access the Arcweave wrapper to call the D
 ### Data structs:
 Wrapper structs containing a series of Blueprint-type structs needed to use the transpiler, and convert the data from and to JSON.
 
+[View Complete relationship between data structs UML Diagram](./Docs/DataDiagramClassUML.md)
+
+#### Project struct :`ArcweaveProjectData`
+This is the struct containing the board(ref to the image below) objects, the cover, all the components, and connection present in the project
+
 ```mermaid
 
 classDiagram
 direction TB
+
+note for FArcweaveProjectData "Main Data Container"
     class FArcweaveProjectData {
 	    +FString Name
-	    +TArray~FArcweaveBoardData~ Boards
-	    +TMap~FString, FArcweaveVariable~ Variables
-	    +FArcweaveCoverData Cover
-	    +TArray~FArcweaveComponentData~ Components
-	    +TArray~FArcweaveConditionData~ Conditions
-	    +TArray~FArcweaveConnectionsData~ Connections
+	    +  Boards
+	    +  Variables
+	    +  Cover
+	    +  Components
+	    +  Conditions
+	    +  Connections
     }
 
     class FArcweaveBoardData {
 	    +FString Id
 	    +FString Name
-	    +TArray~FArcweaveElementData~ Elements
-	    +TArray~FArcweaveConnectionsData~ Connections
-	    +TArray~FArcweaveBranchData~ Branches
-	    +TArray~FArcweaveJumpersData~ Jumpers
-    }
-
-    class FArcweaveElementData {
-	    +FString Id
-	    +FString Title
-	    +FString Content
-	    +TArray~FArcweaveConnectionsData~ Outputs
-	    +TArray~FArcweaveComponentData~ Components
-	    +TArray~FArcweaveAttributeData~ Attributes
-    }
-
-    class FArcweaveConnectionsData {
-	    +FString Id
-	    +FString Label
-	    +FString SourceId
-	    +FString TargetId
+	    + Elements
+	    + Connections
+	    + Branches
+	    + Jumpers
     }
 
     class FArcweaveVariable {
@@ -178,72 +178,65 @@ direction TB
 	    +FString Value
     }
 
-    class FArcweaveBranchData {
-	    +FString Id
-	    +TArray~FArcweaveConditionData~ Conditions
-	    +TArray~FString~ ConnectionIds
-    }
-
-    class FArcweaveConditionData {
-	    +FString Id
-	    +FString Script
-	    +FString OutputConnectionId
-    }
-
-    class FArcweaveComponentData {
-	    +FString Id
-	    +FString Name
-	    +TArray~FArcweaveAttributeData~ Attributes
-	    +TArray~FArcweaveAssetData~ Assets
-    }
-
-    class FArcscriptTranspilerOutput {
-	    +FString Output
-	    +FArcscriptInputType Type
-	    +TArray~FArcscriptVariableChange~ Changes
-	    +bool ConditionResult
-    }
-
-    class FArcweaveAttributeData {
-    }
-
-    class FArcweaveAssetData {
-    }
-
-    class FArcscriptVariableChange {
-    }
-
-    class FArcweaveAttributeValueData {
-    }
-
+   
 	<<USTRUCT>> FArcweaveProjectData
 	<<USTRUCT>> FArcweaveBoardData
-	<<USTRUCT>> FArcweaveElementData
-	<<USTRUCT>> FArcweaveConnectionsData
 	<<USTRUCT>> FArcweaveVariable
-	<<USTRUCT>> FArcweaveBranchData
-	<<USTRUCT>> FArcweaveConditionData
-	<<USTRUCT>> FArcweaveComponentData
-	<<USTRUCT>> FArcscriptTranspilerOutput
-	<<USTRUCT>> FArcweaveAttributeValueData
-	<<USTRUCT>> FArcweaveAttributeData
+
 
     FArcweaveProjectData --> FArcweaveBoardData : contains
     FArcweaveProjectData --> FArcweaveVariable : has
-    FArcweaveProjectData --> FArcweaveComponentData : uses
-    FArcweaveProjectData --> FArcweaveConditionData : defines
-    FArcweaveProjectData --> FArcweaveConnectionsData : links
+
+```
+
+#### Board struct :`ArcweaveBoardData`
+[![ArcweaveBoard image in web app](./Docs/BoardExample.png)](./Docs/BoardExample.png)
+
+The board is the second most important container and represent what we see in the app in the red rectangle looking at the figure
+
+
+```mermaid
+classDiagram
+direction TB
+    class FArcweaveBoardData {
+	    +FString Id
+	    +FString Name
+	    +TArray\~FArcweaveElementData\~ Elements
+	    +TArray\~FArcweaveConnectionsData\~ Connections
+	    +TArray\~FArcweaveBranchData\~ Branches
+	    +TArray\~FArcweaveJumpersData\~ Jumpers
+    }
+
+    class FArcweaveElementData {
+	    +FString Id
+	    +FString Title
+	    +FString Content
+	    +TArray\~FArcweaveConnectionsData\~ Outputs
+	    +TArray\~FString\~ ComponentIds
+	    +TArray\~FArcweaveAttributeData\~ Attributes
+    }
+
+    class FArcweaveConnectionsData {
+	    +FString Id
+	    +FString Label
+	    +FString SourceId
+	    +FString TargetId
+    }
+
+    class FArcweaveBranchData {
+	    +FString Id
+	    +TArray\~FArcweaveConditionData\~ Conditions
+	    +TArray\~FString\~ ConnectionIds
+    }
+
+	<<USTRUCT>> FArcweaveBoardData
+	<<USTRUCT>> FArcweaveElementData
+	<<USTRUCT>> FArcweaveConnectionsData
+	<<USTRUCT>> FArcweaveBranchData
+
     FArcweaveBoardData --> FArcweaveElementData : has
     FArcweaveBoardData --> FArcweaveConnectionsData : connects via
     FArcweaveBoardData --> FArcweaveBranchData : manages
-    FArcweaveBranchData --> FArcweaveConditionData : evaluates
-    FArcweaveElementData --> FArcweaveConnectionsData : outputs
-    FArcweaveElementData --> FArcweaveComponentData : contains
-    FArcweaveComponentData --> FArcweaveAttributeData : contains
-    FArcweaveComponentData --> FArcweaveAssetData : includes
-    FArcscriptTranspilerOutput --> FArcscriptVariableChange : records
-    FArcweaveAttributeValueData --> FArcweaveComponentData : refers
-    FArcweaveAttributeData --> FArcweaveAttributeValueData : has
 ```
 
 ## Using the Demo Project
