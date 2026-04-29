@@ -16,7 +16,7 @@ direction TB
 
     +FArcweaveCoverData Cover
 
-    +TArray\~FArcweaveComponentData\~ Components
+    +TMap\~FString, FArcweaveComponentData\~ ComponentsMap
 
     +TArray\~FArcweaveConditionData\~ Conditions
 
@@ -54,7 +54,7 @@ direction TB
 
     +TArray\~FArcweaveConnectionsData\~ Outputs
 
-    +TArray\~FArcweaveComponentData\~ Components
+    +TArray\~TArray<FString>\~ ComponentIds
 
     +TArray\~FArcweaveAttributeData\~ Attributes
 
@@ -150,7 +150,7 @@ direction TB
 
     +FString Name
 
-    +FString cType
+    +EArcweaveAttributeDataType cType
 
     +FArcweaveAttributeValueData Value
 
@@ -192,7 +192,7 @@ direction TB
 
     +TArray\~FString\~ ComponentIds
 
-    +EArcweaveAttributeDataType Type
+    +EArcweaveAttributeValueDataType Type
 
     +bool Plain
 

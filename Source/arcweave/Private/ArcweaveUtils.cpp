@@ -3,18 +3,30 @@
 
 // Engine includes
 #include "Containers/Map.h"
+#include "HAL/Platform.h"
 
-
-const TMap<FString, EArcweaveAttributeDataType> ArcweaveUtils::AttributeEnumDataTypeMap =
+const TMap<FString, EArcweaveAttributeValueDataType> ArcweaveUtils::AttributeValueDataTypeMap =
 {
-    { TEXT("string"),  EArcweaveAttributeDataType::String },
-    { TEXT("StringRichText"), EArcweaveAttributeDataType::StringRichText },
-    { TEXT("component-list"), EArcweaveAttributeDataType::ComponentList },
-    { TEXT("asset-list"),   EArcweaveAttributeDataType::AssetList }
+    { TEXT("string"),  EArcweaveAttributeValueDataType::String },
+    { TEXT("StringRichText"), EArcweaveAttributeValueDataType::StringRichText },
+    { TEXT("component-list"), EArcweaveAttributeValueDataType::ComponentList },
+    { TEXT("asset-list"),   EArcweaveAttributeValueDataType::AssetList }
+};
+
+const TMap<FString, EArcweaveAttributeDataType> ArcweaveUtils::AttributeDataTypeMap =
+{
+    { TEXT("elements"), EArcweaveAttributeDataType::Elements },
+    { TEXT("components"), EArcweaveAttributeDataType::Components },
+    { TEXT("global"), EArcweaveAttributeDataType::Global },
 };
 
 
-const EArcweaveAttributeDataType* ArcweaveUtils::TryGetEnumFromString(FString& Type)
+const EArcweaveAttributeValueDataType* ArcweaveUtils::TryGetAttributeValueDataTypeFromString(const FString& Type)
 {
-    return AttributeEnumDataTypeMap.Find(Type);
+    return AttributeValueDataTypeMap.Find(Type);
+}
+
+const EArcweaveAttributeDataType* ArcweaveUtils::TryGetAttributeDataTypeFromString(const FString& Type)
+{
+    return AttributeDataTypeMap.Find(Type);
 }

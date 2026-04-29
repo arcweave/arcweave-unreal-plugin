@@ -7,14 +7,13 @@
 #include "ArcweaveAttributeDataType.generated.h"
 
 /**
- * Represents the type of data stored in an Arcweave attribute
+ * Represents the type of attribute in an Arcweave project (cType field)
  */
 UENUM(BlueprintType)
 enum class EArcweaveAttributeDataType : uint8
 {
     Undefined UMETA(DisplayName = "Undefined"),
-    String UMETA(DisplayName = "String (Plain Text)"),
-    StringRichText UMETA(DisplayName = "String (Rich Text)"),
-    ComponentList UMETA(DisplayName = "Component List"),
-    AssetList UMETA(DisplayName = "Asset List")
+    Elements UMETA(DisplayName = "Elements"),
+    Global UMETA(DisplayName = "Global"),
+    Components UMETA(DisplayName = "Components"),
 };

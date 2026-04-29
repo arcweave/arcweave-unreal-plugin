@@ -30,7 +30,7 @@ struct FArcweaveProjectData
     //project boards
     UPROPERTY(BlueprintReadWrite, Category = "Arcweave")
     TArray<FArcweaveBoardData> Boards = TArray<FArcweaveBoardData>();
-    /** Records all the componenets present in the project by their id */
+    /** Records all the components present in the project by their id */
     UPROPERTY(BlueprintReadWrite, Category = "Arcweave")
     TMap<FString, FArcweaveComponentData> ComponentsMap;
 

@@ -157,7 +157,7 @@ note for FArcweaveProjectData "Main Data Container"
 	    +  Boards
 	    +  Variables
 	    +  Cover
-	    +  Components
+	    +  ComponentsMap
 	    +  Conditions
 	    +  Connections
     }
