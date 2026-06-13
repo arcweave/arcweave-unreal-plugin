@@ -7,6 +7,7 @@
 
 THIRD_PARTY_INCLUDES_START
 #include "ArcscriptTranspiler.h"
+#include "ArcweaveVariable.h"
 THIRD_PARTY_INCLUDES_END
 
 #ifdef _WIN64
@@ -15,7 +16,6 @@ THIRD_PARTY_INCLUDES_END
 
 DEFINE_LOG_CATEGORY(LogArcweavePlugin);
 using namespace Arcweave;
-
 
 FArcscriptTranspilerOutput UArcscriptTranspilerWrapper::RunScript(const FString& code, const FString& elementId, const TMap<FString, FArcweaveVariable>& initialVars, const TMap<FString, int>& visits, std::function<void(const char*)> onEvent) {
 	size_t varLength = initialVars.Num();
@@ -31,9 +31,23 @@ FArcscriptTranspilerOutput UArcscriptTranspilerWrapper::RunScript(const FString&
 	for (auto& var : initialVars) {
 		dllVars[i].id = strdup(TCHAR_TO_UTF8(*var.Value.Id));
 		dllVars[i].name = strdup(TCHAR_TO_UTF8(*var.Value.Name));
+
+        if (!var.Value.Scope.IsEmpty()) {
+            dllVars[i].scope = strdup(TCHAR_TO_UTF8(*var.Value.Scope));
+        }
+        else {
+            dllVars[i].scope = nullptr;
+        }
+
         dllVars[i].type = VariableType::AW_ANY;
 
-	    UE_LOG(LogArcweavePlugin, Log, TEXT("var_name: %s, var_value %s, var_type %s"), *var.Value.Name, *var.Value.Value, *var.Value.Type);
+	    UE_LOG(LogArcweavePlugin, Log, TEXT("var_name: %s, var_value %s, var_type %s, scope %hs"), 
+            *var.Value.Name,
+            *var.Value.Value,
+            *var.Value.Type,
+            var.Value.Scope.IsEmpty() ? "no_scope" : TCHAR_TO_UTF8(*var.Value.Scope)
+        );
+
 		if (var.Value.Type.Equals(TEXT("string"))) {
 			dllVars[i].type = VariableType::AW_STRING;
 			dllVars[i].string_val = strdup(TCHAR_TO_UTF8(*(var.Value.Value)));
@@ -82,7 +96,7 @@ FArcscriptTranspilerOutput UArcscriptTranspilerWrapper::RunScript(const FString&
     }
 
     FArcscriptTranspilerOutput result;
-    result.Output = FString(dllResult->output);
+    result.Output = FString(UTF8_TO_TCHAR(dllResult->output));
     result.ConditionResult = dllResult->conditionResult;
     if (dllResult->type == Arcweave::InputType::CONDITION) {
         result.Type = FArcscriptInputType::CONDITION;
@@ -135,6 +149,11 @@ FArcscriptTranspilerOutput UArcscriptTranspilerWrapper::RunScript(const FString&
     for (i = 0; i < varLength; i++) {
         free((char*)dllVars[i].id);
         free((char*)dllVars[i].name);
+        if ((char*) dllVars[i].scope != nullptr)
+        {
+            free((char*)dllVars[i].scope);
+        }
+
         if (dllVars[i].type == VariableType::AW_STRING) {
             free((char*)dllVars[i].string_val);
         }
