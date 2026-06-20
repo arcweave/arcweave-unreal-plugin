@@ -103,6 +103,7 @@ namespace Arcweave
 		double double_val;
 		const char* string_val;
 		bool bool_val;
+		const char* scope;
 
         UVariable() {
             id = nullptr;
@@ -112,6 +113,7 @@ namespace Arcweave
             double_val = 0;
             string_val = nullptr;
             bool_val = false;
+        	scope = nullptr;
         }
 	};
   

@@ -6,6 +6,7 @@
 #include <vector>
 #include <set>
 #include <functional>
+
 #include "ArcscriptOutputs.h"
 
 namespace Arcweave {
@@ -18,11 +19,17 @@ enum VariableType {
     AW_ANY
 };
 
+  struct IdentifierDef {
+    std::string name;
+    std::string scope;
+  };
+
 struct Variable {
   std::string id;
   std::string name;
   VariableType type;
   std::any value;
+  std::string scope;
 };
 
 class ArcscriptState {
@@ -37,38 +44,41 @@ public:
   std::function<void(const char*)> emit;
 
   ArcscriptState(std::string elementId, std::map<std::string, Variable> varValues, std::map<std::string, int> _visits, std::function<void(const char*)> _emit) {
-    currentElement = elementId;
-    variableValues = varValues;
-    for(const auto var : variableValues) {
-      varNameToID[var.second.name] = var.first;
+    currentElement = std::move(elementId);
+    variableValues = std::move(varValues);
+    for(const auto&[varId, variable] : variableValues) {
+      std::string name = variable.name;
+      if (variable.scope != "") {
+        name = variable.scope + "." + variable.name;
+      }
+      varNameToID[name] = varId;
     }
-    visits = _visits;
+    visits = std::move(_visits);
     emit = _emit;
   }
 
-  inline Variable getVar(std::string name) {
-    std::string varId = varNameToID[name];
-    return variableValues[varId];
+  inline static std::string getVarFullName(IdentifierDef identifier) {
+    if (identifier.scope != "") {
+      return identifier.scope + "." + identifier.name;
+    }
+    return identifier.name;
   }
 
-  inline std::any getVarValue(std::string name) {
-    std::string varId = varNameToID[name];
-    if(variableChanges.count(varId)) {
+  inline std::any getVarValue(IdentifierDef identifier) {
+    std::string varId = varNameToID[getVarFullName(identifier)];
+    if (variableChanges.count(varId)) {
       return variableChanges[varId];
     }
     return variableValues[varId].value;
   }
-  inline VariableType getVarType(std::string name) {
-    return variableValues[varNameToID[name]].type;
+
+  inline Variable getVar(IdentifierDef identifier) {
+    return variableValues[varNameToID[getVarFullName(identifier)]];
   }
-  inline void setVarValue(std::string name, std::any value) {
-    std::string varId = varNameToID[name];
+
+  inline void setVarValue(IdentifierDef identifier, std::any value) {
+    std::string varId = varNameToID[getVarFullName(identifier)];
     variableChanges[varId] = value;
-  }
-  inline void setVarValues(std::vector<std::string> names, std::vector<std::any> values) {
-    for (size_t i = 0; i < names.size(); i++) {
-      variableChanges[names[i]] = values[i];
-    }
   }
 
   inline void resetVars(std::vector<Variable> vars) {
