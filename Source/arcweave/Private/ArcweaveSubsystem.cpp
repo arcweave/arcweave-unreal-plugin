@@ -4,22 +4,22 @@
 #include "ArcweaveSubsystem.h"
 
 // Arcweave includes
+#include "ArcscriptTranspilerOutput.h"
 #include "Arcweave.h"
 #include "ArcweaveAPISettings.h"
-#include "ArcweaveAttributeDataType.h"
 #include "ArcweaveAttributeValueData.h"
+#include "ArcweaveAttributeValueDataType.h"
+#include "ArcweaveBoardData.h"
 #include "ArcweaveBranchData.h"
 #include "ArcweaveComponentData.h"
+#include "ArcweaveComponentType.h"
 #include "ArcweaveConditionData.h"
 #include "ArcweaveConnectionsData.h"
+#include "ArcweaveElementData.h"
 #include "ArcweaveSettings.h"
+#include "ArcweaveUtils.h"
 #include "GetIsTargetBranchOutput.h"
 #include "UArcscriptTranspilerWrapper.h"
-#include "ArcscriptTranspilerOutput.h"
-#include "ArcweaveBoardData.h"
-#include "ArcweaveElementData.h"
-#include "ArcweaveUtils.h"
-#include "ArcweaveAttributeValueDataType.h"
 
 // Engine includes
 #include "Dom/JsonObject.h"
@@ -741,11 +741,11 @@ TArray<FArcweaveAttributeData> UArcweaveSubsystem::ParseObjectAttributes(const T
 
                             FString CTypeString;
                             AttributeAssetValueObject->TryGetStringField(TEXT("cType"), CTypeString);
-                            const EArcweaveAttributeDataType* FoundCType = ArcweaveUtils::TryGetAttributeDataTypeFromString(CTypeString);
+                            const EArcweaveComponentType* FoundCType = ArcweaveUtils::TryGetComponentType(CTypeString);
                             if (FoundCType == nullptr)
                             {
                                 UE_LOG(LogArcwarePlugin, Error, TEXT("Could not find Enum value for string: %s"), *CTypeString);
-                                AttributeAsset.cType = EArcweaveAttributeDataType::Undefined;
+                                AttributeAsset.cType = EArcweaveComponentType::Undefined;
                             }
                             else
                             {
@@ -786,38 +786,38 @@ void UArcweaveSubsystem::ParseAttributeValue(const TSharedPtr<FJsonObject>& Valu
 
         switch (AttributeValue.Type)
         {
-            case(EArcweaveAttributeValueDataType::ComponentList): {
+        case(EArcweaveAttributeValueDataType::ComponentList): {
 
-                const TArray<TSharedPtr<FJsonValue>>* ComponentIds = nullptr;
-                if(ValueObject->TryGetArrayField(TEXT("data"), ComponentIds))
-                {
-                    for (const auto& ComponentId : *ComponentIds)
-                    {
-                        AttributeValue.ComponentIds.Add(ComponentId->AsString());
-                    }
-                }
-                else
-                {
-                    UE_LOG(LogArcwarePlugin, Warning, TEXT("No component Ids found  while parsing attribute type: %s"), *Type);
-                }
-                break;
-
-            }
-
-            case(EArcweaveAttributeValueDataType::String):
-            case(EArcweaveAttributeValueDataType::StringRichText):
+            const TArray<TSharedPtr<FJsonValue>>* ComponentIds = nullptr;
+            if (ValueObject->TryGetArrayField(TEXT("data"), ComponentIds))
             {
-                ValueObject->TryGetStringField(TEXT("data"), AttributeValue.Data);
-                ValueObject->TryGetBoolField(TEXT("plain"), AttributeValue.Plain);
-                break;
+                for (const auto& ComponentId : *ComponentIds)
+                {
+                    AttributeValue.ComponentIds.Add(ComponentId->AsString());
+                }
             }
-
-            case(EArcweaveAttributeValueDataType::AssetList):
+            else
             {
-                UE_LOG(LogArcwarePlugin, Warning, TEXT("Support for attributes %s not implemented yet:"), *Type);
-
+                UE_LOG(LogArcwarePlugin, Warning, TEXT("No component Ids found  while parsing attribute type: %s"), *Type);
             }
-             break;
+            break;
+
+        }
+
+        case(EArcweaveAttributeValueDataType::String):
+        case(EArcweaveAttributeValueDataType::StringRichText):
+        {
+            ValueObject->TryGetStringField(TEXT("data"), AttributeValue.Data);
+            ValueObject->TryGetBoolField(TEXT("plain"), AttributeValue.Plain);
+            break;
+        }
+
+        case(EArcweaveAttributeValueDataType::AssetList):
+        {
+            UE_LOG(LogArcwarePlugin, Warning, TEXT("Support for attributes %s not implemented yet:"), *Type);
+
+        }
+        break;
         }
     }
 
@@ -891,7 +891,17 @@ TMap<FString, FArcweaveVariable> UArcweaveSubsystem::ParseVariables(const TShare
 
                 if (VarObject->TryGetStringField(TEXT("cType"), Variable.cType))
                 {
-                    if (Variable.cType == "boards")
+
+                    const EArcweaveComponentType* ComponentType = ArcweaveUtils::TryGetComponentType(Variable.cType);
+                    if (ComponentType == nullptr)
+                    {
+                        UE_LOG(LogArcweavePlugin, Error, TEXT("Ctype: %s not present in the defined Arcweave Component Types"), *Variable.cType);
+                        continue;
+                    }
+
+                    switch (*ComponentType)
+                    {
+                    case EArcweaveComponentType::Boards:
                     {
                         FString ComponentId;
                         if (!VarObject->TryGetStringField(TEXT("cId"), ComponentId))
@@ -919,8 +929,17 @@ TMap<FString, FArcweaveVariable> UArcweaveSubsystem::ParseVariables(const TShare
 
                         Variable.Scope = BoardCustomId;
                     }
+                    break;
+                    default:
+                    {
+                        UE_LOG(LogArcweavePlugin, Error, TEXT("Ctype: %s  not handled"), *Variable.cType);
 
+                    }
+                    break;
+
+                    }
                 }
+
                 InitialVars.Add(Variable.Id, Variable);
 
             }
@@ -1402,7 +1421,7 @@ void UArcweaveSubsystem::ParseResponse(const FString& ResponseString)
     // Extract project name and cover data     
     if (RootObject->TryGetStringField(TEXT("name"), ProjectData.Name))
     {
-        ProjectData.Cover = ParseCoverData(RootObject);        
+        ProjectData.Cover = ParseCoverData(RootObject);
         ProjectData.CurrentVars = ParseVariables(RootObject);
         ProjectData.ComponentsMap = ParseAllComponents(RootObject);
         ProjectData.Conditions = ParseAllConditions(RootObject);

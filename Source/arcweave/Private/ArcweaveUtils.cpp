@@ -13,20 +13,21 @@ const TMap<FString, EArcweaveAttributeValueDataType> ArcweaveUtils::AttributeVal
     { TEXT("asset-list"),   EArcweaveAttributeValueDataType::AssetList }
 };
 
-const TMap<FString, EArcweaveAttributeDataType> ArcweaveUtils::AttributeDataTypeMap =
-{
-    { TEXT("elements"), EArcweaveAttributeDataType::Elements },
-    { TEXT("components"), EArcweaveAttributeDataType::Components },
-    { TEXT("global"), EArcweaveAttributeDataType::Global },
-};
-
-
 const EArcweaveAttributeValueDataType* ArcweaveUtils::TryGetAttributeValueDataTypeFromString(const FString& Type)
 {
     return AttributeValueDataTypeMap.Find(Type);
 }
 
-const EArcweaveAttributeDataType* ArcweaveUtils::TryGetAttributeDataTypeFromString(const FString& Type)
+const TMap <FString, EArcweaveComponentType> ArcweaveUtils::ComponentTypeMap =
 {
-    return AttributeDataTypeMap.Find(Type);
+    { TEXT("boards"),  EArcweaveComponentType::Boards },
+    { TEXT("components"),   EArcweaveComponentType::Components },
+    { TEXT("elements"),   EArcweaveComponentType::Elements },
+    { TEXT("global"),   EArcweaveComponentType::Global },
+    { TEXT("undefined"),   EArcweaveComponentType::Undefined }
+};
+
+const EArcweaveComponentType* ArcweaveUtils::TryGetComponentType(const FString& Type)
+{
+    return ComponentTypeMap.Find(Type);
 }
