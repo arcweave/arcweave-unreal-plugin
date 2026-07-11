@@ -1,0 +1,34 @@
+
+#pragma once
+
+// Engine include
+#include "CoreMinimal.h"
+
+// Generated include
+#include "ArcweaveLocaleData.generated.h"
+
+USTRUCT(BlueprintType)
+struct FArcweaveLocaleData
+{
+    GENERATED_BODY()
+
+    UPROPERTY(BlueprintReadWrite, Category = "Arcweave")
+    FString Iso = FString("");
+
+    UPROPERTY(BlueprintReadWrite, Category = "Arcweave")
+    FString Base = FString("");
+
+    UPROPERTY(BlueprintReadWrite, Category = "Arcweave")
+    FString Name = FString("");
+
+    bool HasFallbackLanguage() const
+    {
+        return !Base.IsEmpty();
+    }
+
+    FArcweaveLocaleData()
+        : Iso(FString(""))
+        , Base()
+        , Name(FString(""))
+    {}
+};

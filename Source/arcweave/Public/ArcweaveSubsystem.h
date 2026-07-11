@@ -23,6 +23,8 @@
 #include "Serialization/JsonSerializer.h"
 #include "Subsystems/EngineSubsystem.h"
 
+
+// Generated include
 #include "ArcweaveSubsystem.generated.h"
 
 struct FArcweaveAPISettings;
@@ -33,6 +35,8 @@ class UArcscriptTranspilerWrapper;
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnArcweaveResponseReceived, const FArcweaveProjectData&, ArcweaveProjectData);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnArcweaveVariableChanged, const TArray<FArcweaveVariable>&, ArcweaveVariables);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnArcweaveArcscriptEventReceived, const FString&, EventName);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnArcweaveLanguageChanged, const FString&, DesiredLocale);
+
 UCLASS()
 class ARCWEAVE_API UArcweaveSubsystem : public UEngineSubsystem
 {
@@ -71,6 +75,10 @@ public:
     UFUNCTION(BlueprintPure, Category = "Arcweave")
     FArcweaveProjectData GetArcweaveProjectData() const {return ProjectData;};
 
+    /** Return true if in the project config has more than one language/locale */
+    UFUNCTION(BlueprintPure, Category = "Arcweave")
+    bool HasLocales() const;
+
     /*
      * Run transpiler for the element
      * Increase visits counter for the element
@@ -96,7 +104,11 @@ public:
      */
     UFUNCTION(BlueprintCallable, Category = "Arcweave")
     FArcscriptTranspilerOutput TranspileCondition(const FString& ConditionId, const FString& OriginElementId, bool& Success);
+    /* Given an element id, get it's board */
     bool GetBoardForObject(FString ObjectId, FArcweaveElementData& OutElement, FArcweaveBoardData*& OutBoardObj);
+    /* Given a board id it will get the board object*/
+    UFUNCTION(BlueprintCallable, Category = "Arcweave")
+    bool GetBoard(FArcweaveBoardData& OutBoardObj, const FString& BoardId);
     /* Given a condition Id (e.g. if visit()) gets the corresponding branch id */
     bool GetBranchForObject(FArcweaveBranchData& OutBranch, const FString& ObjectId, const FArcweaveBoardData& InBoardObj) const;
 
@@ -111,6 +123,9 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Arcweave")
     void UpdateVariablesFromConnection(const FArcweaveConnectionsData& Connection);
 
+    /* Update the language of the boards with the specified desired locale (e.g. "en", "fr"..) */
+    UFUNCTION(BlueprintCallable, Category = "Arcweave| Languages")
+    void UpdateContentsWithLocale(const FString& DesiredLocale);
     /*
      * Check if the target is the branch
      */    
@@ -142,6 +157,9 @@ public:
 
     UPROPERTY(BlueprintAssignable, Category = "Arcweave")
     FOnArcweaveArcscriptEventReceived OnArcscriptEventReceived;
+
+    UPROPERTY(BlueprintAssignable, Category = "Arcweave| Languages")
+    FOnArcweaveLanguageChanged OnArcweaveLanguageChanged;
 
 protected:
     //override init function
@@ -182,7 +200,10 @@ private:
     TArray<FArcweaveConditionData> ParseAllConditions(const TSharedPtr<FJsonObject>& MainJsonObject);
     TArray<FArcweaveConnectionsData> ParseAllConnections(const TSharedPtr<FJsonObject>& MainJsonObject);
     FArcweaveCoverData ParseCoverData(const TSharedPtr<FJsonObject>& CoverValueObject);
+    /** Looks for the locales configuration in the project and try to parse it */
+    TArray<FArcweaveLocaleData> ParseProjectLocales(const TSharedPtr<FJsonObject>& MainJsonObject);
     void ParseResponse(const FString& ResponseString);
+    FArcweaveContents ParseAllContents(const TSharedPtr<FJsonObject>& MainJsonObject);
     void OnEventCallback(const char* EventName);
     FArcscriptTranspilerOutput RunTranspiler(const FString& NodeCode, const FString& OriginElementId,
         const TMap<FString, FArcweaveVariable>& InitialVars, const TMap<FString, int>& Visits, bool bShouldUpdateVariables = true);
@@ -192,6 +213,14 @@ private:
     FArcweaveConnectionsData TryGetNExtConnectionData(const FArcweaveBoardData& BoardData, const FArcweaveBranchData& Branch, const FArcweaveConditionData* FiredConditionData);
     void LogTranspilerOutput(const FArcscriptTranspilerOutput& TranspilerOutput);
     bool GetBoardObjectForElement(FString ConditionId, FArcweaveConditionData& OutConditionData, FArcweaveBoardData*& OutBoardObj);
+    /* Given a locale iso, will look for the corresponding fallback locale*/
+    FString GetFallbackLanguageForLocale(const FString& Locale) const;
+    FString GetTranslatedContent(const FString& ContentKey, const FString& FieldName, const FString& CurrentLocale, bool ShouldFallback /*= true*/) const;
+    /* Tries to find a fallback translation for the specified content and locale*/
+    FString TryToFindFallbackTranslation(const struct FArcweaveContent& Content, const FString& FieldName, const FString& CurrentLocale) const;
+    // Helper function to get desired locale and fallback flag from ArcweaveSettings
+    void GetLanguageSettings(FString& OutDesiredLocale, bool& OutFallbackToDefaultLanguage);
+
     /* Increment visit counter for the given element id*/
     void IncrementVisits(const FString& ElementId);
     void ResetVisits();
@@ -200,12 +229,11 @@ private:
 
     UFUNCTION(BlueprintCallable, Category = "Arcweave | Debug")
     void PrintBranchData(const FArcweaveBranchData &InData);
+
 private:
     UPROPERTY()
     FArcweaveProjectData ProjectData = FArcweaveProjectData();
     UPROPERTY()
     FArcweaveBoardData BoardObj = FArcweaveBoardData();
-    /*UPROPERTY()
-    FArcweaveAPISettings ArcweaveAPISettings = FArcweaveAPISettings();*/
 
 };

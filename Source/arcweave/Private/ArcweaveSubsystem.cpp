@@ -289,6 +289,35 @@ void UArcweaveSubsystem::PrintBranchData(const FArcweaveBranchData& InData)
 
 }
 
+FString UArcweaveSubsystem::GetFallbackLanguageForLocale(const FString& Locale) const
+{
+    if (ProjectData.Locales.Num() == 0)
+    {
+        UE_LOG(LogArcwarePlugin, Error, TEXT("No locales found in project data, cannot get fallback language for locale: %s"), *Locale);
+        return FString();
+    }
+
+    for (const FArcweaveLocaleData& LocaleData : ProjectData.Locales)
+    {
+        if (LocaleData.Iso == Locale)
+        {
+            if (LocaleData.HasFallbackLanguage())
+            {
+                return LocaleData.Base;
+            }
+            else
+            {
+                UE_LOG(LogArcwarePlugin, Warning, TEXT("Locale %s does not have a fallback language defined or is the default language"), *Locale);
+                return FString();
+            }
+        }
+    }
+
+    UE_LOG(LogArcwarePlugin, Error, TEXT("Cannot get fallback language for locale: %s in the current locales"), *Locale);
+
+    return FString();
+}
+
 FArcscriptTranspilerOutput UArcweaveSubsystem::TranspileCondition(const FString& ConditionId, const FString& OriginElementId, bool& Success)
 {
     UE_LOG(LogArcwarePlugin, Log, TEXT("----- TranspileCondition for id: %s -----"), *ConditionId);
@@ -326,19 +355,32 @@ FArcscriptTranspilerOutput UArcweaveSubsystem::TranspileCondition(const FString&
     return Output;
 }
 
-bool UArcweaveSubsystem::GetBoardForObject(FString ObjectId, FArcweaveElementData& OutElement, FArcweaveBoardData*& OutBoardObj)
+bool UArcweaveSubsystem::GetBoardForObject(FString ElementId, FArcweaveElementData& OutElement, FArcweaveBoardData*& OutBoardObj)
 {
     for (auto& Board : ProjectData.Boards)
     {
         for (auto& ElementObj : Board.Elements)
         {
-            if (ElementObj.Id == ObjectId)
+            if (ElementObj.Id == ElementId)
             {
                 OutBoardObj = &Board;
                 OutElement = ElementObj;
                 return true;
             }
         }
+    }
+    return false;
+}
+
+bool UArcweaveSubsystem::GetBoard(FArcweaveBoardData& OutBoardObj, const FString& BoardId)
+{
+    for (auto& Board : ProjectData.Boards)
+    {
+            if (Board.BoardId == BoardId)
+            {
+                OutBoardObj = Board;
+                return true;
+            }
     }
     return false;
 }
@@ -528,6 +570,11 @@ FString UArcweaveSubsystem::TranspileConnectionLabel(const FArcweaveConnectionsD
     }
 
     return Connection.Label;
+}
+
+bool UArcweaveSubsystem::HasLocales() const
+{
+    return ProjectData.Locales.Num() > 1;
 }
 
 FArcweaveElementData UArcweaveSubsystem::TranspileObject(FString ObjectId, bool& Success, bool bStripHtmlTags /*true*/)
@@ -867,6 +914,11 @@ TArray<FArcweaveConnectionsData> UArcweaveSubsystem::ParseConnections(const FStr
     // Parse "connections" as an array of connection data structs
     TArray<FArcweaveConnectionsData> Connections;
     TArray<FString> ConnectionsArrayStrings;
+
+    FString DesiredLocale = FString("");
+    bool bFallbackToDefaultLanguage = false;
+    GetLanguageSettings(DesiredLocale, bFallbackToDefaultLanguage);
+
     if (ParentValueObject->TryGetStringArrayField(FieldName, ConnectionsArrayStrings))
     {
         for (const FString& ConnectionId : ConnectionsArrayStrings)
@@ -887,12 +939,20 @@ TArray<FArcweaveConnectionsData> UArcweaveSubsystem::ParseConnections(const FStr
                         {
                             FString RawLabel = FString("");
 
-                            if (ConObject->TryGetStringField(TEXT("label"), RawLabel))
+                            if (HasLocales())
                             {
+                                RawLabel = GetTranslatedContent(ConnectionId, TEXT("label"), DesiredLocale, bFallbackToDefaultLanguage);
+                            }
+                            else 
+                            {
+                                ConObject->TryGetStringField(TEXT("label"), RawLabel);
+                            }
 
+                            if (!RawLabel.IsEmpty())
+                            {
                                 if (ContainsCodePattern(RawLabel))
                                 {
-                                    // Keep the raw code so it can be analyzed later
+                                    // Keep the raw code so it can be analysed later
                                     Connection.Label = RawLabel;
                                 }
                                 else
@@ -901,6 +961,7 @@ TArray<FArcweaveConnectionsData> UArcweaveSubsystem::ParseConnections(const FStr
                                     Connection.Label = RemoveHtmlTags(RawLabel);
                                 }
                             }
+
                             ConObject->TryGetStringField(TEXT("type"), Connection.Type);
                             ConObject->TryGetStringField(TEXT("theme"), Connection.Theme);
                             ConObject->TryGetStringField(TEXT("sourceid"), Connection.Sourceid);
@@ -1067,6 +1128,11 @@ FArcweaveElementData UArcweaveSubsystem::ExtractElementData(
 {
     FArcweaveElementData Element;
     const TSharedPtr<FJsonObject>* ElementsObject;
+
+    FString DesiredLocale = FString("");
+    bool bFallbackToDefaultLanguage = false;
+    GetLanguageSettings(DesiredLocale, bFallbackToDefaultLanguage);
+
     if (MainJsonObject->TryGetObjectField(TEXT("elements"), ElementsObject))
     {
         for (const auto& ElementPair : ElementsObject->Get()->Values)
@@ -1082,11 +1148,21 @@ FArcweaveElementData UArcweaveSubsystem::ExtractElementData(
 
                     //get the values from the json object
                     ElementValueObject->TryGetStringField(TEXT("theme"), Element.Theme);
+                    
                     FString DirtyTitle = FString("");
-                    ElementValueObject->TryGetStringField(TEXT("title"), DirtyTitle);
+
+                    if (HasLocales()) 
+                    {
+                        DirtyTitle = GetTranslatedContent(Element.Id, TEXT("title"), DesiredLocale, bFallbackToDefaultLanguage);
+                        Element.Content = GetTranslatedContent(Element.Id, TEXT("content"), DesiredLocale, bFallbackToDefaultLanguage);
+                    }
+                    else
+                    {
+                        ElementValueObject->TryGetStringField(TEXT("title"), DirtyTitle);
+                        ElementValueObject->TryGetStringField(TEXT("content"), Element.Content);
+                    }
+
                     Element.Title = RemoveHtmlTags(DirtyTitle);
-                    FString DirtyContent = FString("");
-                    ElementValueObject->TryGetStringField(TEXT("content"), Element.Content);
                     //FArcscriptTranspilerOutput Output = RunTranspiler(DirtyContent, Element.Id, ProjectData.InitialVars, BoardObj.Visits);
                     Element.Outputs = ParseConnections(FString("outputs"), MainJsonObject, ElementValueObject, BoardObjRef);
                     Element.Components = ParseComponents(MainJsonObject, ElementValueObject);
@@ -1204,6 +1280,11 @@ TArray<FArcweaveComponentData> UArcweaveSubsystem::ParseComponents(const TShared
     // Parse "components" as an array of component data structs
     TArray<FArcweaveComponentData> Components;
     TArray<FString> ComponentsStringArray;
+ 
+    FString DesiredLocale = FString("");
+    bool bFallbackToDefaultLanguage = false;
+    GetLanguageSettings(DesiredLocale, bFallbackToDefaultLanguage);
+
     if (ElementValueObject->TryGetStringArrayField(TEXT("components"), ComponentsStringArray))
     {
         for (const auto& ComponentId : ComponentsStringArray)
@@ -1222,8 +1303,16 @@ TArray<FArcweaveComponentData> UArcweaveSubsystem::ParseComponents(const TShared
 
                         if (ComponentValueObject.IsValid())
                         {
-                            // Extract the "name" and "root"
-                            ComponentValueObject->TryGetStringField(TEXT("name"), ElComponent.Name);
+                            // If it has locale the content has been already saved in contents, so we just need to retrieve it
+                            if (HasLocales())
+                            {
+                                ElComponent.Name = GetTranslatedContent(ElComponent.Id, TEXT("name"), DesiredLocale, bFallbackToDefaultLanguage);
+                            }
+                            else
+                            {
+                                ComponentValueObject->TryGetStringField(TEXT("name"), ElComponent.Name);
+                            }
+
                             ComponentValueObject->TryGetBoolField(TEXT("root"), ElComponent.Root);
                             ComponentValueObject->TryGetStringArrayField(TEXT("children"), ElComponent.Children);
                             ElComponent.Assets = ParseComponentAsset(ComponentValueObject);
@@ -1247,16 +1336,28 @@ TArray<FArcweaveComponentData> UArcweaveSubsystem::ParseAllComponents(const TSha
     const TSharedPtr<FJsonObject>* CompObject;
     if (MainJsonObject->TryGetObjectField(TEXT("components"), CompObject))
     {
+        // Get settings 
+        FString DesiredLocale = FString("");
+        bool bFallbackToDefaultLanguage = false;
+        GetLanguageSettings(DesiredLocale, bFallbackToDefaultLanguage);
+
         for (const auto& CompPair : CompObject->Get()->Values)
         {
             FArcweaveComponentData ElComponent;
             ElComponent.Id = CompPair.Key;
             const TSharedPtr<FJsonObject> ComponentValueObject = CompPair.Value->AsObject();
 
+            // Extract the "name" and "root"
             if (ComponentValueObject.IsValid())
             {
-                // Extract the "name" and "root"
-                ComponentValueObject->TryGetStringField(TEXT("name"), ElComponent.Name);
+                if (HasLocales())
+                {
+                    ElComponent.Name = GetTranslatedContent(CompPair.Key, TEXT("name"), DesiredLocale, bFallbackToDefaultLanguage);
+                }
+                else
+                {
+                    ComponentValueObject->TryGetStringField(TEXT("name"), ElComponent.Name);
+                }
                 ComponentValueObject->TryGetBoolField(TEXT("root"), ElComponent.Root);
                 ComponentValueObject->TryGetStringArrayField(TEXT("children"), ElComponent.Children);
                 ElComponent.Assets = ParseComponentAsset(ComponentValueObject);
@@ -1294,10 +1395,15 @@ TArray<FArcweaveConditionData> UArcweaveSubsystem::ParseAllConditions(const TSha
 
 TArray<FArcweaveConnectionsData> UArcweaveSubsystem::ParseAllConnections(const TSharedPtr<FJsonObject>& MainJsonObject)
 {
+    FString DesiredLocale = FString("");
+    bool bFallbackToDefaultLanguage = false;
+    GetLanguageSettings(DesiredLocale, bFallbackToDefaultLanguage);
+
     TArray<FArcweaveConnectionsData> Connections;
     const TSharedPtr<FJsonObject>* CondObject;
     if (MainJsonObject->TryGetObjectField(TEXT("connections"), CondObject))
     {
+        
         for (const auto& CompPair : CondObject->Get()->Values)
         {
             FArcweaveConnectionsData ConditionData;
@@ -1306,8 +1412,17 @@ TArray<FArcweaveConnectionsData> UArcweaveSubsystem::ParseAllConnections(const T
 
             if (ComponentValueObject.IsValid())
             {
+                
+                if (HasLocales())
+                {
+                    ConditionData.Label = GetTranslatedContent(ConditionData.Id, TEXT("label"), DesiredLocale, bFallbackToDefaultLanguage);
+                }
+                else 
+                {
+                    ComponentValueObject->TryGetStringField(TEXT("label"), ConditionData.Label);
+                }
+
                 ComponentValueObject->TryGetStringField(TEXT("type"), ConditionData.Type);
-                ComponentValueObject->TryGetStringField(TEXT("label"), ConditionData.Label);
                 ComponentValueObject->TryGetStringField(TEXT("theme"), ConditionData.Theme);
                 ComponentValueObject->TryGetStringField(TEXT("sourceid"), ConditionData.Sourceid);
                 ComponentValueObject->TryGetStringField(TEXT("targetid"), ConditionData.Targetid);
@@ -1335,6 +1450,182 @@ FArcweaveCoverData UArcweaveSubsystem::ParseCoverData(const TSharedPtr<FJsonObje
     return CoverData;
 }
 
+TArray<FArcweaveLocaleData> UArcweaveSubsystem::ParseProjectLocales(const TSharedPtr<FJsonObject>& MainJsonObject)
+{
+    TArray<FArcweaveLocaleData> Locales;
+    const TArray<TSharedPtr<FJsonValue>>* LocalesArray;
+
+    if (MainJsonObject->TryGetArrayField(TEXT("locales"), LocalesArray))
+    {
+        for (const TSharedPtr<FJsonValue>& LocaleValue : *LocalesArray)
+        {
+            const TSharedPtr<FJsonObject>* LocaleObject;
+            if (LocaleValue->TryGetObject(LocaleObject))
+            {
+                FArcweaveLocaleData LocaleData;
+                (*LocaleObject)->TryGetStringField(TEXT("iso"), LocaleData.Iso);
+                (*LocaleObject)->TryGetStringField(TEXT("name"), LocaleData.Name);
+                // "base" can be null, so check if it exists and is a string
+                if ((*LocaleObject)->HasField(TEXT("base")))
+                {
+                    (*LocaleObject)->TryGetStringField(TEXT("base"), LocaleData.Base);
+                }
+                else
+                {
+                    LocaleData.Base = FString("");
+                }
+                Locales.Add(LocaleData);
+            }
+        }
+    }
+    return Locales;
+}
+
+FString UArcweaveSubsystem::GetTranslatedContent(const FString& ContentKey, const FString& FieldName, const FString& CurrentLocale, bool ShouldFallback) const
+{
+    FString OutTranslation;
+    FArcweaveContent Content;
+    if (!ProjectData.Contents.GetContent(Content, ContentKey))
+    {
+        UE_LOG(LogArcwarePlugin, Warning, TEXT("ContentKey '%s' not found in Contents."), *ContentKey);
+        return FString();
+    }
+
+    // Try direct translation first
+    if (Content.GetTranslationForKey(OutTranslation, CurrentLocale, FieldName))
+    {
+        return OutTranslation;
+    }
+
+    if (ShouldFallback)
+    {
+        return TryToFindFallbackTranslation(Content, FieldName, CurrentLocale);
+    }
+
+    UE_LOG(LogArcwarePlugin, Warning, TEXT("No translation found for ContentKey '%s', FieldName '%s', Locale '%s'."), *ContentKey, *FieldName, *CurrentLocale);
+    return FString();
+}
+
+FString UArcweaveSubsystem::TryToFindFallbackTranslation(const FArcweaveContent& Content, const FString& FieldName, const FString& CurrentLocale) const
+{
+    FString OutTranslation;
+    TSet<FString> VisitedLocales;
+
+    FString NextLocale = CurrentLocale;
+    while (true)
+    {
+        VisitedLocales.Add(NextLocale);
+        FString FallbackLocale = GetFallbackLanguageForLocale(NextLocale);
+        if (FallbackLocale.IsEmpty())
+        {
+            UE_LOG(LogArcwarePlugin, Warning, TEXT("No fallback translation found for FieldName '%s', Locale '%s'."), *FieldName, *CurrentLocale);
+            break;
+        }
+
+        if (VisitedLocales.Contains(FallbackLocale))
+        {
+            UE_LOG(
+                LogArcwarePlugin,
+                Warning,
+                TEXT("Loop of fallback locales identified while trying to find fallback locale for '%s' while visiting locale '%s' (e.g. fr->it, it->dt, dt->it)."),
+                *CurrentLocale,
+                *NextLocale
+            );
+            break;
+        }
+
+        if (Content.GetTranslationForKey(OutTranslation, FallbackLocale, FieldName))
+        {
+            return OutTranslation;
+        }
+        NextLocale = FallbackLocale;
+    }
+
+    // As a last resort, try any available translation for the field
+    for (const FArcweaveLocaleData& LocaleData : ProjectData.Locales)
+    {
+        if (!VisitedLocales.Contains(LocaleData.Iso))
+        {
+            if (Content.GetTranslationForKey(OutTranslation, LocaleData.Iso, FieldName))
+            {
+                return OutTranslation;
+            }
+        }
+    }
+
+    return OutTranslation;
+}
+
+void UArcweaveSubsystem::GetLanguageSettings(FString& OutDesiredLocale, bool& OutFallbackToDefaultLanguage)
+{
+    const UArcweaveSettings* ArcweaveSettings = GetMutableDefault<UArcweaveSettings>();
+
+    OutDesiredLocale = TEXT("");
+    OutFallbackToDefaultLanguage = false;
+    if (IsValid(ArcweaveSettings))
+    {
+        OutDesiredLocale = !ArcweaveSettings->GetLocale().IsEmpty() ? ArcweaveSettings->GetLocale() : TEXT("en");
+        OutFallbackToDefaultLanguage = ArcweaveSettings->GetFallbackToDefaultLocale();
+    }
+}
+
+void UArcweaveSubsystem::UpdateContentsWithLocale(const FString& DesiredLocale)
+{
+
+    if (!HasLocales())
+    {
+        UE_LOG(LogArcwarePlugin, Warning, TEXT("No other locale is available - can't update the locale to %s"), *DesiredLocale);
+        return;
+    }
+
+    UArcweaveSettings* ArcweaveSettings = GetMutableDefault<UArcweaveSettings>();
+    bool bFallbackToDefaultLanguage = false;
+    if (!IsValid(ArcweaveSettings))
+    {
+        UE_LOG(LogArcwarePlugin, Error, TEXT("Unable to change settings locale to %s - settings not available"), *DesiredLocale);
+        return;
+    }
+
+    ArcweaveSettings->SetLocale(DesiredLocale);
+    ArcweaveSettings->SetUseLocale(true);
+    bFallbackToDefaultLanguage = ArcweaveSettings->GetFallbackToDefaultLocale();
+
+    for (auto& board : ProjectData.Boards)
+    {
+        for (FArcweaveElementData& element : board.Elements)
+        {
+            element.Title = RemoveHtmlTags(GetTranslatedContent(element.Id, TEXT("title"), DesiredLocale, bFallbackToDefaultLanguage));
+            element.Content = GetTranslatedContent(element.Id, TEXT("content"), DesiredLocale, bFallbackToDefaultLanguage);
+
+            for (auto& component : element.Components)
+            {
+                component.Name = GetTranslatedContent(component.Id, TEXT("name"), DesiredLocale, bFallbackToDefaultLanguage);
+            }
+
+            for (auto& output : element.Outputs)
+            {
+                output.Label = GetTranslatedContent(output.Id, TEXT("label"), DesiredLocale, bFallbackToDefaultLanguage);
+            }
+        }
+
+        for (FArcweaveConnectionsData& connection : board.Connections)
+        {
+            connection.Label = GetTranslatedContent(connection.Id, TEXT("label"), DesiredLocale, bFallbackToDefaultLanguage);
+        }
+
+    }
+
+    for (FArcweaveComponentData& component : ProjectData.Components)
+    {
+        component.Name = GetTranslatedContent(component.Id, TEXT("name"), DesiredLocale, bFallbackToDefaultLanguage);
+    }
+
+    if (OnArcweaveLanguageChanged.IsBound())
+    {
+        OnArcweaveLanguageChanged.Broadcast(DesiredLocale);
+    }
+}
+
 void UArcweaveSubsystem::ParseResponse(const FString& ResponseString)
 {
     TSharedPtr<FJsonObject> RootObject;
@@ -1360,7 +1651,11 @@ void UArcweaveSubsystem::ParseResponse(const FString& ResponseString)
     // Extract project name and cover data     
     if (RootObject->TryGetStringField(TEXT("name"), ProjectData.Name))
     {
+        // Locales are used later so they need to be on top
+        ProjectData.Locales = ParseProjectLocales(RootObject);
+        ProjectData.Contents = ParseAllContents(RootObject);
         ProjectData.Cover = ParseCoverData(RootObject);
+        ProjectData.CurrentVars = ParseVariables(RootObject);
         ProjectData.Components = ParseAllComponents(RootObject);
         ProjectData.Conditions = ParseAllConditions(RootObject);
         ProjectData.Connections = ParseAllConnections(RootObject);
@@ -1375,6 +1670,68 @@ void UArcweaveSubsystem::ParseResponse(const FString& ResponseString)
         // Handle error here.
         UE_LOG(LogArcwarePlugin, Error, TEXT("Project name is invalid!"));
     }
+}
+
+FArcweaveContents UArcweaveSubsystem::ParseAllContents(const TSharedPtr<FJsonObject>& MainJsonObject)
+{
+    FArcweaveContents ParsedContents;
+
+    const TSharedPtr<FJsonObject>* ContentsObject;
+    if (MainJsonObject->TryGetObjectField(TEXT("contents"), ContentsObject))
+    {
+        // Iterate through all entries in the "contents" object
+        for (const auto& ContentPair : ContentsObject->Get()->Values)
+        {
+            FString ContentId = ContentPair.Key;
+            const TSharedPtr<FJsonObject> ContentData = ContentPair.Value->AsObject();
+
+            if (!ContentData.IsValid())
+            {
+                UE_LOG(LogArcwarePlugin, Warning, TEXT("UArcweaveSubsystem::ParseAllContents: Invalid ContentData for ContentId '%s'. Skipping this entry."), *ContentId);
+                continue;
+            }
+
+            FArcweaveContent ArcweaveContent;
+
+            // Parse localized string fields (e.g., label, title, content)
+            for (const auto& FieldPair : ContentData->Values)
+            {
+                FString FieldKey = FieldPair.Key;
+
+                /* For the moment we will ignore status*/
+                if (FieldKey.Compare(TEXT("_status")) == 0)
+                {
+                    continue;
+                }
+                const TSharedPtr<FJsonObject> LocalizedObject = FieldPair.Value->AsObject();
+
+                if (LocalizedObject.IsValid())
+                {
+                    // Parse translations for each locale
+                    for (const auto& LocalePair : LocalizedObject->Values)
+                    {
+                        FString Locale = LocalePair.Key;
+                        const TSharedPtr<FJsonObject> LocaleData = LocalePair.Value->AsObject();
+
+                        if (LocaleData.IsValid())
+                        {
+                            FString Translation;
+                            if (LocaleData->TryGetStringField(TEXT("text"), Translation))
+                            {
+                                ArcweaveContent.AddTranslationForKey(Locale, Translation, FieldKey);
+                            }
+                        }
+                    }
+
+                }
+            }
+
+            // Add the parsed content to the contents map
+            ParsedContents.AddContent(ContentId, ArcweaveContent);
+        }
+    }
+
+    return ParsedContents;
 }
 
 void UArcweaveSubsystem::OnEventCallback(const char* EventName)

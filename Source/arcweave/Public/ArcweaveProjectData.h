@@ -3,10 +3,12 @@
 // Arcweave includes
 #include "ArcweaveBoardData.h"
 #include "ArcweaveComponentData.h"
-#include "ArcweaveVariable.h"
 #include "ArcweaveConditionData.h"
 #include "ArcweaveConnectionsData.h"
+#include "ArcweaveContents.h"
 #include "ArcweaveCoverData.h"
+#include "ArcweaveVariable.h"
+#include "ArcweaveLocaleData.h"
 
 // Generated include
 #include "ArcweaveProjectData.generated.h"
@@ -46,6 +48,13 @@ struct FArcweaveProjectData
     UPROPERTY(BlueprintReadWrite, Category = "Arcweave")
     TMap<FString, int> Visits = TMap<FString, int>();
     
+    /* Project languages, it can be one so this value is an optional */
+    UPROPERTY(BlueprintReadWrite, Category = "Arcweave")
+    TArray<FArcweaveLocaleData> Locales = TArray<FArcweaveLocaleData>();
+
+    UPROPERTY(BlueprintReadWrite, Category = "Arcweave")
+    FArcweaveContents Contents = FArcweaveContents();
+
     //constructor
     FArcweaveProjectData()
         : Name(FString(""))
@@ -54,5 +63,7 @@ struct FArcweaveProjectData
         , Boards(TArray<FArcweaveBoardData>())
         , Components(TArray<FArcweaveComponentData>())
         , Visits(TMap<FString, int>())
+        , Locales(TArray<FArcweaveLocaleData>())
+        , Contents(FArcweaveContents())
     {}
 };

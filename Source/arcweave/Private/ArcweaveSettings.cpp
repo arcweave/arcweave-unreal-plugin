@@ -12,3 +12,15 @@ void UArcweaveSettings::PostInitProperties()
 	UObject::PostInitProperties();
 	TryUpdateDefaultConfigFile(TEXT(""), false);
 }
+
+FString UArcweaveSettings::GetLocale() const
+{
+    if (bUseLocale)
+    {
+        return Locale;
+    }
+    else
+    {
+        return TEXT("en");
+    }
+}
