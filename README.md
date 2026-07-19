@@ -44,9 +44,9 @@ There are two primary methods for collecting Arcweave project data:
 For this method, you'll need to do the following: 
 - Export your Arcweave project for Unreal Engine and unzip it.
 - Move the exported JSON file along with all required assets in the **Content->ArcweaveExport** directory. If this directory does not exist create it.
-- ⚠️ Make sure you set the thick to the field "Enable receive method from local JSON" inside Unreal under ProjectSettings at the tab "Arcweave Settings"
-  
-  <img width="686" height="55" alt="immagine" src="https://github.com/user-attachments/assets/e372638f-e237-4a5b-bd16-09382a8252d1" />
+- ⚠️ Make sure you set the tick to the field "Enable receive method from local JSON" inside Unreal under ProjectSettings at the tab "Arcweave Settings"
+
+  <img width="686" alt="Arcweave Settings - Enable receive method from local JSON" src="https://github.com/user-attachments/assets/e372638f-e237-4a5b-bd16-09382a8252d1" />
 
 ### Web API:
 This involves fetching data directly from the Arcweave Web API within Unreal Engine. You will need:
@@ -190,7 +190,7 @@ note for FArcweaveProjectData "Main Data Container"
 ```
 
 #### Board struct :`ArcweaveBoardData`
-[![ArcweaveBoard image in web app](./Docs/BoardExample.png)](./Docs/BoardExample.png)
+<img src="./Docs/BoardExample.png" width="200" height="300" alt="ArcweaveBoard image in web app">
 
 The board is the second most important container and represent what we see in the app in the red rectangle looking at the figure
 
@@ -238,6 +238,134 @@ direction TB
     FArcweaveBoardData --> FArcweaveConnectionsData : connects via
     FArcweaveBoardData --> FArcweaveBranchData : manages
 ```
+
+#### Attribute struct: `ArcweaveAttributeData`
+<img src="./Docs/AttributeDataExample.png" width="300" height="300" alt="ArcweaveAttributeData image in web app ">
+
+Attributes are metadata containers that can be attached to **Elements**, **Components**, or defined **globally** in your Arcweave project. They enable flexible data organization and provide a mechanism to store custom properties with type-safe values.
+
+```mermaid
+classDiagram
+direction TB
+    class FArcweaveAttributeData {
+        +FString Id
+        +FString cId
+        +FString Name
+        +EArcweaveAttributeDataType cType
+        +FArcweaveAttributeValueData Value
+    }
+
+    class FArcweaveAttributeValueData {
+        +FString Data
+        +TArray~FString~ ComponentIds
+        +EArcweaveAttributeValueDataType Type
+        +bool Plain
+    }
+
+    class EArcweaveAttributeDataType {
+        <<enumeration>>
+        Undefined
+        Elements
+        Global
+        Components
+    }
+
+    class EArcweaveAttributeValueDataType {
+        <<enumeration>>
+        Undefined
+        String (Plain Text)
+        String (Rich Text)
+        Component List
+        Asset List
+    }
+
+    <<USTRUCT>> FArcweaveAttributeData
+    <<USTRUCT>> FArcweaveAttributeValueData
+
+    FArcweaveAttributeData --> FArcweaveAttributeValueData : contains
+    FArcweaveAttributeData --> EArcweaveAttributeDataType : defines scope via
+    FArcweaveAttributeValueData --> EArcweaveAttributeValueDataType : typed by
+```
+
+**Key Properties:**
+
+- **Id**: Unique identifier for the attribute
+- **cId**: Container ID - identifies the element, component, or project it belongs to
+- **Name**: Human-readable name of the attribute
+- **cType**: Defines the scope of the attribute (Elements, Global, or Components)
+- **Value**: Contains the actual data and type information
+
+**Attribute Value Properties:**
+
+- **Data**: The actual value stored as a string
+- **ComponentIds**: Array of component IDs if the attribute references components
+- **Type**: The data type of the attribute value (String, Rich Text, Component List, or Asset List)
+- **Plain**: Boolean flag indicating if the string is plain text or rich text
+
+**Usage Example:**
+
+<details>
+
+Components in `AttributeData` can be accessed using the IDs stored inside the "ComponentIds" array in `AttributeValueData` through the blueprint callable method `TryGetArcweaveComponentById`:
+
+```cpp
+// Get the Arcweave subsystem
+UArcweaveSubsystem* ArcweaveSubsystem = GetWorld()->GetSubsystem<UArcweaveSubsystem>();
+if (!ArcweaveSubsystem)
+    return;
+
+// Access attributes from an element
+for (const FArcweaveAttributeData& Attribute : ElementData.Attributes)
+{
+    FString AttributeName = Attribute.Name;
+    FString AttributeValue = Attribute.Value.Data;
+    EArcweaveAttributeValueDataType ValueType = Attribute.Value.Type;
+
+    // Handle different attribute types
+    switch (ValueType)
+    {
+        case EArcweaveAttributeValueDataType::String:
+        {
+            // Handle plain text
+            break;
+        }
+        case EArcweaveAttributeValueDataType::StringRichText:
+        {
+            // Handle rich text
+            break;
+        }
+        case EArcweaveAttributeValueDataType::ComponentList:
+        {
+            // Handle component list - iterate through all component IDs referenced by this attribute
+            for (const FString& ComponentId : Attribute.Value.ComponentIds)
+            {
+                FArcweaveComponentData ReferencedComponent;
+                if (ArcweaveSubsystem->TryGetArcweaveComponentById(ReferencedComponent, ComponentId))
+                {
+                    // You can now work with the component data
+                    // For example, access its attributes
+                    for (const FArcweaveAttributeData& ComponentAttribute : ReferencedComponent.Attributes)
+                    {
+                        UE_LOG(LogTemp, Warning, TEXT("  Component Attribute: %s = %s"), 
+                            *ComponentAttribute.Name, *ComponentAttribute.Value.Data);
+                    }
+                }
+            }
+            break;
+        }
+        case EArcweaveAttributeValueDataType::AssetList:
+        {
+            // Handle asset references
+            break;
+        }
+        default:
+        {
+            break;
+        }
+    }
+}
+```
+</details>
 
 ## Using the Demo Project
 
