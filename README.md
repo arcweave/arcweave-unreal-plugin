@@ -100,6 +100,18 @@ It provides a range of functions that can be utilized in both Blueprints and C++
 
 These functions provide a comprehensive set of tools for interacting with the Arcweave API and managing project data within your Unreal Engine project.
 
+#### Scoped variables
+
+Boolean, integer, float, and plain-string attributes can be used as Arcscript variables when both the attribute and its owning board or component have custom IDs. The attribute custom ID is the variable name, the owner custom ID is its scope, and the attribute ID remains the stable ID used by `SetVariable` and variable-change events.
+
+```arcscript
+health = 100
+castle.health = 10
+hero.health = 20
+```
+
+All global, board, and component variables are available in `FArcweaveProjectData.CurrentVars`. Each `FArcweaveVariable` stores its mutable `Value` separately from its project-authored `DefaultValue`, so `reset` and `resetAll` continue to restore project defaults after earlier interpreter calls.
+
 ### Arcweave Transpiler script wrapper `ArcscriptTranspilerWrapper`:
 ```mermaid
 

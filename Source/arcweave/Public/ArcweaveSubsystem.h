@@ -201,6 +201,8 @@ private:
     UFUNCTION(BlueprintCallable, Category = "Arcweave | Debug")
     void PrintBranchData(const FArcweaveBranchData &InData);
 private:
+    friend class FArcweaveComponentBoardVariablesTest;
+
     UPROPERTY()
     FArcweaveProjectData ProjectData = FArcweaveProjectData();
     UPROPERTY()
