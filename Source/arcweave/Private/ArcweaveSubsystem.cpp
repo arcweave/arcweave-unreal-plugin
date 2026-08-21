@@ -707,6 +707,7 @@ TArray<FArcweaveAssetData> UArcweaveSubsystem::ParseComponentAsset(const TShared
     {
         FArcweaveAssetData ComponentAsset;
         ComponentAsset.Cover = ParseCoverData(*ComponentAssetsObject);
+        // ComponentAsset.Audio = ParseAudioData();
         ComponentAssets.Add(ComponentAsset);
     }
     return  ComponentAssets;
@@ -1420,6 +1421,130 @@ void UArcweaveSubsystem::ParseResponse(const FString& ResponseString)
     }
 }
 
+#pragma region GeneralAssetsInformation
+
+struct FArcweaveAssetEntry
+{
+    FString Id;
+    FString Name;
+    FString Type;
+};
+
+struct FAssetContainer
+{
+    FString Id;
+    bool bIsRoot = false;
+    TArray<FString> ChildrenIds;
+};
+
+
+void UArcweaveSubsystem::ParseProjectAssets(TMap<uint32, FArcweaveAssetEntry>& OutAssetEntries, const TSharedPtr<FJsonObject>& MainJsonObject)
+{
+    if (!MainJsonObject.IsValid())
+    {
+        UE_LOG(LogArcwarePlugin, Warning, TEXT("AssetsObject is not valid"));
+        return;
+    }
+
+    const TSharedPtr<FJsonObject>* AssetsObject;
+    if (MainJsonObject->TryGetObjectField(TEXT("assets"), AssetsObject))
+    {
+
+        // Clear existing assets
+        //ProjectAssets.Empty();
+        //AssetContainers.Empty();
+
+        for (const auto& AssetObjectPair : AssetsObject->Get()->Values)
+        {
+            
+            const TSharedPtr<FJsonObject> AssetObject = AssetObjectPair.Value->AsObject();
+            FString AssetId = AssetObjectPair.Key;
+
+            if (AssetObject.IsValid())
+            {
+                if (AssetObject->HasField(TEXT("root")) && AssetObject->HasField(TEXT("children")))
+                {
+                    //OutAssetEntries.Add(FCString::Atoi(*AssetId), ParseAssetContainer(AssetId, AssetObject));
+                    UE_LOG(LogArcwarePlugin, Warning, TEXT("Parsing asset container has not been implemented"), *AssetId);
+
+                }
+                else if (AssetObject->HasField(TEXT("name")) && AssetObject->HasField(TEXT("type")))
+                {
+                    OutAssetEntries.Add(FCString::Atoi(*AssetId), ParseAsset(AssetObject));
+                }
+                else
+                {
+                    UE_LOG(LogArcwarePlugin, Warning, TEXT("Asset with ID %s has unknown structure"), *AssetId);
+                }
+            }
+
+            UE_LOG(LogArcwarePlugin, Log, TEXT("Parsed %d assets and %d containers"), ProjectAssets.Num(), AssetContainers.Num());
+
+    }
+}
+
+FArcweaveAssetEntry UArcweaveSubsystem::ParseAsset(const TSharedPtr<FJsonObject>& AssetObject)
+{
+    if (!AssetObject.IsValid())
+    {
+        return;
+    }
+
+    FString AssetName;
+    FString AssetType;
+
+    AssetObject->TryGetStringField(TEXT("name"), AssetName);
+    AssetObject->TryGetStringField(TEXT("type"), AssetType);
+
+    // Create a simple asset entry
+    FArcweaveAssetEntry NewAsset;
+    NewAsset.Id = AssetId;
+    NewAsset.Name = AssetName;
+    NewAsset.Type = AssetType;
+
+    ProjectAssets.Add(AssetId, NewAsset);
+
+    UE_LOG(LogArcwarePlugin, Log, TEXT("Parsed asset - ID: %s, Name: %s, Type: %s"), *AssetId, *AssetName, *AssetType);
+}
+
+void UArcweaveSubsystem::ParseAssetContainer(const FString& ContainerId, const TSharedPtr<FJsonObject>& ContainerObject)
+{
+    if (!ContainerObject.IsValid())
+    {
+        return;
+    }
+
+    bool bIsRoot = ContainerObject->GetBoolField(TEXT("root"));
+
+    const TArray<TSharedPtr<FJsonValue>>* ChildrenArray = nullptr;
+    if (!ContainerObject->TryGetArrayField(TEXT("children"), ChildrenArray))
+    {
+        UE_LOG(LogArcwarePlugin, Warning, TEXT("Container %s has no children array"), *ContainerId);
+        return;
+    }
+
+    FAssetContainer NewContainer;
+    NewContainer.Id = ContainerId;
+    NewContainer.bIsRoot = bIsRoot;
+
+    // Parse all child IDs
+    for (const TSharedPtr<FJsonValue>& ChildValue : *ChildrenArray)
+    {
+        FString ChildId = ChildValue->AsString();
+        if (!ChildId.IsEmpty())
+        {
+            NewContainer.ChildrenIds.Add(ChildId);
+        }
+    }
+
+    AssetContainers.Add(ContainerId, NewContainer);
+
+    UE_LOG(LogArcwarePlugin, Log, TEXT("Parsed container - ID: %s, Root: %d, Children: %d"),
+        *ContainerId, bIsRoot, NewContainer.ChildrenIds.Num());
+}
+
+#pragma endregion
+
 void UArcweaveSubsystem::OnEventCallback(const char* EventName)
 {
     FString EventNameFString = FString(EventName);
@@ -1658,3 +1783,9 @@ void UArcweaveSubsystem::HandleFetch(FHttpRequestPtr Request, FHttpResponsePtr R
         LogFetchStatus(false, ErrorMessage);
     }
 }
+
+// ParseAssets(OutCoverMap, OutAudioMap){};
+
+// GetAudioAssetById() const;
+
+// GetImageAssetById() const;

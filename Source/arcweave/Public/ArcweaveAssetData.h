@@ -17,6 +17,8 @@ struct FArcweaveAssetData
     UPROPERTY(BlueprintReadWrite, Category = "Arcweave")
     FArcweaveCoverData Cover = FArcweaveCoverData();
 
+    // FArcweaveAudioData = ??
+
     UPROPERTY(BlueprintReadWrite, Category = "Arcweave")
     FString AudioId = FString("");
 

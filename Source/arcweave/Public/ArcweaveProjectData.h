@@ -44,7 +44,14 @@ struct FArcweaveProjectData
 
     UPROPERTY(BlueprintReadWrite, Category = "Arcweave")
     TMap<FString, int> Visits = TMap<FString, int>();
-    
+
+    /*assets info*/
+    UPROPERTY()
+    TMap<FString, FAssetEntry> ProjectAssets;
+
+    UPROPERTY()
+    TMap<FString, FAssetContainer> AssetContainers;
+
     //constructor
     FArcweaveProjectData()
         : Name(FString(""))

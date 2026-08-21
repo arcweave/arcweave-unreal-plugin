@@ -187,6 +187,8 @@ private:
     TArray<FArcweaveConnectionsData> ParseAllConnections(const TSharedPtr<FJsonObject>& MainJsonObject);
     FArcweaveCoverData ParseCoverData(const TSharedPtr<FJsonObject>& CoverValueObject);
     void ParseResponse(const FString& ResponseString);
+    FArcweaveAssetEntry ParseAsset(const TSharedPtr<FJsonObject>& AssetObject);
+    void ParseProjectAssets(TMap<uint32, FArcweaveAssetEntry>& OutAssetEntries, const TSharedPtr<FJsonObject>& MainJsonObject);
     void OnEventCallback(const char* EventName);
     FArcscriptTranspilerOutput RunTranspiler(const FString& NodeCode, const FString& OriginElementId,
         const TMap<FString, FArcweaveVariable>& InitialVars, const TMap<FString, int>& Visits, bool bShouldUpdateVariables = true);
