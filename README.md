@@ -13,6 +13,7 @@ The plugin can import data from an exported Arcweave JSON file (available to all
    - [Web API](#web-api)
 - [Important Classes and Functions](#important-classes-and-functions)
    - [UArcweaveSubsystem Functions](#list-of-important-functions-in-uarcweavesubsystem)
+   - [Scoped variables](#scoped-variables)
    - [ArcscriptTranspilerWrapper](#arcweave-transpiler-script-wrapper-arcscripttranspilerwrapper)
    - [ArcweaveModule](#plugin-module-arcweavemodule)
    - [ArcweaveTypes](#data-wrapper-arcweavetypes)
@@ -99,6 +100,22 @@ It provides a range of functions that can be utilized in both Blueprints and C++
    - This function lets you modify the current variable value outside the dialogue logic. From anywhere in the project. You only need to provide the variable ID.
 
 These functions provide a comprehensive set of tools for interacting with the Arcweave API and managing project data within your Unreal Engine project.
+
+#### Scoped variables
+
+Boolean, integer, float, and plain-string attributes can be used as Arcscript variables when both the attribute and its owning board or component have custom IDs. The attribute custom ID is the variable name, the owner custom ID is its scope, and the attribute ID remains the stable ID used by `SetVariable` and variable-change events.
+
+```arcscript
+health = 100
+castle.health = 10
+hero.health = 20
+```
+
+All global, board, and component variables are available in `FArcweaveProjectData.CurrentVars`. Each `FArcweaveVariable` stores its mutable `Value` separately from its project-authored `DefaultValue`, so `reset` and `resetAll` continue to restore project defaults after earlier interpreter calls.
+
+All parsed attributes remain available through the owning board, component, or element's `Attributes` collection. Only eligible board and component attributes are added to `CurrentVars` and passed to Arcscript; element attributes, unsupported attribute types, and attributes without the required custom IDs are not exposed as Arcscript variables.
+
+For local JSON imports, re-export the project from the current Arcweave version so legacy board variables are migrated to attributes. Web API imports already use the current schema.
 
 ### Arcweave Transpiler script wrapper `ArcscriptTranspilerWrapper`:
 ```mermaid

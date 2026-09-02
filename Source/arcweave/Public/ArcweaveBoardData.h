@@ -8,6 +8,7 @@
 #include "ArcweaveElementData.h"
 #include "ArcweaveBranchData.h"
 #include "ArcweaveConnectionsData.h"
+#include "ArcweaveAttributeData.h"
 
 // Generated include
 #include "ArcweaveBoardData.generated.h"
@@ -41,6 +42,9 @@ struct FArcweaveBoardData
     UPROPERTY(BlueprintReadWrite, Category = "Arcweave")
     TArray<FArcweaveConnectionsData> Connections = TArray<FArcweaveConnectionsData>();
 
+    UPROPERTY(BlueprintReadWrite, Category = "Arcweave")
+    TArray<FArcweaveAttributeData> Attributes = TArray<FArcweaveAttributeData>();
+
     FArcweaveBoardData()
         : BoardId(FString(""))
         , Name(FString(""))
@@ -49,5 +53,6 @@ struct FArcweaveBoardData
         , Elements(TArray<FArcweaveElementData>())
         , Branches(TArray<FArcweaveBranchData>())
         , Connections(TArray<FArcweaveConnectionsData>())
+        , Attributes(TArray<FArcweaveAttributeData>())
     {}
 };
