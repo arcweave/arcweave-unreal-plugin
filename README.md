@@ -13,6 +13,7 @@ The plugin can import data from an exported Arcweave JSON file (available to all
    - [Web API](#web-api)
 - [Important Classes and Functions](#important-classes-and-functions)
    - [UArcweaveSubsystem Functions](#list-of-important-functions-in-uarcweavesubsystem)
+   - [Scoped variables](#scoped-variables)
    - [ArcscriptTranspilerWrapper](#arcweave-transpiler-script-wrapper-arcscripttranspilerwrapper)
    - [ArcweaveModule](#plugin-module-arcweavemodule)
    - [ArcweaveTypes](#data-wrapper-arcweavetypes)
@@ -111,6 +112,10 @@ hero.health = 20
 ```
 
 All global, board, and component variables are available in `FArcweaveProjectData.CurrentVars`. Each `FArcweaveVariable` stores its mutable `Value` separately from its project-authored `DefaultValue`, so `reset` and `resetAll` continue to restore project defaults after earlier interpreter calls.
+
+All parsed attributes remain available through the owning board, component, or element's `Attributes` collection. Only eligible board and component attributes are added to `CurrentVars` and passed to Arcscript; element attributes, unsupported attribute types, and attributes without the required custom IDs are not exposed as Arcscript variables.
+
+For local JSON imports, re-export the project from the current Arcweave version so legacy board variables are migrated to attributes. Web API imports already use the current schema.
 
 ### Arcweave Transpiler script wrapper `ArcscriptTranspilerWrapper`:
 ```mermaid
