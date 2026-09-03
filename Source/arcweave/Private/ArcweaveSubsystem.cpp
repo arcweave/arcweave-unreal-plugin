@@ -168,8 +168,20 @@ void UArcweaveSubsystem::FetchData(FString APIToken, FString ProjectHash)
 
 bool UArcweaveSubsystem::LoadJsonFile()
 {
+    const FArcweaveAPISettings ArcweaveAPISettings = LoadArcweaveSettings();
+
+    if (ArcweaveAPISettings.JsonDirectoryPath.IsEmpty())
+    {
+        FString Message = FString::Printf(TEXT("Json directory path is empty in settings!"));
+        LogFetchStatus(false, Message);
+        return false;
+    }
+
     FString JsonRaw;
-    FString DirectoryPath = FPaths::ProjectDir() + TEXT("Content/ArcweaveExport/");
+    FString DirectoryPath = FPaths::IsRelative(ArcweaveAPISettings.JsonDirectoryPath)
+        ? FPaths::Combine(FPaths::ProjectDir(), ArcweaveAPISettings.JsonDirectoryPath)
+        : ArcweaveAPISettings.JsonDirectoryPath;
+
     // Normalize the directory path
     FPaths::NormalizeDirectoryName(DirectoryPath);
     // Get the file manager instance
@@ -185,19 +197,22 @@ bool UArcweaveSubsystem::LoadJsonFile()
         FString Message = FString::Printf(TEXT("Found file: %s"), *File);
         LogFetchStatus(true, Message);
     }
+    
     //always get the 0 one if there are mutiple ones
     if (Files.IsValidIndex(0) == false)
     {
-        FString Message = FString::Printf(TEXT("There is no JSON folder in the ArcweaveExport directory!"));
-        LogFetchStatus(true, Message);
+        FString Message = FString::Printf(TEXT("There is no JSON folder in the %s directory!"), *DirectoryPath);
+        LogFetchStatus(false, Message);
         return false;
     }
+
     if (!FFileHelper::LoadFileToString(JsonRaw, *Files[0]))
     {
         FString Message = FString::Printf(TEXT("Failed to load JSON file!"));
-        LogFetchStatus(true, Message);
+        LogFetchStatus(false, Message);
         return false;
     }
+
     ParseResponse(JsonRaw);
     return true;
 }
@@ -224,6 +239,11 @@ FArcweaveAPISettings UArcweaveSubsystem::LoadArcweaveSettings() const
             if (GConfig->GetString(ARCWEAVE_SETTINGS_SECTION, TEXT("Hash"), OutSetttings.Hash, GGameIni))
             {
                 UE_LOG(LogTemp, Warning, TEXT("Read Hash: %s"), *OutSetttings.Hash);
+            }
+
+            if (GConfig->GetString(ARCWEAVE_SETTINGS_SECTION, TEXT("JsonDirectoryPath"), OutSetttings.JsonDirectoryPath, GGameIni))
+            {
+                UE_LOG(LogTemp, Warning, TEXT("Read JsonDirectoryPath: %s"), *OutSetttings.JsonDirectoryPath);
             }
 
             if (GConfig->GetBool(ARCWEAVE_SETTINGS_SECTION, TEXT("bUseLocale"), OutSetttings.bUseLocale, GGameIni))
