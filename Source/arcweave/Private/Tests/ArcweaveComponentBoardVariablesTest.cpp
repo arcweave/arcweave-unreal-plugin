@@ -1,6 +1,7 @@
 #if WITH_DEV_AUTOMATION_TESTS
 
 #include "ArcweaveSubsystem.h"
+#include "ArcscriptTranspilerOutput.h"
 
 #include "Interfaces/IPluginManager.h"
 #include "Misc/AutomationTest.h"
