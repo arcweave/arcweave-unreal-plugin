@@ -4,6 +4,7 @@
 #include "HttpModule.h"
 #include "Interfaces/IHttpResponse.h"
 #include "Misc/AutomationTest.h"
+#include "Misc/EngineVersionComparison.h"
 
 namespace
 {
@@ -14,7 +15,11 @@ public:
     FString Body;
     FString URL = TEXT("https://arcweave.com/api/test/unreal");
     TArray<uint8> Bytes;
+#if UE_VERSION_OLDER_THAN(5, 6, 0)
+    virtual FString GetURL() const override { return URL; }
+#else
     virtual const FString& GetURL() const override { return URL; }
+#endif
     virtual const FString& GetEffectiveURL() const override { return URL; }
     virtual EHttpRequestStatus::Type GetStatus() const override { return EHttpRequestStatus::Succeeded; }
     virtual EHttpFailureReason GetFailureReason() const override { return EHttpFailureReason::None; }
@@ -26,7 +31,9 @@ public:
     virtual const TArray<uint8>& GetContent() const override { return Bytes; }
     virtual int32 GetResponseCode() const override { return Code; }
     virtual FString GetContentAsString() const override { return Body; }
+#if !UE_VERSION_OLDER_THAN(5, 6, 0)
     virtual FUtf8StringView GetContentAsUtf8StringView() const override { return {}; }
+#endif
 };
 }
 
