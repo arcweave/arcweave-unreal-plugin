@@ -106,6 +106,7 @@ bool IsVariableAttribute(const FArcweaveAttributeData& Attribute)
 
 void UArcweaveSubsystem::FetchDataFromAPI(FString APIToken, FString ProjectHash)
 {
+    CancelFetch();
     FString ApiUrl = FString::Printf(TEXT("https://arcweave.com/api/%s/unreal"), *ProjectHash);
     TryAddLanguageOptionToURL(ApiUrl);
 
@@ -114,12 +115,34 @@ void UArcweaveSubsystem::FetchDataFromAPI(FString APIToken, FString ProjectHash)
     Request->SetURL(ApiUrl);
     Request->SetHeader(TEXT("Authorization"), FString::Printf(TEXT("Bearer %s"), *APIToken));
     Request->SetHeader(TEXT("Accept"), TEXT("application/json"));
+    Request->SetTimeout(20.0f);
+    ActiveFetchRequest = Request;
 
     // Set the request complete callback
     Request->OnProcessRequestComplete().BindUObject(this, &UArcweaveSubsystem::HandleFetch);
 
     // Execute the request
-    Request->ProcessRequest();
+    if (!Request->ProcessRequest() && ActiveFetchRequest == Request)
+    {
+        ActiveFetchRequest.Reset();
+        OnArcweaveFetchCompleted.Broadcast(false, TEXT("Unable to start the Arcweave request. Please try again."));
+    }
+}
+
+void UArcweaveSubsystem::CancelFetch()
+{
+    if (ActiveFetchRequest)
+    {
+        ActiveFetchRequest->OnProcessRequestComplete().Unbind();
+        ActiveFetchRequest->CancelRequest();
+        ActiveFetchRequest.Reset();
+    }
+}
+
+void UArcweaveSubsystem::Deinitialize()
+{
+    CancelFetch();
+    Super::Deinitialize();
 }
 
 void UArcweaveSubsystem::TryAddLanguageOptionToURL(FString& ApiUrl)
@@ -168,6 +191,7 @@ void UArcweaveSubsystem::FetchData(FString APIToken, FString ProjectHash)
 
 bool UArcweaveSubsystem::LoadJsonFile()
 {
+    CancelFetch();
     FString JsonRaw;
     FString DirectoryPath = FPaths::ProjectDir() + TEXT("Content/ArcweaveExport/");
     // Normalize the directory path
@@ -198,8 +222,7 @@ bool UArcweaveSubsystem::LoadJsonFile()
         LogFetchStatus(true, Message);
         return false;
     }
-    ParseResponse(JsonRaw);
-    return true;
+    return ParseResponse(JsonRaw);
 }
 
 FArcweaveAPISettings UArcweaveSubsystem::LoadArcweaveSettings() const
@@ -1462,7 +1485,7 @@ FArcweaveCoverData UArcweaveSubsystem::ParseCoverData(const TSharedPtr<FJsonObje
     return CoverData;
 }
 
-void UArcweaveSubsystem::ParseResponse(const FString& ResponseString)
+bool UArcweaveSubsystem::ParseResponse(const FString& ResponseString)
 {
     TSharedPtr<FJsonObject> RootObject;
     // Convert the response to a JSON object
@@ -1473,7 +1496,7 @@ void UArcweaveSubsystem::ParseResponse(const FString& ResponseString)
     {
         // Failed to parse the response
         UE_LOG(LogArcwarePlugin, Error, TEXT("Failed to parse the HTTP Response!"));
-        return;
+        return false;
     }
 
     RootObject = JsonObject;
@@ -1485,8 +1508,17 @@ void UArcweaveSubsystem::ParseResponse(const FString& ResponseString)
     }
 
     // Extract project name and cover data     
-    if (RootObject->TryGetStringField(TEXT("name"), ProjectData.Name))
+    FString ProjectName;
+    if (RootObject->TryGetStringField(TEXT("name"), ProjectName) && !ProjectName.IsEmpty())
     {
+        // Validate the export before touching the current project. A malformed response
+        // must not partially replace a working session.
+        for (const TCHAR* Field : {TEXT("boards"), TEXT("elements"), TEXT("components"), TEXT("variables")})
+        {
+            const TSharedPtr<FJsonObject>* Object = nullptr;
+            if (!RootObject->TryGetObjectField(Field, Object)) return false;
+        }
+        ProjectData.Name = ProjectName;
         ProjectData.Cover = ParseCoverData(RootObject);
         ProjectData.Components = ParseAllComponents(RootObject);
         ProjectData.Conditions = ParseAllConditions(RootObject);
@@ -1495,6 +1527,7 @@ void UArcweaveSubsystem::ParseResponse(const FString& ResponseString)
         ProjectData.CurrentVars = ParseVariables(RootObject);
         ProjectData.Visits = InitVisits(RootObject);
         OnArcweaveResponseReceived.Broadcast(ProjectData);
+        return true;
         //LogStructFieldsRecursive(&ProjectData, FArcweaveProjectData::StaticStruct(),0);
     }
     else
@@ -1502,6 +1535,7 @@ void UArcweaveSubsystem::ParseResponse(const FString& ResponseString)
         // Handle error here.
         UE_LOG(LogArcwarePlugin, Error, TEXT("Project name is invalid!"));
     }
+    return false;
 }
 
 void UArcweaveSubsystem::OnEventCallback(const char* EventName)
@@ -1715,9 +1749,12 @@ void UArcweaveSubsystem::LogFetchStatus(const bool& Success, const FString& Mess
 
 void UArcweaveSubsystem::HandleFetch(FHttpRequestPtr Request, FHttpResponsePtr Response, bool bWasSuccessful)
 {
+    // A cancelled or superseded request must never replace a newer import.
+    if (Request != ActiveFetchRequest) return;
+    ActiveFetchRequest.Reset();
     if (!bWasSuccessful || !Response.IsValid())
     {
-        UE_LOG(LogArcwarePlugin, Error, TEXT("HTTP request failed outright."));
+        OnArcweaveFetchCompleted.Broadcast(false, TEXT("Arcweave could not be reached or the request timed out. Check your connection and try again."));
         return;
     }
 
@@ -1726,11 +1763,15 @@ void UArcweaveSubsystem::HandleFetch(FHttpRequestPtr Request, FHttpResponsePtr R
 
     if (StatusCode == 200)
     {
-        ParseResponse(ResponseBody);
+        const bool bParsed = ParseResponse(ResponseBody);
+        OnArcweaveFetchCompleted.Broadcast(bParsed, bParsed ? TEXT("Arcweave project imported.") : TEXT("Arcweave returned an invalid project. The previous project was kept."));
     }
     else
     {
-        FString ErrorMessage = FString::Printf(TEXT("HTTP Error %d: %s"), StatusCode, *ResponseBody);
-        LogFetchStatus(false, ErrorMessage);
+        const FString Message = (StatusCode == 401 || StatusCode == 403)
+            ? TEXT("Arcweave rejected these credentials. Check the API token and project access.")
+            : StatusCode == 404 ? TEXT("Arcweave project not found. Check the project hash.")
+            : FString::Printf(TEXT("Arcweave import failed (HTTP %d). Please try again."), StatusCode);
+        OnArcweaveFetchCompleted.Broadcast(false, Message);
     }
 }

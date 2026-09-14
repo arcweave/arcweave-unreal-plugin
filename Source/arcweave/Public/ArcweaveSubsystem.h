@@ -33,6 +33,7 @@ class UArcscriptTranspilerWrapper;
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnArcweaveResponseReceived, const FArcweaveProjectData&, ArcweaveProjectData);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnArcweaveVariableChanged, const TArray<FArcweaveVariable>&, ArcweaveVariables);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnArcweaveArcscriptEventReceived, const FString&, EventName);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnArcweaveFetchCompleted, bool, bSuccess, const FString&, Message);
 UCLASS()
 class ARCWEAVE_API UArcweaveSubsystem : public UEngineSubsystem
 {
@@ -40,6 +41,10 @@ class ARCWEAVE_API UArcweaveSubsystem : public UEngineSubsystem
 	
 public:
     void FetchDataFromAPI(FString APIToken, FString ProjectHash);
+
+    /** Cancel the pending API import without changing the loaded project. */
+    UFUNCTION(BlueprintCallable, Category = "Arcweave")
+    void CancelFetch();
 
 	/*
 	 * Fetch the data from Arcweave API
@@ -143,9 +148,14 @@ public:
     UPROPERTY(BlueprintAssignable, Category = "Arcweave")
     FOnArcweaveArcscriptEventReceived OnArcscriptEventReceived;
 
+    /** API import result, including transport, HTTP and invalid-JSON failures. */
+    UPROPERTY(BlueprintAssignable, Category = "Arcweave")
+    FOnArcweaveFetchCompleted OnArcweaveFetchCompleted;
+
 protected:
     //override init function
     virtual void Initialize(FSubsystemCollectionBase& Collection) override;
+    virtual void Deinitialize() override;
     void LogFetchStatus(const bool& Success, const FString& Message);
 
 private:
@@ -182,7 +192,7 @@ private:
     TArray<FArcweaveConditionData> ParseAllConditions(const TSharedPtr<FJsonObject>& MainJsonObject);
     TArray<FArcweaveConnectionsData> ParseAllConnections(const TSharedPtr<FJsonObject>& MainJsonObject);
     FArcweaveCoverData ParseCoverData(const TSharedPtr<FJsonObject>& CoverValueObject);
-    void ParseResponse(const FString& ResponseString);
+    bool ParseResponse(const FString& ResponseString);
     void OnEventCallback(const char* EventName);
     FArcscriptTranspilerOutput RunTranspiler(const FString& NodeCode, const FString& OriginElementId,
         const TMap<FString, FArcweaveVariable>& InitialVars, const TMap<FString, int>& Visits, bool bShouldUpdateVariables = true);
@@ -202,6 +212,9 @@ private:
     void PrintBranchData(const FArcweaveBranchData &InData);
 private:
     friend class FArcweaveComponentBoardVariablesTest;
+    friend class FArcweaveImportFailuresTest;
+
+    FHttpRequestPtr ActiveFetchRequest;
 
     UPROPERTY()
     FArcweaveProjectData ProjectData = FArcweaveProjectData();
