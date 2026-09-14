@@ -48,6 +48,22 @@ This involves fetching data directly from the Arcweave Web API within Unreal Eng
 
 ## Important Classes and Functions
 
+### Runtime import results
+
+Bind `OnArcweaveResponseReceived` to apply a successfully loaded project. Bind
+`OnArcweaveFetchCompleted(bool bSuccess, const FString& Message)` to show the API
+result in your own UI, including Shipping builds. Failures cover request startup,
+transport/timeouts, HTTP errors and invalid JSON exports. A failed import keeps
+the previous project; error messages do not include the response body or token.
+
+API requests have a 20-second timeout. Starting a new API import, loading local
+JSON or calling `CancelFetch()` cancels the previous request. Cancelled requests
+do not emit a completion event and late responses are ignored. `LoadJsonFile()`
+returns false for invalid JSON as well as file errors.
+
+Run `Arcweave.Project.ImportFailures` in Unreal Automation to verify malformed
+exports, failed requests, retries and cancellation.
+
 ``` mermaid
    classDiagram
    class ArcweaveSubsystem{}
