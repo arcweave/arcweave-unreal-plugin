@@ -8,6 +8,7 @@
 #include "ArcweaveAttributeData.h"
 #include "ArcweaveCoverData.h"
 #include "ArcweaveProjectData.h"
+#include "ArcweaveRuntimeState.h"
 #include "ArcweaveConditionData.h"
 #include "ArcweaveJumpersData.h"
 
@@ -34,6 +35,7 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnArcweaveResponseReceived, const F
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnArcweaveVariableChanged, const TArray<FArcweaveVariable>&, ArcweaveVariables);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnArcweaveArcscriptEventReceived, const FString&, EventName);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnArcweaveFetchCompleted, bool, bSuccess, const FString&, Message);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnArcweaveStateRestored);
 UCLASS()
 class ARCWEAVE_API UArcweaveSubsystem : public UEngineSubsystem
 {
@@ -75,6 +77,14 @@ public:
      */
     UFUNCTION(BlueprintPure, Category = "Arcweave")
     FArcweaveProjectData GetArcweaveProjectData() const {return ProjectData;};
+
+    /** Capture completed runtime state. Fails during imports or script callbacks; leaves State unchanged on failure. */
+    UFUNCTION(BlueprintCallable, BlueprintPure = false, Category = "Arcweave|State")
+    bool CaptureState(FArcweaveRuntimeState& State, FString& Error) const;
+
+    /** Restore into matching imported content without executing scripts or broadcasting variable changes. */
+    UFUNCTION(BlueprintCallable, Category = "Arcweave|State")
+    bool RestoreState(const FArcweaveRuntimeState& State, FString& Error);
 
     /*
      * Run transpiler for the element
@@ -152,6 +162,10 @@ public:
     UPROPERTY(BlueprintAssignable, Category = "Arcweave")
     FOnArcweaveFetchCompleted OnArcweaveFetchCompleted;
 
+    /** The complete snapshot has been restored. Ordinary gameplay change events are not emitted. */
+    UPROPERTY(BlueprintAssignable, Category = "Arcweave|State")
+    FOnArcweaveStateRestored OnArcweaveStateRestored;
+
 protected:
     //override init function
     virtual void Initialize(FSubsystemCollectionBase& Collection) override;
@@ -213,6 +227,12 @@ private:
 private:
     friend class FArcweaveComponentBoardVariablesTest;
     friend class FArcweaveImportFailuresTest;
+    friend class FArcweaveRuntimeStateTest;
+
+    bool CanAccessRuntimeState(FString& Error) const;
+
+    FString ProjectFingerprint;
+    bool bIsRunningScript = false;
 
     FHttpRequestPtr ActiveFetchRequest;
 

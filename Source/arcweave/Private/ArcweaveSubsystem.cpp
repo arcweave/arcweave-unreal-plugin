@@ -15,6 +15,7 @@
 
 // Engine includes
 #include "Dom/JsonObject.h"
+#include "Dom/JsonValue.h"
 #include "Engine/Engine.h"
 #include "GenericPlatform/GenericPlatformHttp.h"
 #include "HAL/FileManager.h"
@@ -23,12 +24,80 @@
 #include "Interfaces/IHttpResponse.h"
 #include "Interfaces/IPluginManager.h"
 #include "Misc/ConfigCacheIni.h"
+#include "Misc/DefaultValueHelper.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
+#include "Misc/SecureHash.h"
 #include "Serialization/JsonSerializer.h"
+#include "Templates/UnrealTemplate.h"
 
 namespace
 {
+// Object-key ordering and JSON whitespace do not change snapshot compatibility.
+TSharedPtr<FJsonValue> SortProjectJson(const TSharedPtr<FJsonValue>& Value)
+{
+    if (Value->Type == EJson::Object)
+    {
+        const TSharedPtr<FJsonObject> Object = Value->AsObject();
+        TArray<FString> Keys;
+        Object->Values.GetKeys(Keys);
+        Keys.Sort();
+        const TSharedPtr<FJsonObject> Sorted = MakeShared<FJsonObject>();
+        for (const FString& Key : Keys)
+        {
+            Sorted->SetField(Key, SortProjectJson(Object->Values[Key]));
+        }
+        return MakeShared<FJsonValueObject>(Sorted);
+    }
+    if (Value->Type == EJson::Array)
+    {
+        TArray<TSharedPtr<FJsonValue>> Sorted;
+        for (const TSharedPtr<FJsonValue>& Item : Value->AsArray())
+        {
+            Sorted.Add(SortProjectJson(Item));
+        }
+        return MakeShared<FJsonValueArray>(Sorted);
+    }
+    return Value;
+}
+
+FString GetProjectFingerprint(const TSharedPtr<FJsonObject>& Project)
+{
+    FString Json;
+    const TSharedRef<TJsonWriter<TCHAR, TCondensedJsonPrintPolicy<TCHAR>>> Writer =
+        TJsonWriterFactory<TCHAR, TCondensedJsonPrintPolicy<TCHAR>>::Create(&Json);
+    FJsonSerializer::Serialize(SortProjectJson(MakeShared<FJsonValueObject>(Project))->AsObject().ToSharedRef(), Writer);
+    const FTCHARToUTF8 Utf8(*Json);
+    uint8 Hash[FSHA1::DigestSize];
+    FSHA1::HashBuffer(Utf8.Get(), Utf8.Length(), Hash);
+    return BytesToHex(Hash, UE_ARRAY_COUNT(Hash));
+}
+
+bool IsSavedVariableValueValid(const FArcweaveSavedVariable& Variable)
+{
+    if (Variable.Type == TEXT("string"))
+    {
+        return true;
+    }
+    if (Variable.Type == TEXT("boolean"))
+    {
+        return Variable.Value.Equals(TEXT("true"), ESearchCase::CaseSensitive)
+            || Variable.Value.Equals(TEXT("false"), ESearchCase::CaseSensitive);
+    }
+    TCHAR* End = nullptr;
+    if (Variable.Type == TEXT("integer"))
+    {
+        const int64 Value = FCString::Strtoi64(*Variable.Value, &End, 10);
+        return End != *Variable.Value && *End == '\0' && Value >= MIN_int32 && Value <= MAX_int32;
+    }
+    if (Variable.Type == TEXT("float"))
+    {
+        double Value = 0.0;
+        return FDefaultValueHelper::ParseDouble(Variable.Value, Value) && FMath::IsFinite(Value);
+    }
+    return false;
+}
+
 bool TryNormalizeVariableValue(
     const TSharedPtr<FJsonValue>& JsonValue,
     const FString& Type,
@@ -484,6 +553,104 @@ void UArcweaveSubsystem::SetVariable(FString Id, FString NewValue)
     {
         UE_LOG(LogArcwarePlugin, Error, TEXT("Varible with id: %s, cannot be found in the project variables"), *Id);
     }
+}
+
+bool UArcweaveSubsystem::CanAccessRuntimeState(FString& Error) const
+{
+    if (ProjectFingerprint.IsEmpty())
+    {
+        Error = TEXT("Import an Arcweave project before capturing or restoring state.");
+        return false;
+    }
+    if (ActiveFetchRequest.IsValid())
+    {
+        Error = TEXT("Wait for the pending Arcweave import, or cancel it, before capturing or restoring state.");
+        return false;
+    }
+    if (bIsRunningScript)
+    {
+        Error = TEXT("Capture or restore state after the current Arcscript call returns, outside its callbacks.");
+        return false;
+    }
+    Error.Empty();
+    return true;
+}
+
+bool UArcweaveSubsystem::CaptureState(FArcweaveRuntimeState& State, FString& Error) const
+{
+    if (!CanAccessRuntimeState(Error))
+    {
+        return false;
+    }
+
+    FArcweaveRuntimeState Snapshot;
+    Snapshot.ProjectFingerprint = ProjectFingerprint;
+    Snapshot.Visits = ProjectData.Visits;
+    for (const auto& Pair : ProjectData.CurrentVars)
+    {
+        FArcweaveSavedVariable Variable;
+        Variable.Type = Pair.Value.Type;
+        Variable.Value = Pair.Value.Value;
+        if (!IsSavedVariableValueValid(Variable))
+        {
+            Error = FString::Printf(TEXT("Current variable '%s' has an invalid value and cannot be saved."), *Pair.Key);
+            return false;
+        }
+        Snapshot.Variables.Add(Pair.Key, MoveTemp(Variable));
+    }
+    State = MoveTemp(Snapshot);
+    return true;
+}
+
+bool UArcweaveSubsystem::RestoreState(const FArcweaveRuntimeState& State, FString& Error)
+{
+    if (!CanAccessRuntimeState(Error))
+    {
+        return false;
+    }
+    if (State.FormatVersion != 1)
+    {
+        Error = TEXT("Unsupported Arcweave state format version.");
+        return false;
+    }
+    if (State.ProjectFingerprint != ProjectFingerprint)
+    {
+        Error = TEXT("This state belongs to different Arcweave project content. Import the content used when saving.");
+        return false;
+    }
+    if (State.Variables.Num() != ProjectData.CurrentVars.Num() || State.Visits.Num() != ProjectData.Visits.Num())
+    {
+        Error = TEXT("The saved variables or visit counters do not match the imported project.");
+        return false;
+    }
+
+    // Validate the whole snapshot before writing either map or notifying listeners.
+    for (const auto& Pair : State.Variables)
+    {
+        const FArcweaveVariable* Variable = ProjectData.CurrentVars.Find(Pair.Key);
+        if (!Variable || Variable->Type != Pair.Value.Type || !IsSavedVariableValueValid(Pair.Value))
+        {
+            Error = FString::Printf(TEXT("Saved variable '%s' has an unknown ID, incompatible type or invalid value."), *Pair.Key);
+            return false;
+        }
+    }
+    for (const auto& Pair : State.Visits)
+    {
+        if (!ProjectData.Visits.Contains(Pair.Key) || Pair.Value < 0)
+        {
+            Error = FString::Printf(TEXT("Saved visit counter '%s' has an unknown ID or negative value."), *Pair.Key);
+            return false;
+        }
+    }
+
+    for (const auto& Pair : State.Variables)
+    {
+        // Keep imported type, scope and authored defaults so reset()/resetAll() still work.
+        ProjectData.CurrentVars[Pair.Key].Value = Pair.Value.Value;
+    }
+    ProjectData.Visits = State.Visits;
+    OnArcweaveStateRestored.Broadcast();
+    return true;
 }
 
 void UArcweaveSubsystem::EvaluateCondition(const FArcweaveConditionData& Condition, const FString& OriginElementId, FArcscriptTranspilerOutput& TranspilerOutput)
@@ -1526,6 +1693,7 @@ bool UArcweaveSubsystem::ParseResponse(const FString& ResponseString)
         ProjectData.Boards = ParseBoard(RootObject);
         ProjectData.CurrentVars = ParseVariables(RootObject);
         ProjectData.Visits = InitVisits(RootObject);
+        ProjectFingerprint = GetProjectFingerprint(RootObject);
         OnArcweaveResponseReceived.Broadcast(ProjectData);
         return true;
         //LogStructFieldsRecursive(&ProjectData, FArcweaveProjectData::StaticStruct(),0);
@@ -1563,6 +1731,8 @@ void UArcweaveSubsystem::ResetVisits()
 FArcscriptTranspilerOutput UArcweaveSubsystem::RunTranspiler(const FString& NodeCode, const FString& OriginElementId,
     const TMap<FString, FArcweaveVariable>& InitialVars, const TMap<FString, int>& Visits, bool bShouldUpdateVariables /* = true*/)
 {
+    TGuardValue<bool> RunningScript(bIsRunningScript, true);
+
     // Create output
     FArcscriptTranspilerOutput Output;
 

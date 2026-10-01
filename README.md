@@ -14,6 +14,7 @@ The plugin can import data from an exported Arcweave JSON file (available to all
 - [Important Classes and Functions](#important-classes-and-functions)
    - [UArcweaveSubsystem Functions](#list-of-important-functions-in-uarcweavesubsystem)
    - [Scoped variables](#scoped-variables)
+   - [Runtime save/load](#runtime-saveload)
    - [ArcscriptTranspilerWrapper](#arcweave-transpiler-script-wrapper-arcscripttranspilerwrapper)
    - [ArcweaveModule](#plugin-module-arcweavemodule)
    - [ArcweaveTypes](#data-wrapper-arcweavetypes)
@@ -71,7 +72,7 @@ exports, failed requests, retries and cancellation.
    class ArcscriptTranspilerWrapper{}
    class Arcweave {}
    class ArcweaveTypes {}
-   ArcweaveSubsystem --|> GameInstanceSubsystem
+   ArcweaveSubsystem --|> UEngineSubsystem
    ArcweaveSubsystem "1"--"1..*" ArcweaveTypes
    ArcweaveSubsystem ..> ArcscriptTranspilerWrapper
    ArcscriptTranspilerWrapper ..> ArcweaveTypes
@@ -92,7 +93,7 @@ It provides a range of functions that can be utilized in both Blueprints and C++
       +TranspileData
    }
 
-   ArcweaveSubsystem --|> GameInstanceSubsystem
+   ArcweaveSubsystem --|> UEngineSubsystem
 ```
 1. **Fetch Data from Arcweave API or local JSON**
    - This function allows you to fetch data from the Arcweave API by providing the API token and project hash.
@@ -132,6 +133,14 @@ All global, board, and component variables are available in `FArcweaveProjectDat
 All parsed attributes remain available through the owning board, component, or element's `Attributes` collection. Only eligible board and component attributes are added to `CurrentVars` and passed to Arcscript; element attributes, unsupported attribute types, and attributes without the required custom IDs are not exposed as Arcscript variables.
 
 For local JSON imports, re-export the project from the current Arcweave version so legacy board variables are migrated to attributes. Web API imports already use the current schema.
+
+#### Runtime save/load
+
+`CaptureState` and `RestoreState` save and restore current global, board, and component variable values and project visit counts through `FArcweaveRuntimeState`. Store this reflected struct in your game's `USaveGame`; the plugin does not write save files or manage the game's narrative cursor or world state.
+
+Import the same project content before restoring. Restore validates the entire snapshot before applying it, preserves authored defaults and metadata, and emits only `OnArcweaveStateRestored`, without replaying variable-change or Arcscript events. Changed project content requires a game-specific migration; it is not accepted automatically.
+
+See the [C++ runtime save/load guide](docs/runtime-state.md) for a `USaveGame` example, import coordination, safe resume behavior, and the `Arcweave.Project.RuntimeState` automation test.
 
 ### Arcweave Transpiler script wrapper `ArcscriptTranspilerWrapper`:
 ```mermaid
