@@ -1519,6 +1519,8 @@ bool UArcweaveSubsystem::ParseResponse(const FString& ResponseString)
             if (!RootObject->TryGetObjectField(Field, Object)) return false;
         }
         ProjectData.Name = ProjectName;
+        ProjectData.StartingElementId.Empty();
+        RootObject->TryGetStringField(TEXT("startingElement"), ProjectData.StartingElementId);
         ProjectData.Cover = ParseCoverData(RootObject);
         ProjectData.Components = ParseAllComponents(RootObject);
         ProjectData.Conditions = ParseAllConditions(RootObject);
