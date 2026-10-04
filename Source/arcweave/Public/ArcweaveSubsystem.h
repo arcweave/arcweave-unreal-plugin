@@ -213,6 +213,7 @@ private:
 private:
     friend class FArcweaveComponentBoardVariablesTest;
     friend class FArcweaveImportFailuresTest;
+    friend class FArcweaveStartingElementTest;
 
     FHttpRequestPtr ActiveFetchRequest;
 
