@@ -228,6 +228,7 @@ private:
     friend class FArcweaveComponentBoardVariablesTest;
     friend class FArcweaveImportFailuresTest;
     friend class FArcweaveRuntimeStateTest;
+    friend class FArcweaveStartingElementTest;
 
     bool CanAccessRuntimeState(FString& Error) const;
 

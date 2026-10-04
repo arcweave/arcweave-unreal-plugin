@@ -13,6 +13,7 @@ The plugin can import data from an exported Arcweave JSON file (available to all
    - [Web API](#web-api)
 - [Important Classes and Functions](#important-classes-and-functions)
    - [UArcweaveSubsystem Functions](#list-of-important-functions-in-uarcweavesubsystem)
+   - [Starting element](#starting-element)
    - [Scoped variables](#scoped-variables)
    - [Runtime save/load](#runtime-saveload)
    - [ArcscriptTranspilerWrapper](#arcweave-transpiler-script-wrapper-arcscripttranspilerwrapper)
@@ -117,6 +118,31 @@ It provides a range of functions that can be utilized in both Blueprints and C++
    - This function lets you modify the current variable value outside the dialogue logic. From anywhere in the project. You only need to provide the variable ID.
 
 These functions provide a comprehensive set of tools for interacting with the Arcweave API and managing project data within your Unreal Engine project.
+
+#### Starting element
+
+After a successful local or API import, `FArcweaveProjectData.StartingElementId` contains the exported `startingElement` ID. Read it from `GetArcweaveProjectData()` or the project data supplied by `OnArcweaveResponseReceived`. The value is empty when the export omits the field or sets it to `null` or an empty string. Each successful import replaces the previous value; a rejected import preserves the loaded project.
+
+Importing does not execute the starting element. When the game is ready to run it, pass the ID to `TranspileObject`:
+
+```cpp
+#include "ArcweaveSubsystem.h"
+#include "Engine/Engine.h"
+
+// Run after a successful import.
+UArcweaveSubsystem* Arcweave = GEngine->GetEngineSubsystem<UArcweaveSubsystem>();
+const FString StartingElementId = Arcweave->GetArcweaveProjectData().StartingElementId;
+if (!StartingElementId.IsEmpty())
+{
+    bool bSuccess = false;
+    FArcweaveElementData Element = Arcweave->TranspileObject(StartingElementId, bSuccess);
+    // Use Element when bSuccess is true.
+}
+```
+
+In Blueprints, break the `ArcweaveProjectData` struct, read **Starting Element Id**, and connect it to the transpiler node's **Object Id** input when nonempty. This is the project-wide starting element; it does not identify a separate entry for every board.
+
+Run `Arcweave.Project.StartingElement` in Unreal Automation to verify imports, reimports, and explicit execution using the imported ID.
 
 #### Scoped variables
 
