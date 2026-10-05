@@ -21,6 +21,7 @@ The plugin can import data from an exported Arcweave JSON file (available to all
    - [ArcweaveTypes](#data-wrapper-arcweavetypes)
 - [Using the Demo Project](#using-the-demo-project)
 - [Support](#support)
+- [License](#license)
 
 ## Plugin Installation
 
@@ -209,3 +210,7 @@ This project includes a demo scene and samples of logic implementation using Arc
 
 If you need support for an issue, you can open it using the CONTRIBUTING.md guide on GitHub or you can reach out on the  [🔗 Discord server](https://discord.gg/kb4FxBxw).
 .
+
+## License
+
+The plugin is available under the [MIT license](LICENSE). The bundled Arcscript and ANTLR runtimes retain their [BSD 3-Clause licenses](THIRD_PARTY_NOTICES.md); their notices are included in packaged games.
