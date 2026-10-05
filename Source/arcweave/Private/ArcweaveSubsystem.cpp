@@ -23,8 +23,8 @@
 #include "HttpModule.h"
 #include "Interfaces/IHttpResponse.h"
 #include "Interfaces/IPluginManager.h"
+#include "Internationalization/Regex.h"
 #include "Misc/ConfigCacheIni.h"
-#include "Misc/DefaultValueHelper.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 #include "Misc/SecureHash.h"
@@ -92,8 +92,12 @@ bool IsSavedVariableValueValid(const FArcweaveSavedVariable& Variable)
     }
     if (Variable.Type == TEXT("float"))
     {
-        double Value = 0.0;
-        return FDefaultValueHelper::ParseDouble(Variable.Value, Value) && FMath::IsFinite(Value);
+        // Require a complete decimal literal; ParseDouble also accepts inputs such as "." and "1e+".
+        static const FRegexPattern FloatPattern(
+            TEXT("\\A[ \t\r\n\f\v]*[+-]?(?:[0-9]+(?:\\.[0-9]*)?|\\.[0-9]+)")
+            TEXT("(?:[eE][+-]?[0-9]+)?[ \t\r\n\f\v]*\\z"));
+        FRegexMatcher Matcher(FloatPattern, Variable.Value);
+        return Matcher.FindNext() && FMath::IsFinite(FCString::Atod(*Variable.Value));
     }
     return false;
 }

@@ -218,7 +218,12 @@ bool FArcweaveRuntimeStateTest::RunTest(const FString& Parameters)
         Invalid.Variables.FindChecked(TEXT("board-open")).Value = Value;
         ExpectRejected(FString(TEXT("Invalid boolean ")) + Value, Invalid);
     }
-    for (const TCHAR* Value : {TEXT("NaN"), TEXT("inf"), TEXT("1e309"), TEXT("1.2x"), TEXT("")})
+    const TCHAR* InvalidFloatValues[] = {
+        TEXT("NaN"), TEXT("inf"), TEXT("1e309"), TEXT("1.2x"), TEXT(""), TEXT(" "),
+        TEXT("."), TEXT("e"), TEXT("+"), TEXT("-"), TEXT("1e"), TEXT("1e+"), TEXT("1e-"),
+        TEXT("+ 1.5"), TEXT("1 .5"), TEXT("1e 2"), TEXT("1.5f"), TEXT("1.2.3"), TEXT("--1")
+    };
+    for (const TCHAR* Value : InvalidFloatValues)
     {
         Invalid = Candidate;
         Invalid.Variables.FindChecked(TEXT("board-rate")).Value = Value;
@@ -263,6 +268,19 @@ bool FArcweaveRuntimeStateTest::RunTest(const FString& Parameters)
     TestEqual(TEXT("Capture does not change the invalid live value"), Project.CurrentVars.FindChecked(TEXT("global-health")).Value, FString(TEXT("not-an-integer")));
     Subsystem->SetVariable(TEXT("global-health"), Saved.Variables.FindChecked(TEXT("global-health")).Value);
 
+    for (const TCHAR* Value : InvalidFloatValues)
+    {
+        const FString Label = FString(TEXT("Invalid live float ")) + Value;
+        Subsystem->SetVariable(TEXT("board-rate"), Value);
+        Capture = Sentinel;
+        TestFalse(Label + TEXT(" blocks capture"), Subsystem->CaptureState(Capture, Error));
+        TestFalse(Label + TEXT(" capture explains failure"), Error.IsEmpty());
+        TestSameState(Label + TEXT(" preserves capture output"), Capture, Sentinel);
+        TestEqual(Label + TEXT(" remains unchanged in the live project"),
+            Project.CurrentVars.FindChecked(TEXT("board-rate")).Value, FString(Value));
+    }
+    Subsystem->SetVariable(TEXT("board-rate"), Saved.Variables.FindChecked(TEXT("board-rate")).Value);
+
     FArcweaveRuntimeState Boundaries = Saved;
     Boundaries.Variables.FindChecked(TEXT("global-health")).Value = TEXT("-2147483648");
     Boundaries.Variables.FindChecked(TEXT("component-health")).Value = TEXT("2147483647");
@@ -271,6 +289,20 @@ bool FArcweaveRuntimeStateTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("Boundary values capture"), Subsystem->CaptureState(Capture, Error));
     TestSameState(TEXT("Boundary values are preserved"), Capture, Boundaries);
     TestTrue(TEXT("Original runtime values restore after boundary test"), Subsystem->RestoreState(Saved, Error));
+
+    for (const TCHAR* Value : {
+        TEXT("0"), TEXT("-0"), TEXT("+2.75"), TEXT(".5"), TEXT("-.5"), TEXT("1."),
+        TEXT("1e3"), TEXT("1.25e-3"), TEXT("+1.25E+3"), TEXT(" \t2.75\r\n"),
+        TEXT("1.7976931348623157e308")})
+    {
+        FArcweaveRuntimeState Valid = Saved;
+        Valid.Variables.FindChecked(TEXT("board-rate")).Value = Value;
+        const FString Label = FString(TEXT("Valid float ")) + Value;
+        TestTrue(Label + TEXT(" restores"), Subsystem->RestoreState(Valid, Error));
+        TestTrue(Label + TEXT(" captures"), Subsystem->CaptureState(Capture, Error));
+        TestSameState(Label + TEXT(" roundtrips without changing its value"), Capture, Valid);
+    }
+    TestTrue(TEXT("Original runtime values restore after float tests"), Subsystem->RestoreState(Saved, Error));
 
     // Change object ordering at both the root and a nested attribute, preserving its meaning.
     const TSharedPtr<FJsonObject> Attribute = Root->GetObjectField(TEXT("attributes"))->GetObjectField(TEXT("board-health"));
