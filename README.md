@@ -13,11 +13,15 @@ The plugin can import data from an exported Arcweave JSON file (available to all
    - [Web API](#web-api)
 - [Important Classes and Functions](#important-classes-and-functions)
    - [UArcweaveSubsystem Functions](#list-of-important-functions-in-uarcweavesubsystem)
+   - [Starting element](#starting-element)
+   - [Scoped variables](#scoped-variables)
+   - [Runtime save/load](#runtime-saveload)
    - [ArcscriptTranspilerWrapper](#arcweave-transpiler-script-wrapper-arcscripttranspilerwrapper)
    - [ArcweaveModule](#plugin-module-arcweavemodule)
    - [ArcweaveTypes](#data-wrapper-arcweavetypes)
 - [Using the Demo Project](#using-the-demo-project)
 - [Support](#support)
+- [License](#license)
 
 ## Plugin Installation
 
@@ -47,6 +51,22 @@ This involves fetching data directly from the Arcweave Web API within Unreal Eng
 
 ## Important Classes and Functions
 
+### Runtime import results
+
+Bind `OnArcweaveResponseReceived` to apply a successfully loaded project. Bind
+`OnArcweaveFetchCompleted(bool bSuccess, const FString& Message)` to show the API
+result in your own UI, including Shipping builds. Failures cover request startup,
+transport/timeouts, HTTP errors and invalid JSON exports. A failed import keeps
+the previous project; error messages do not include the response body or token.
+
+API requests have a 20-second timeout. Starting a new API import, loading local
+JSON or calling `CancelFetch()` cancels the previous request. Cancelled requests
+do not emit a completion event and late responses are ignored. `LoadJsonFile()`
+returns false for invalid JSON as well as file errors.
+
+Run `Arcweave.Project.ImportFailures` in Unreal Automation to verify malformed
+exports, failed requests, retries and cancellation.
+
 ``` mermaid
    classDiagram
    class ArcweaveSubsystem{}
@@ -54,7 +74,7 @@ This involves fetching data directly from the Arcweave Web API within Unreal Eng
    class ArcscriptTranspilerWrapper{}
    class Arcweave {}
    class ArcweaveTypes {}
-   ArcweaveSubsystem --|> GameInstanceSubsystem
+   ArcweaveSubsystem --|> UEngineSubsystem
    ArcweaveSubsystem "1"--"1..*" ArcweaveTypes
    ArcweaveSubsystem ..> ArcscriptTranspilerWrapper
    ArcscriptTranspilerWrapper ..> ArcweaveTypes
@@ -75,7 +95,7 @@ It provides a range of functions that can be utilized in both Blueprints and C++
       +TranspileData
    }
 
-   ArcweaveSubsystem --|> GameInstanceSubsystem
+   ArcweaveSubsystem --|> UEngineSubsystem
 ```
 1. **Fetch Data from Arcweave API or local JSON**
    - This function allows you to fetch data from the Arcweave API by providing the API token and project hash.
@@ -99,6 +119,55 @@ It provides a range of functions that can be utilized in both Blueprints and C++
    - This function lets you modify the current variable value outside the dialogue logic. From anywhere in the project. You only need to provide the variable ID.
 
 These functions provide a comprehensive set of tools for interacting with the Arcweave API and managing project data within your Unreal Engine project.
+
+#### Starting element
+
+After a successful local or API import, `FArcweaveProjectData.StartingElementId` contains the exported `startingElement` ID. Read it from `GetArcweaveProjectData()` or the project data supplied by `OnArcweaveResponseReceived`. The value is empty when the export omits the field or sets it to `null` or an empty string. Each successful import replaces the previous value; a rejected import preserves the loaded project.
+
+Importing does not execute the starting element. When the game is ready to run it, pass the ID to `TranspileObject`:
+
+```cpp
+#include "ArcweaveSubsystem.h"
+#include "Engine/Engine.h"
+
+// Run after a successful import.
+UArcweaveSubsystem* Arcweave = GEngine->GetEngineSubsystem<UArcweaveSubsystem>();
+const FString StartingElementId = Arcweave->GetArcweaveProjectData().StartingElementId;
+if (!StartingElementId.IsEmpty())
+{
+    bool bSuccess = false;
+    FArcweaveElementData Element = Arcweave->TranspileObject(StartingElementId, bSuccess);
+    // Use Element when bSuccess is true.
+}
+```
+
+In Blueprints, break the `ArcweaveProjectData` struct, read **Starting Element Id**, and connect it to the transpiler node's **Object Id** input when nonempty. This is the project-wide starting element; it does not identify a separate entry for every board.
+
+Run `Arcweave.Project.StartingElement` in Unreal Automation to verify imports, reimports, and explicit execution using the imported ID.
+
+#### Scoped variables
+
+Boolean, integer, float, and plain-string attributes can be used as Arcscript variables when both the attribute and its owning board or component have custom IDs. The attribute custom ID is the variable name, the owner custom ID is its scope, and the attribute ID remains the stable ID used by `SetVariable` and variable-change events.
+
+```arcscript
+health = 100
+castle.health = 10
+hero.health = 20
+```
+
+All global, board, and component variables are available in `FArcweaveProjectData.CurrentVars`. Each `FArcweaveVariable` stores its mutable `Value` separately from its project-authored `DefaultValue`, so `reset` and `resetAll` continue to restore project defaults after earlier interpreter calls.
+
+All parsed attributes remain available through the owning board, component, or element's `Attributes` collection. Only eligible board and component attributes are added to `CurrentVars` and passed to Arcscript; element attributes, unsupported attribute types, and attributes without the required custom IDs are not exposed as Arcscript variables.
+
+For local JSON imports, re-export the project from the current Arcweave version so legacy board variables are migrated to attributes. Web API imports already use the current schema.
+
+#### Runtime save/load
+
+`CaptureState` and `RestoreState` save and restore current global, board, and component variable values and project visit counts through `FArcweaveRuntimeState`. Store this reflected struct in your game's `USaveGame`; the plugin does not write save files or manage the game's narrative cursor or world state.
+
+Import the same project content before restoring. Restore validates the entire snapshot before applying it, preserves authored defaults and metadata, and emits only `OnArcweaveStateRestored`, without replaying variable-change or Arcscript events. Changed project content requires a game-specific migration; it is not accepted automatically.
+
+See the [C++ runtime save/load guide](docs/runtime-state.md) for a `USaveGame` example, import coordination, safe resume behavior, and the `Arcweave.Project.RuntimeState` automation test.
 
 ### Arcweave Transpiler script wrapper `ArcscriptTranspilerWrapper`:
 ```mermaid
@@ -141,3 +210,7 @@ This project includes a demo scene and samples of logic implementation using Arc
 
 If you need support for an issue, you can open it using the CONTRIBUTING.md guide on GitHub or you can reach out on the  [🔗 Discord server](https://discord.gg/kb4FxBxw).
 .
+
+## License
+
+The plugin is available under the [MIT license](LICENSE). The bundled Arcscript and ANTLR runtimes retain their [BSD 3-Clause licenses](THIRD_PARTY_NOTICES.md); their notices are included in packaged games.

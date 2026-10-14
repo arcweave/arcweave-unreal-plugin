@@ -18,6 +18,9 @@ struct FArcweaveAttributeData
     FString Id = FString("");
 
     UPROPERTY(BlueprintReadWrite, Category = "Arcweave")
+    FString CustomId = FString("");
+
+    UPROPERTY(BlueprintReadWrite, Category = "Arcweave")
     FString cId = FString("");
 
     UPROPERTY(BlueprintReadWrite, Category = "Arcweave")

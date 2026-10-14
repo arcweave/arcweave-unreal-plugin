@@ -227,6 +227,8 @@ TMap<FString, FArcweaveVariable> FarcweaveModule::GetInitialVars(TSharedPtr<FJso
 				else if (var.Type == "float") {
 					var.Value = FString::SanitizeFloat(VarObject->GetNumberField(TEXT("value")));
 				}
+				var.DefaultValue = var.Value;
+				var.bHasDefaultValue = true;
 				initialVars.Add(var.Id, var);
 			}
 			else

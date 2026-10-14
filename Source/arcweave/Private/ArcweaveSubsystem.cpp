@@ -15,6 +15,7 @@
 
 // Engine includes
 #include "Dom/JsonObject.h"
+#include "Dom/JsonValue.h"
 #include "Engine/Engine.h"
 #include "GenericPlatform/GenericPlatformHttp.h"
 #include "HAL/FileManager.h"
@@ -22,13 +23,163 @@
 #include "HttpModule.h"
 #include "Interfaces/IHttpResponse.h"
 #include "Interfaces/IPluginManager.h"
+#include "Internationalization/Regex.h"
 #include "Misc/ConfigCacheIni.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
+#include "Misc/SecureHash.h"
 #include "Serialization/JsonSerializer.h"
+#include "Templates/UnrealTemplate.h"
+
+namespace
+{
+// Object-key ordering and JSON whitespace do not change snapshot compatibility.
+TSharedPtr<FJsonValue> SortProjectJson(const TSharedPtr<FJsonValue>& Value)
+{
+    if (Value->Type == EJson::Object)
+    {
+        const TSharedPtr<FJsonObject> Object = Value->AsObject();
+        TArray<FString> Keys;
+        Object->Values.GetKeys(Keys);
+        Keys.Sort();
+        const TSharedPtr<FJsonObject> Sorted = MakeShared<FJsonObject>();
+        for (const FString& Key : Keys)
+        {
+            Sorted->SetField(Key, SortProjectJson(Object->Values[Key]));
+        }
+        return MakeShared<FJsonValueObject>(Sorted);
+    }
+    if (Value->Type == EJson::Array)
+    {
+        TArray<TSharedPtr<FJsonValue>> Sorted;
+        for (const TSharedPtr<FJsonValue>& Item : Value->AsArray())
+        {
+            Sorted.Add(SortProjectJson(Item));
+        }
+        return MakeShared<FJsonValueArray>(Sorted);
+    }
+    return Value;
+}
+
+FString GetProjectFingerprint(const TSharedPtr<FJsonObject>& Project)
+{
+    FString Json;
+    const TSharedRef<TJsonWriter<TCHAR, TCondensedJsonPrintPolicy<TCHAR>>> Writer =
+        TJsonWriterFactory<TCHAR, TCondensedJsonPrintPolicy<TCHAR>>::Create(&Json);
+    FJsonSerializer::Serialize(SortProjectJson(MakeShared<FJsonValueObject>(Project))->AsObject().ToSharedRef(), Writer);
+    const FTCHARToUTF8 Utf8(*Json);
+    uint8 Hash[FSHA1::DigestSize];
+    FSHA1::HashBuffer(Utf8.Get(), Utf8.Length(), Hash);
+    return BytesToHex(Hash, UE_ARRAY_COUNT(Hash));
+}
+
+bool IsSavedVariableValueValid(const FArcweaveSavedVariable& Variable)
+{
+    if (Variable.Type == TEXT("string"))
+    {
+        return true;
+    }
+    if (Variable.Type == TEXT("boolean"))
+    {
+        return Variable.Value.Equals(TEXT("true"), ESearchCase::CaseSensitive)
+            || Variable.Value.Equals(TEXT("false"), ESearchCase::CaseSensitive);
+    }
+    TCHAR* End = nullptr;
+    if (Variable.Type == TEXT("integer"))
+    {
+        const int64 Value = FCString::Strtoi64(*Variable.Value, &End, 10);
+        return End != *Variable.Value && *End == '\0' && Value >= MIN_int32 && Value <= MAX_int32;
+    }
+    if (Variable.Type == TEXT("float"))
+    {
+        // Require a complete decimal literal; ParseDouble also accepts inputs such as "." and "1e+".
+        static const FRegexPattern FloatPattern(
+            TEXT("\\A[ \t\r\n\f\v]*[+-]?(?:[0-9]+(?:\\.[0-9]*)?|\\.[0-9]+)")
+            TEXT("(?:[eE][+-]?[0-9]+)?[ \t\r\n\f\v]*\\z"));
+        FRegexMatcher Matcher(FloatPattern, Variable.Value);
+        return Matcher.FindNext() && FMath::IsFinite(FCString::Atod(*Variable.Value));
+    }
+    return false;
+}
+
+bool TryNormalizeVariableValue(
+    const TSharedPtr<FJsonValue>& JsonValue,
+    const FString& Type,
+    const bool bNormalizeNullString,
+    FString& OutValue)
+{
+    if (!JsonValue.IsValid())
+    {
+        return false;
+    }
+
+    if (JsonValue->Type == EJson::Null)
+    {
+        if (Type == TEXT("string") && bNormalizeNullString)
+        {
+            OutValue.Empty();
+            return true;
+        }
+        return false;
+    }
+
+    if (Type == TEXT("string"))
+    {
+        return JsonValue->TryGetString(OutValue);
+    }
+
+    if (Type == TEXT("integer"))
+    {
+        int32 IntegerValue = 0;
+        if (JsonValue->TryGetNumber(IntegerValue))
+        {
+            OutValue = FString::FromInt(IntegerValue);
+            return true;
+        }
+        return false;
+    }
+
+    if (Type == TEXT("float"))
+    {
+        double FloatValue = 0.0;
+        if (JsonValue->TryGetNumber(FloatValue))
+        {
+            OutValue = FString::SanitizeFloat(FloatValue);
+            return true;
+        }
+        return false;
+    }
+
+    if (Type == TEXT("boolean"))
+    {
+        bool BooleanValue = false;
+        if (JsonValue->TryGetBool(BooleanValue))
+        {
+            OutValue = BooleanValue ? TEXT("true") : TEXT("false");
+            return true;
+        }
+    }
+
+    return false;
+}
+
+bool IsVariableAttribute(const FArcweaveAttributeData& Attribute)
+{
+    if (Attribute.Id.IsEmpty() || Attribute.CustomId.IsEmpty() || !Attribute.Value.bHasData)
+    {
+        return false;
+    }
+
+    return Attribute.Value.Type == TEXT("boolean")
+        || Attribute.Value.Type == TEXT("integer")
+        || Attribute.Value.Type == TEXT("float")
+        || (Attribute.Value.Type == TEXT("string") && Attribute.Value.Plain);
+}
+}
 
 void UArcweaveSubsystem::FetchDataFromAPI(FString APIToken, FString ProjectHash)
 {
+    CancelFetch();
     FString ApiUrl = FString::Printf(TEXT("https://arcweave.com/api/%s/unreal"), *ProjectHash);
     TryAddLanguageOptionToURL(ApiUrl);
 
@@ -37,12 +188,34 @@ void UArcweaveSubsystem::FetchDataFromAPI(FString APIToken, FString ProjectHash)
     Request->SetURL(ApiUrl);
     Request->SetHeader(TEXT("Authorization"), FString::Printf(TEXT("Bearer %s"), *APIToken));
     Request->SetHeader(TEXT("Accept"), TEXT("application/json"));
+    Request->SetTimeout(20.0f);
+    ActiveFetchRequest = Request;
 
     // Set the request complete callback
     Request->OnProcessRequestComplete().BindUObject(this, &UArcweaveSubsystem::HandleFetch);
 
     // Execute the request
-    Request->ProcessRequest();
+    if (!Request->ProcessRequest() && ActiveFetchRequest == Request)
+    {
+        ActiveFetchRequest.Reset();
+        OnArcweaveFetchCompleted.Broadcast(false, TEXT("Unable to start the Arcweave request. Please try again."));
+    }
+}
+
+void UArcweaveSubsystem::CancelFetch()
+{
+    if (ActiveFetchRequest)
+    {
+        ActiveFetchRequest->OnProcessRequestComplete().Unbind();
+        ActiveFetchRequest->CancelRequest();
+        ActiveFetchRequest.Reset();
+    }
+}
+
+void UArcweaveSubsystem::Deinitialize()
+{
+    CancelFetch();
+    Super::Deinitialize();
 }
 
 void UArcweaveSubsystem::TryAddLanguageOptionToURL(FString& ApiUrl)
@@ -91,6 +264,7 @@ void UArcweaveSubsystem::FetchData(FString APIToken, FString ProjectHash)
 
 bool UArcweaveSubsystem::LoadJsonFile()
 {
+    CancelFetch();
     const FArcweaveAPISettings ArcweaveAPISettings = LoadArcweaveSettings();
 
     if (ArcweaveAPISettings.JsonDirectoryPath.IsEmpty())
@@ -135,9 +309,7 @@ bool UArcweaveSubsystem::LoadJsonFile()
         LogFetchStatus(false, Message);
         return false;
     }
-
-    ParseResponse(JsonRaw);
-    return true;
+    return ParseResponse(JsonRaw);
 }
 
 FArcweaveAPISettings UArcweaveSubsystem::LoadArcweaveSettings() const
@@ -404,6 +576,104 @@ void UArcweaveSubsystem::SetVariable(FString Id, FString NewValue)
     {
         UE_LOG(LogArcwarePlugin, Error, TEXT("Varible with id: %s, cannot be found in the project variables"), *Id);
     }
+}
+
+bool UArcweaveSubsystem::CanAccessRuntimeState(FString& Error) const
+{
+    if (ProjectFingerprint.IsEmpty())
+    {
+        Error = TEXT("Import an Arcweave project before capturing or restoring state.");
+        return false;
+    }
+    if (ActiveFetchRequest.IsValid())
+    {
+        Error = TEXT("Wait for the pending Arcweave import, or cancel it, before capturing or restoring state.");
+        return false;
+    }
+    if (bIsRunningScript)
+    {
+        Error = TEXT("Capture or restore state after the current Arcscript call returns, outside its callbacks.");
+        return false;
+    }
+    Error.Empty();
+    return true;
+}
+
+bool UArcweaveSubsystem::CaptureState(FArcweaveRuntimeState& State, FString& Error) const
+{
+    if (!CanAccessRuntimeState(Error))
+    {
+        return false;
+    }
+
+    FArcweaveRuntimeState Snapshot;
+    Snapshot.ProjectFingerprint = ProjectFingerprint;
+    Snapshot.Visits = ProjectData.Visits;
+    for (const auto& Pair : ProjectData.CurrentVars)
+    {
+        FArcweaveSavedVariable Variable;
+        Variable.Type = Pair.Value.Type;
+        Variable.Value = Pair.Value.Value;
+        if (!IsSavedVariableValueValid(Variable))
+        {
+            Error = FString::Printf(TEXT("Current variable '%s' has an invalid value and cannot be saved."), *Pair.Key);
+            return false;
+        }
+        Snapshot.Variables.Add(Pair.Key, MoveTemp(Variable));
+    }
+    State = MoveTemp(Snapshot);
+    return true;
+}
+
+bool UArcweaveSubsystem::RestoreState(const FArcweaveRuntimeState& State, FString& Error)
+{
+    if (!CanAccessRuntimeState(Error))
+    {
+        return false;
+    }
+    if (State.FormatVersion != 1)
+    {
+        Error = TEXT("Unsupported Arcweave state format version.");
+        return false;
+    }
+    if (State.ProjectFingerprint != ProjectFingerprint)
+    {
+        Error = TEXT("This state belongs to different Arcweave project content. Import the content used when saving.");
+        return false;
+    }
+    if (State.Variables.Num() != ProjectData.CurrentVars.Num() || State.Visits.Num() != ProjectData.Visits.Num())
+    {
+        Error = TEXT("The saved variables or visit counters do not match the imported project.");
+        return false;
+    }
+
+    // Validate the whole snapshot before writing either map or notifying listeners.
+    for (const auto& Pair : State.Variables)
+    {
+        const FArcweaveVariable* Variable = ProjectData.CurrentVars.Find(Pair.Key);
+        if (!Variable || Variable->Type != Pair.Value.Type || !IsSavedVariableValueValid(Pair.Value))
+        {
+            Error = FString::Printf(TEXT("Saved variable '%s' has an unknown ID, incompatible type or invalid value."), *Pair.Key);
+            return false;
+        }
+    }
+    for (const auto& Pair : State.Visits)
+    {
+        if (!ProjectData.Visits.Contains(Pair.Key) || Pair.Value < 0)
+        {
+            Error = FString::Printf(TEXT("Saved visit counter '%s' has an unknown ID or negative value."), *Pair.Key);
+            return false;
+        }
+    }
+
+    for (const auto& Pair : State.Variables)
+    {
+        // Keep imported type, scope and authored defaults so reset()/resetAll() still work.
+        ProjectData.CurrentVars[Pair.Key].Value = Pair.Value.Value;
+    }
+    ProjectData.Visits = State.Visits;
+    OnArcweaveStateRestored.Broadcast();
+    return true;
 }
 
 void UArcweaveSubsystem::EvaluateCondition(const FArcweaveConditionData& Condition, const FString& OriginElementId, FArcscriptTranspilerOutput& TranspilerOutput)
@@ -714,42 +984,41 @@ TArray<FArcweaveAttributeData> UArcweaveSubsystem::ParseObjectAttributes(const T
 {
     TArray<FArcweaveAttributeData> ObjectAttributes;
     TArray<FString> AttributesStringArray;
-    if (ParentValueObject->TryGetStringArrayField(TEXT("attributes"), AttributesStringArray))
+    const TSharedPtr<FJsonObject>* AttributesObject = nullptr;
+    if (!ParentValueObject->TryGetStringArrayField(TEXT("attributes"), AttributesStringArray)
+        || !MainJsonObject->TryGetObjectField(TEXT("attributes"), AttributesObject))
     {
-        for (const auto& AttributeAssetId : AttributesStringArray)
+        return ObjectAttributes;
+    }
+
+    for (const FString& AttributeId : AttributesStringArray)
+    {
+        const TSharedPtr<FJsonValue>* AttributeJsonValue = (*AttributesObject)->Values.Find(AttributeId);
+        if (AttributeJsonValue == nullptr || !AttributeJsonValue->IsValid())
         {
-            FArcweaveAttributeData AttributeAsset;
-            // Iterate through the array of attributes and find with this id
-            const TSharedPtr<FJsonObject>* AttributesObject;
-            if (MainJsonObject->TryGetObjectField(TEXT("attributes"), AttributesObject))
-            {
-                for (const auto& AttrPair : AttributesObject->Get()->Values)
-                {
-                    FArcweaveAttributeData AttributeData;
-                    AttributeData.Id = AttrPair.Key;
-
-                    if (AttributeAssetId == AttributeData.Id)
-                    {
-                        const TSharedPtr<FJsonObject> AttributeAssetValueObject = AttrPair.Value->AsObject();
-                        if (AttributeAssetValueObject.IsValid())
-                        {
-                            // Extract the "cId", "name", and "cType"
-                            AttributeAssetValueObject->TryGetStringField(TEXT("cId"), AttributeAsset.cId);
-                            AttributeAssetValueObject->TryGetStringField(TEXT("name"), AttributeAsset.Name);
-                            AttributeAssetValueObject->TryGetStringField(TEXT("cType"), AttributeAsset.cType);
-
-                            // Parse "value" as FArcweaveAttributeValueData
-                            const TSharedPtr<FJsonObject>* AttributeValueObject;
-                            if (AttributeAssetValueObject->TryGetObjectField(TEXT("value"), AttributeValueObject))
-                            {
-                                ParseAttributeValue(*AttributeValueObject, AttributeAsset.Value);
-                            }
-                        }
-                        ObjectAttributes.Add(AttributeAsset);
-                    }
-                }
-            }
+            UE_LOG(LogArcwarePlugin, Warning, TEXT("Attribute %s referenced by a container was not found"), *AttributeId);
+            continue;
         }
+
+        const TSharedPtr<FJsonObject> AttributeValueObject = (*AttributeJsonValue)->AsObject();
+        if (!AttributeValueObject.IsValid())
+        {
+            continue;
+        }
+
+        FArcweaveAttributeData Attribute;
+        Attribute.Id = AttributeId;
+        AttributeValueObject->TryGetStringField(TEXT("customId"), Attribute.CustomId);
+        AttributeValueObject->TryGetStringField(TEXT("cId"), Attribute.cId);
+        AttributeValueObject->TryGetStringField(TEXT("name"), Attribute.Name);
+        AttributeValueObject->TryGetStringField(TEXT("cType"), Attribute.cType);
+
+        const TSharedPtr<FJsonObject>* ValueObject = nullptr;
+        if (AttributeValueObject->TryGetObjectField(TEXT("value"), ValueObject))
+        {
+            ParseAttributeValue(*ValueObject, Attribute.Value);
+        }
+        ObjectAttributes.Add(Attribute);
     }
     return ObjectAttributes;
 }
@@ -757,19 +1026,30 @@ TArray<FArcweaveAttributeData> UArcweaveSubsystem::ParseObjectAttributes(const T
 void UArcweaveSubsystem::ParseAttributeValue(const TSharedPtr<FJsonObject>& ValueObject, FArcweaveAttributeValueData& AttributeValue)
 {
     ValueObject->TryGetStringField(TEXT("type"), AttributeValue.Type);
+    ValueObject->TryGetBoolField(TEXT("plain"), AttributeValue.Plain);
+
     if (AttributeValue.Type == TEXT("component-list"))
     {
         const TArray<TSharedPtr<FJsonValue>>* ComponentIds = nullptr;
-        ValueObject->TryGetArrayField(TEXT("data"), ComponentIds);
-        for (const auto& ComponentId : *ComponentIds)
+        if (ValueObject->TryGetArrayField(TEXT("data"), ComponentIds))
         {
-            AttributeValue.ComponentIds.Add(ComponentId->AsString());
+            for (const TSharedPtr<FJsonValue>& ComponentId : *ComponentIds)
+            {
+                AttributeValue.ComponentIds.Add(ComponentId->AsString());
+            }
+            AttributeValue.bHasData = true;
         }
+        return;
     }
-    else
+
+    const TSharedPtr<FJsonValue>* DataValue = ValueObject->Values.Find(TEXT("data"));
+    if (DataValue != nullptr)
     {
-        ValueObject->TryGetStringField(TEXT("data"), AttributeValue.Data);
-        ValueObject->TryGetBoolField(TEXT("plain"), AttributeValue.Plain);
+        AttributeValue.bHasData = TryNormalizeVariableValue(
+            *DataValue,
+            AttributeValue.Type,
+            true,
+            AttributeValue.Data);
     }
 }
 
@@ -798,6 +1078,7 @@ TArray<FArcweaveBoardData> UArcweaveSubsystem::ParseBoard(const TSharedPtr<FJson
             Board.Branches = ParseBranches(MainJsonObject, BoardValueObject, Board);
             Board.Jumpers = ParseJumpers(MainJsonObject, BoardValueObject, Board);
             Board.Connections = ParseConnections(FString("connections"), MainJsonObject, BoardValueObject, Board);
+            Board.Attributes = ParseObjectAttributes(MainJsonObject, BoardValueObject);
             Boards.Add(Board);
         }
     }
@@ -807,11 +1088,6 @@ TArray<FArcweaveBoardData> UArcweaveSubsystem::ParseBoard(const TSharedPtr<FJson
 TMap<FString, FArcweaveVariable> UArcweaveSubsystem::ParseVariables(const TSharedPtr<FJsonObject>& MainJsonObject)
 {
     TMap<FString, FArcweaveVariable> InitialVars;
-    if (ProjectData.Boards.IsEmpty())
-    {
-        UE_LOG(LogArcweavePlugin, Error, TEXT("Boards should be parsed before variables because they contains references to them \n"));
-        return InitialVars;
-    }
 
     const TSharedPtr<FJsonObject>* VariablesObject;
     if (MainJsonObject->TryGetObjectField(TEXT("variables"), VariablesObject))
@@ -819,63 +1095,105 @@ TMap<FString, FArcweaveVariable> UArcweaveSubsystem::ParseVariables(const TShare
         for (const auto& VariablePair : VariablesObject->Get()->Values)
         {
             const TSharedPtr<FJsonObject> VarObject = VariablePair.Value->AsObject();
-            bool isRoot = false;
-            if (!(VarObject->TryGetBoolField(TEXT("root"), isRoot) && isRoot)) {
-                FArcweaveVariable Variable;
-                Variable.Id = VariablePair.Key;
-                VarObject->TryGetStringField(TEXT("name"), Variable.Name);
-                VarObject->TryGetStringField(TEXT("type"), Variable.Type);
-                if (Variable.Type == "string") {
-                    Variable.Value = VarObject->GetStringField(TEXT("value"));
-                }
-                else if (Variable.Type == "integer") {
-                    Variable.Value.AppendInt(VarObject->GetIntegerField(TEXT("value")));
-                }
-                else if (Variable.Type == "boolean") {
-                    Variable.Value = FString::Printf(TEXT("%s"), VarObject->GetBoolField(TEXT("value")) ? TEXT("true") : TEXT("false"));
-                }
-                else if (Variable.Type == "float")
-                {
-                    Variable.Value = FString::SanitizeFloat(VarObject->GetNumberField(TEXT("value")));
-                }
+            if (!VarObject.IsValid() || VarObject->HasField(TEXT("children")))
+            {
+                continue;
+            }
 
-                if (VarObject->TryGetStringField(TEXT("cType"), Variable.cType))
+            FArcweaveVariable Variable;
+            Variable.Id = VariablePair.Key;
+            VarObject->TryGetStringField(TEXT("name"), Variable.Name);
+            VarObject->TryGetStringField(TEXT("type"), Variable.Type);
+
+            const TSharedPtr<FJsonValue>* Value = VarObject->Values.Find(TEXT("value"));
+            if (Value == nullptr || !TryNormalizeVariableValue(*Value, Variable.Type, false, Variable.Value))
+            {
+                UE_LOG(LogArcwarePlugin, Error, TEXT("Variable %s has a missing or invalid value"), *Variable.Id);
+                continue;
+            }
+
+            Variable.DefaultValue = Variable.Value;
+            Variable.bHasDefaultValue = true;
+
+            if (VarObject->TryGetStringField(TEXT("cType"), Variable.cType))
+            {
+                if (Variable.cType == TEXT("boards"))
                 {
-                    if (Variable.cType == "boards")
+                    FString BoardId;
+                    if (!VarObject->TryGetStringField(TEXT("cId"), BoardId))
                     {
-                        FString ComponentId;
-                        if (!VarObject->TryGetStringField(TEXT("cId"), ComponentId))
-                        {
-                            UE_LOG(LogArcweavePlugin, Error, TEXT("The value cId should be present in var with id: %s"), *Variable.Id);
-                            continue;
-                        }
-
-
-                        FString BoardCustomId = FString("");
-                        for (FArcweaveBoardData Board : ProjectData.Boards)
-                        {
-                            if (Board.BoardId == ComponentId)
-                            {
-                                BoardCustomId = Board.CustomId;
-                                break;
-                            }
-                        }
-
-                        if (BoardCustomId.IsEmpty())
-                        {
-                            UE_LOG(LogArcweavePlugin, Error, TEXT("Cannot find the board with id: %s for variable with id: %s"), *ComponentId, *Variable.Id);
-                            continue;
-                        }
-
-                        Variable.Scope = BoardCustomId;
+                        UE_LOG(LogArcweavePlugin, Error, TEXT("The value cId should be present in variable %s"), *Variable.Id);
+                        continue;
                     }
 
-                }
-                InitialVars.Add(Variable.Id, Variable);
+                    for (const FArcweaveBoardData& Board : ProjectData.Boards)
+                    {
+                        if (Board.BoardId == BoardId)
+                        {
+                            Variable.Scope = Board.CustomId;
+                            break;
+                        }
+                    }
 
+                    if (Variable.Scope.IsEmpty())
+                    {
+                        UE_LOG(LogArcweavePlugin, Error, TEXT("Cannot find board %s for variable %s"), *BoardId, *Variable.Id);
+                        continue;
+                    }
+                }
             }
+            InitialVars.Add(Variable.Id, Variable);
         }
     }
+
+    const auto AddAttributeVariables = [&InitialVars](
+        const TArray<FArcweaveAttributeData>& Attributes,
+        const FString& OwnerId,
+        const FString& OwnerCustomId,
+        const FString& OwnerType)
+    {
+        if (OwnerCustomId.IsEmpty())
+        {
+            return;
+        }
+
+        for (const FArcweaveAttributeData& Attribute : Attributes)
+        {
+            if (!IsVariableAttribute(Attribute)
+                || Attribute.cType != OwnerType
+                || Attribute.cId != OwnerId)
+            {
+                continue;
+            }
+
+            if (InitialVars.Contains(Attribute.Id))
+            {
+                UE_LOG(LogArcwarePlugin, Warning, TEXT("Ignoring duplicate runtime variable id %s"), *Attribute.Id);
+                continue;
+            }
+
+            FArcweaveVariable Variable;
+            Variable.Id = Attribute.Id;
+            Variable.Name = Attribute.CustomId;
+            Variable.Type = Attribute.Value.Type;
+            Variable.Value = Attribute.Value.Data;
+            Variable.DefaultValue = Attribute.Value.Data;
+            Variable.bHasDefaultValue = true;
+            Variable.cType = OwnerType;
+            Variable.Scope = OwnerCustomId;
+            InitialVars.Add(Variable.Id, Variable);
+        }
+    };
+
+    for (const FArcweaveBoardData& Board : ProjectData.Boards)
+    {
+        AddAttributeVariables(Board.Attributes, Board.BoardId, Board.CustomId, TEXT("boards"));
+    }
+    for (const FArcweaveComponentData& Component : ProjectData.Components)
+    {
+        AddAttributeVariables(Component.Attributes, Component.Id, Component.CustomId, TEXT("components"));
+    }
+
     return InitialVars;
 }
 
@@ -1244,6 +1562,7 @@ TArray<FArcweaveComponentData> UArcweaveSubsystem::ParseComponents(const TShared
                         {
                             // Extract the "name" and "root"
                             ComponentValueObject->TryGetStringField(TEXT("name"), ElComponent.Name);
+                            ComponentValueObject->TryGetStringField(TEXT("customId"), ElComponent.CustomId);
                             ComponentValueObject->TryGetBoolField(TEXT("root"), ElComponent.Root);
                             ComponentValueObject->TryGetStringArrayField(TEXT("children"), ElComponent.Children);
                             ElComponent.Assets = ParseComponentAsset(ComponentValueObject);
@@ -1277,6 +1596,7 @@ TArray<FArcweaveComponentData> UArcweaveSubsystem::ParseAllComponents(const TSha
             {
                 // Extract the "name" and "root"
                 ComponentValueObject->TryGetStringField(TEXT("name"), ElComponent.Name);
+                ComponentValueObject->TryGetStringField(TEXT("customId"), ElComponent.CustomId);
                 ComponentValueObject->TryGetBoolField(TEXT("root"), ElComponent.Root);
                 ComponentValueObject->TryGetStringArrayField(TEXT("children"), ElComponent.Children);
                 ElComponent.Assets = ParseComponentAsset(ComponentValueObject);
@@ -1355,7 +1675,7 @@ FArcweaveCoverData UArcweaveSubsystem::ParseCoverData(const TSharedPtr<FJsonObje
     return CoverData;
 }
 
-void UArcweaveSubsystem::ParseResponse(const FString& ResponseString)
+bool UArcweaveSubsystem::ParseResponse(const FString& ResponseString)
 {
     TSharedPtr<FJsonObject> RootObject;
     // Convert the response to a JSON object
@@ -1366,7 +1686,7 @@ void UArcweaveSubsystem::ParseResponse(const FString& ResponseString)
     {
         // Failed to parse the response
         UE_LOG(LogArcwarePlugin, Error, TEXT("Failed to parse the HTTP Response!"));
-        return;
+        return false;
     }
 
     RootObject = JsonObject;
@@ -1378,8 +1698,19 @@ void UArcweaveSubsystem::ParseResponse(const FString& ResponseString)
     }
 
     // Extract project name and cover data     
-    if (RootObject->TryGetStringField(TEXT("name"), ProjectData.Name))
+    FString ProjectName;
+    if (RootObject->TryGetStringField(TEXT("name"), ProjectName) && !ProjectName.IsEmpty())
     {
+        // Validate the export before touching the current project. A malformed response
+        // must not partially replace a working session.
+        for (const TCHAR* Field : {TEXT("boards"), TEXT("elements"), TEXT("components"), TEXT("variables")})
+        {
+            const TSharedPtr<FJsonObject>* Object = nullptr;
+            if (!RootObject->TryGetObjectField(Field, Object)) return false;
+        }
+        ProjectData.Name = ProjectName;
+        ProjectData.StartingElementId.Empty();
+        RootObject->TryGetStringField(TEXT("startingElement"), ProjectData.StartingElementId);
         ProjectData.Cover = ParseCoverData(RootObject);
         ProjectData.Components = ParseAllComponents(RootObject);
         ProjectData.Conditions = ParseAllConditions(RootObject);
@@ -1387,7 +1718,9 @@ void UArcweaveSubsystem::ParseResponse(const FString& ResponseString)
         ProjectData.Boards = ParseBoard(RootObject);
         ProjectData.CurrentVars = ParseVariables(RootObject);
         ProjectData.Visits = InitVisits(RootObject);
+        ProjectFingerprint = GetProjectFingerprint(RootObject);
         OnArcweaveResponseReceived.Broadcast(ProjectData);
+        return true;
         //LogStructFieldsRecursive(&ProjectData, FArcweaveProjectData::StaticStruct(),0);
     }
     else
@@ -1395,6 +1728,7 @@ void UArcweaveSubsystem::ParseResponse(const FString& ResponseString)
         // Handle error here.
         UE_LOG(LogArcwarePlugin, Error, TEXT("Project name is invalid!"));
     }
+    return false;
 }
 
 void UArcweaveSubsystem::OnEventCallback(const char* EventName)
@@ -1422,6 +1756,8 @@ void UArcweaveSubsystem::ResetVisits()
 FArcscriptTranspilerOutput UArcweaveSubsystem::RunTranspiler(const FString& NodeCode, const FString& OriginElementId,
     const TMap<FString, FArcweaveVariable>& InitialVars, const TMap<FString, int>& Visits, bool bShouldUpdateVariables /* = true*/)
 {
+    TGuardValue<bool> RunningScript(bIsRunningScript, true);
+
     // Create output
     FArcscriptTranspilerOutput Output;
 
@@ -1454,59 +1790,51 @@ FArcscriptTranspilerOutput UArcweaveSubsystem::RunTranspiler(const FString& Node
 
 void UArcweaveSubsystem::UpdateVariables(const FArcscriptTranspilerOutput& Output)
 {
-    bool IsVariableChanged = false;
     TArray<FArcweaveVariable> ChangedVariables;
     for (const FArcscriptVariableChange& Change : Output.Changes)
     {
-        if (Change.Value.IsValid())
+        if (!Change.Value.IsValid())
         {
-            IsVariableChanged = true;
-            FArcweaveVariable Variable;
-            Variable.Id = Change.Id;
-            Variable.Type = Change.Type;
-            Variable.Name = ProjectData.CurrentVars.Contains(Change.Id) ? ProjectData.CurrentVars[Change.Id].Name : "Unknown";
-
-            UE_LOG(LogArcwarePlugin, Display, TEXT("Id='%s'"), *Change.Id);
-            UE_LOG(LogArcwarePlugin, Display, TEXT("Type='%s'"), *Change.Type);
-
-            if (Change.Type == "string")
-            {
-                Variable.Value = Change.Value->AsString();
-            }
-            else if (Variable.Type == "integer")
-            {
-                int outInt = 0;
-                Change.Value->TryGetNumber(outInt);
-                Variable.Value.AppendInt(outInt);
-            }
-            else if (Variable.Type == "bool")
-            {
-                Variable.Value = FString::Printf(TEXT("%s"), Change.Value->AsBool() ? TEXT("true") : TEXT("false"));
-            }
-            else if (Variable.Type == "float")
-            {
-                float outFloat = 0;
-                Change.Value->TryGetNumber(outFloat);
-                Variable.Value = FString::SanitizeFloat(outFloat);
-            }
-
-            ChangedVariables.Add(Variable);
-
-            //find this variable in project data and update it
-            for (auto& VarPair : ProjectData.CurrentVars)
-            {
-                if (VarPair.Key == Variable.Id)
-                {
-                    VarPair.Value.Value = Variable.Value;
-                    UE_LOG(LogArcwarePlugin, Display, TEXT("Update variable id %s, value %s"), *Variable.Id, *VarPair.Value.Value);
-                    break;
-                }
-            }
+            continue;
         }
+
+        FArcweaveVariable* Variable = ProjectData.CurrentVars.Find(Change.Id);
+        if (Variable == nullptr)
+        {
+            UE_LOG(LogArcwarePlugin, Warning, TEXT("Cannot apply change for unknown variable %s"), *Change.Id);
+            continue;
+        }
+
+        UE_LOG(LogArcwarePlugin, Display, TEXT("Id='%s'"), *Change.Id);
+        UE_LOG(LogArcwarePlugin, Display, TEXT("Type='%s'"), *Change.Type);
+
+        if (Variable->Type == TEXT("string"))
+        {
+            Variable->Value = Change.Value->AsString();
+        }
+        else if (Variable->Type == TEXT("integer"))
+        {
+            int32 OutInt = 0;
+            Change.Value->TryGetNumber(OutInt);
+            Variable->Value = FString::FromInt(OutInt);
+        }
+        else if (Variable->Type == TEXT("boolean"))
+        {
+            Variable->Value = Change.Value->AsBool() ? TEXT("true") : TEXT("false");
+        }
+        else if (Variable->Type == TEXT("float"))
+        {
+            double OutFloat = 0.0;
+            Change.Value->TryGetNumber(OutFloat);
+            Variable->Value = FString::SanitizeFloat(OutFloat);
+        }
+
+        ChangedVariables.Add(*Variable);
+        UE_LOG(LogArcwarePlugin, Display, TEXT("Update variable id %s, value %s"), *Variable->Id, *Variable->Value);
     }
 
     // Broadcast changes
-    if (IsVariableChanged)
+    if (!ChangedVariables.IsEmpty())
     {
         OnArcweaveVariableChanged.Broadcast(ChangedVariables);
     }
@@ -1616,9 +1944,12 @@ void UArcweaveSubsystem::LogFetchStatus(const bool& Success, const FString& Mess
 
 void UArcweaveSubsystem::HandleFetch(FHttpRequestPtr Request, FHttpResponsePtr Response, bool bWasSuccessful)
 {
+    // A cancelled or superseded request must never replace a newer import.
+    if (Request != ActiveFetchRequest) return;
+    ActiveFetchRequest.Reset();
     if (!bWasSuccessful || !Response.IsValid())
     {
-        UE_LOG(LogArcwarePlugin, Error, TEXT("HTTP request failed outright."));
+        OnArcweaveFetchCompleted.Broadcast(false, TEXT("Arcweave could not be reached or the request timed out. Check your connection and try again."));
         return;
     }
 
@@ -1627,11 +1958,15 @@ void UArcweaveSubsystem::HandleFetch(FHttpRequestPtr Request, FHttpResponsePtr R
 
     if (StatusCode == 200)
     {
-        ParseResponse(ResponseBody);
+        const bool bParsed = ParseResponse(ResponseBody);
+        OnArcweaveFetchCompleted.Broadcast(bParsed, bParsed ? TEXT("Arcweave project imported.") : TEXT("Arcweave returned an invalid project. The previous project was kept."));
     }
     else
     {
-        FString ErrorMessage = FString::Printf(TEXT("HTTP Error %d: %s"), StatusCode, *ResponseBody);
-        LogFetchStatus(false, ErrorMessage);
+        const FString Message = (StatusCode == 401 || StatusCode == 403)
+            ? TEXT("Arcweave rejected these credentials. Check the API token and project access.")
+            : StatusCode == 404 ? TEXT("Arcweave project not found. Check the project hash.")
+            : FString::Printf(TEXT("Arcweave import failed (HTTP %d). Please try again."), StatusCode);
+        OnArcweaveFetchCompleted.Broadcast(false, Message);
     }
 }

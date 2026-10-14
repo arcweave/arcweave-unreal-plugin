@@ -22,4 +22,7 @@ struct FArcweaveAttributeValueData
 
     UPROPERTY(BlueprintReadWrite, Category = "Arcweave")
     bool Plain = false;
+
+    UPROPERTY(BlueprintReadOnly, Category = "Arcweave")
+    bool bHasData = false;
 };

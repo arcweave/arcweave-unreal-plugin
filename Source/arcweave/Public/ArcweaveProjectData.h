@@ -19,6 +19,10 @@ struct FArcweaveProjectData
     UPROPERTY(BlueprintReadWrite, Category = "Arcweave")
     FString Name = FString("");
 
+    /** Authored project starting element; empty when no starting element is set. */
+    UPROPERTY(BlueprintReadWrite, Category = "Arcweave")
+    FString StartingElementId = FString("");
+
     //project cover
     UPROPERTY(BlueprintReadWrite, Category = "Arcweave")
     FArcweaveCoverData Cover = FArcweaveCoverData();
@@ -49,6 +53,7 @@ struct FArcweaveProjectData
     //constructor
     FArcweaveProjectData()
         : Name(FString(""))
+        , StartingElementId(FString(""))
         , Cover(FArcweaveCoverData())
         , CurrentVars(TMap<FString, FArcweaveVariable>())
         , Boards(TArray<FArcweaveBoardData>())
