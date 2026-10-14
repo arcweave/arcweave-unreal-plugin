@@ -29,6 +29,9 @@ public:
     virtual FString GetContentType() const override { return TEXT("application/json"); }
     virtual uint64 GetContentLength() const override { return Bytes.Num(); }
     virtual const TArray<uint8>& GetContent() const override { return Bytes; }
+#if !UE_VERSION_OLDER_THAN(5, 8, 0)
+    virtual TArray<uint8> TakeContent() override { return MoveTemp(Bytes); }
+#endif
     virtual int32 GetResponseCode() const override { return Code; }
     virtual FString GetContentAsString() const override { return Body; }
 #if !UE_VERSION_OLDER_THAN(5, 6, 0)
