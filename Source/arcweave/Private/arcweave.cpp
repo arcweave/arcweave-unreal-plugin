@@ -139,7 +139,7 @@ bool FarcweaveModule::TestJsonFile()
 	
 					for (auto& VisitPair : visitsObject->Values)
 					{
-						FString Key = VisitPair.Key;
+						FString Key(VisitPair.Key);
 						int32 Value = 0; // Initialize with a default value
 						Value = VisitPair.Value->AsNumber();
 						currentVisits.Add(Key, Value);
@@ -296,11 +296,11 @@ FString FarcweaveModule::CompareResults(TSharedPtr<FJsonObject> expected, TShare
 */
 TMap<FString, TSharedPtr<FJsonValue>> FarcweaveModule::GetExpectedVars(TSharedPtr<FJsonObject> expectedVarsJson) {
 	TMap<FString, TSharedPtr<FJsonValue>> expectedVars;
-	const TMap<FString, TSharedPtr<FJsonValue>>& expectedVarsJsonMap = expectedVarsJson->Values;
+	const auto& expectedVarsJsonMap = expectedVarsJson->Values;
 
-	for (const TPair<FString, TSharedPtr<FJsonValue>>& varPair : expectedVarsJsonMap)
+	for (const auto& varPair : expectedVarsJsonMap)
 	{
-		FString key = varPair.Key;
+		FString key(varPair.Key);
 		TSharedPtr<FJsonValue> jsonValue = varPair.Value;
 
 		if (jsonValue->Type == EJson::String)

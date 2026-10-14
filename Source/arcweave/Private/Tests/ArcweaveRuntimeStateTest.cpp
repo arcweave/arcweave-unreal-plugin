@@ -312,10 +312,13 @@ bool FArcweaveRuntimeStateTest::RunTest(const FString& Parameters)
     Attribute->SetObjectField(TEXT("value"), ReorderedValue);
     TSharedRef<FJsonObject> ReorderedRoot = MakeShared<FJsonObject>();
     TArray<FString> Keys;
-    Root->Values.GetKeys(Keys);
+    for (const auto& Pair : Root->Values)
+    {
+        Keys.Add(FString(Pair.Key));
+    }
     for (int32 Index = Keys.Num() - 1; Index >= 0; --Index)
     {
-        ReorderedRoot->SetField(Keys[Index], Root->Values.FindChecked(Keys[Index]));
+        ReorderedRoot->SetField(Keys[Index], Root->TryGetField(Keys[Index]));
     }
     FString CompactJson;
     FJsonSerializer::Serialize(ReorderedRoot, TJsonWriterFactory<TCHAR, TCondensedJsonPrintPolicy<TCHAR>>::Create(&CompactJson));
