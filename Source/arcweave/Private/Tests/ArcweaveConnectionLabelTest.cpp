@@ -1,5 +1,6 @@
 #if WITH_DEV_AUTOMATION_TESTS
 
+#include "ArcscriptTranspilerOutput.h"
 #include "ArcweaveSubsystem.h"
 #include "Misc/AutomationTest.h"
 
