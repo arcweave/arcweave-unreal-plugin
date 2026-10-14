@@ -28,6 +28,7 @@
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 #include "Misc/SecureHash.h"
+#include "Policies/CondensedJsonPrintPolicy.h"
 #include "Serialization/JsonSerializer.h"
 #include "Templates/UnrealTemplate.h"
 
@@ -437,7 +438,8 @@ bool UArcweaveSubsystem::GetBoardObjectForElement(FString ConditionId, FArcweave
 
 bool UArcweaveSubsystem::ContainsCodePattern(const FString& ContentToTest) const
 {
-    const FRegexPattern CodeBlockPattern(TEXT(R"(<pre><code>[\s\S]*?</code></pre>)"));
+    // Arcscript accepts attributes on both tags, e.g. <pre attr='x'><code rem='y'>
+    const FRegexPattern CodeBlockPattern(TEXT(R"(<pre(\s[^>]*)?><code(\s[^>]*)?>[\s\S]*?</code></pre>)"));
     FRegexMatcher Matcher(CodeBlockPattern, ContentToTest);
 
     return Matcher.FindNext();
@@ -898,6 +900,14 @@ FArcscriptTranspilerOutput UArcweaveSubsystem::TranspileConnection(
     if (BoardObjRef.BoardId.IsEmpty())
     {
         UE_LOG(LogArcwarePlugin, Error, TEXT("TranspileConnection failed: BoardObjRef.BoardId is empty for connection id: %s"), *ConnectionId);
+        return Output;
+    }
+
+    // Labels without code are plain text after import and are not valid Arcscript input
+    if (!ContainsCodePattern(ScriptData))
+    {
+        Output.Output = bStripHtmlTags ? RemoveHtmlTags(ScriptData) : ScriptData;
+        Success = !Output.Output.IsEmpty();
         return Output;
     }
 
@@ -1853,7 +1863,11 @@ void UArcweaveSubsystem::UpdateVariablesFromConnection(const FArcweaveConnection
         {
             if (Con.Id == Connection.Id)
             {
-                RunTranspiler(Con.Label, Con.Id, ProjectData.CurrentVars, ProjectData.Visits, true);
+                // Only labels with code can change variables
+                if (ContainsCodePattern(Con.Label))
+                {
+                    RunTranspiler(Con.Label, Con.Id, ProjectData.CurrentVars, ProjectData.Visits, true);
+                }
                 return;
             }
         }
