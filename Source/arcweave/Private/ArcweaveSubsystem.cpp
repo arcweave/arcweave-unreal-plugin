@@ -40,12 +40,15 @@ TSharedPtr<FJsonValue> SortProjectJson(const TSharedPtr<FJsonValue>& Value)
     {
         const TSharedPtr<FJsonObject> Object = Value->AsObject();
         TArray<FString> Keys;
-        Object->Values.GetKeys(Keys);
+        for (const auto& Pair : Object->Values)
+        {
+            Keys.Add(FString(Pair.Key));
+        }
         Keys.Sort();
         const TSharedPtr<FJsonObject> Sorted = MakeShared<FJsonObject>();
         for (const FString& Key : Keys)
         {
-            Sorted->SetField(Key, SortProjectJson(Object->Values[Key]));
+            Sorted->SetField(Key, SortProjectJson(Object->TryGetField(Key)));
         }
         return MakeShared<FJsonValueObject>(Sorted);
     }
@@ -460,7 +463,7 @@ void UArcweaveSubsystem::IncrementVisits(const FString& ElementId)
 
 void UArcweaveSubsystem::PrintBranchData(const FArcweaveBranchData& InData)
 {
-    UE_LOG(LogArcwarePlugin, Display, TEXT("------------- START DEBUG BRANCH DATA-------------"), *InData.Id);
+    UE_LOG(LogArcwarePlugin, Display, TEXT("------------- START DEBUG BRANCH DATA-------------"));
     UE_LOG(LogArcwarePlugin, Display, TEXT("Branch Id: %s"), *InData.Id);
     UE_LOG(LogArcwarePlugin, Display, TEXT("  IfCondition: Id=%s, Output=%s, Script=%s"),
         *InData.IfCondition.Id, *InData.IfCondition.Output, *InData.IfCondition.Script);
@@ -477,7 +480,7 @@ void UArcweaveSubsystem::PrintBranchData(const FArcweaveBranchData& InData)
         }
     }
 
-    UE_LOG(LogArcwarePlugin, Display, TEXT("------------- END DEBUG BRANCH DATA-------------"), *InData.Id);
+    UE_LOG(LogArcwarePlugin, Display, TEXT("------------- END DEBUG BRANCH DATA-------------"));
 
 }
 
@@ -993,14 +996,14 @@ TArray<FArcweaveAttributeData> UArcweaveSubsystem::ParseObjectAttributes(const T
 
     for (const FString& AttributeId : AttributesStringArray)
     {
-        const TSharedPtr<FJsonValue>* AttributeJsonValue = (*AttributesObject)->Values.Find(AttributeId);
-        if (AttributeJsonValue == nullptr || !AttributeJsonValue->IsValid())
+        const TSharedPtr<FJsonValue> AttributeJsonValue = (*AttributesObject)->TryGetField(AttributeId);
+        if (!AttributeJsonValue.IsValid())
         {
             UE_LOG(LogArcwarePlugin, Warning, TEXT("Attribute %s referenced by a container was not found"), *AttributeId);
             continue;
         }
 
-        const TSharedPtr<FJsonObject> AttributeValueObject = (*AttributeJsonValue)->AsObject();
+        const TSharedPtr<FJsonObject> AttributeValueObject = AttributeJsonValue->AsObject();
         if (!AttributeValueObject.IsValid())
         {
             continue;
@@ -1215,7 +1218,7 @@ TArray<FArcweaveConnectionsData> UArcweaveSubsystem::ParseConnections(const FStr
             {
                 for (const auto& ConnectionPair : ConnectionsObject->Get()->Values)
                 {
-                    if (ConnectionPair.Key == ConnectionId)
+                    if (FString(ConnectionPair.Key) == ConnectionId)
                     {
                         FArcweaveConnectionsData Connection;
                         Connection.Id = ConnectionPair.Key;
@@ -1292,7 +1295,7 @@ TArray<FArcweaveBranchData> UArcweaveSubsystem::ParseBranches(const TSharedPtr<F
                 // Iterate through the "branches" object
                 for (const auto& BranchPair : BranchObject->Get()->Values)
                 {
-                    if (BranchPair.Key == BranchId)
+                    if (FString(BranchPair.Key) == BranchId)
                     {
                         FArcweaveBranchData Branch = FArcweaveBranchData();
                         Branch.Id = BranchPair.Key;
@@ -1342,9 +1345,9 @@ FArcweaveConditionData UArcweaveSubsystem::ParseConditionById(
         return ConditionData;
     }
 
-    if (const TSharedPtr<FJsonValue>* Found = ConditionsRoot->Get()->Values.Find(ConditionId))
+    if (const TSharedPtr<FJsonValue> Found = ConditionsRoot->Get()->TryGetField(ConditionId))
     {
-        const TSharedPtr<FJsonObject>& Obj = (*Found)->AsObject();
+        const TSharedPtr<FJsonObject>& Obj = Found->AsObject();
 
         FString Output;
         if (Obj->TryGetStringField(TEXT("output"), Output))
@@ -1376,7 +1379,7 @@ TArray<FArcweaveJumpersData> UArcweaveSubsystem::ParseJumpers(const TSharedPtr<F
                 // Iterate through the "jumpers" object
                 for (const auto& JumperPair : JumperObject->Get()->Values)
                 {
-                    if (JumperPair.Key == JumperId)
+                    if (FString(JumperPair.Key) == JumperId)
                     {
                         FArcweaveJumpersData Jumper = FArcweaveJumpersData();
                         Jumper.Id = JumperPair.Key;
@@ -1409,7 +1412,7 @@ FArcweaveElementData UArcweaveSubsystem::ExtractElementData(
     {
         for (const auto& ElementPair : ElementsObject->Get()->Values)
         {
-            if (ElementPair.Key == ElementId)
+            if (FString(ElementPair.Key) == ElementId)
             {
                 Element.Id = ElementPair.Key;
                 const TSharedPtr<FJsonObject> ElementValueObject = ElementPair.Value->AsObject();
@@ -1448,7 +1451,7 @@ FArcweaveConditionData UArcweaveSubsystem::ParseConditionData(const TSharedPtr<F
             // Iterate through the "branches" object
             for (const auto& ConditionPair : ConditionsObjectField->Get()->Values)
             {
-                if (ConditionPair.Key == IfConditionOutputId)
+                if (FString(ConditionPair.Key) == IfConditionOutputId)
                 {
                     const TSharedPtr<FJsonObject>& ConditionDataObject = ConditionPair.Value->AsObject();
                     ConditionData.Id = ConditionPair.Key;
@@ -1496,7 +1499,7 @@ TMap<FString, int> UArcweaveSubsystem::InitVisits(const TSharedPtr<FJsonObject>&
     {
         for (const auto& ElementPair : ElementsObject->Get()->Values)
         {
-            AllVisits.Add(ElementPair.Key, 0);
+            AllVisits.Add(FString(ElementPair.Key), 0);
         }
     }
     const TSharedPtr<FJsonObject>* ConnectionsObject;
@@ -1504,7 +1507,7 @@ TMap<FString, int> UArcweaveSubsystem::InitVisits(const TSharedPtr<FJsonObject>&
     {
         for (const auto& ConnectionPair : ConnectionsObject->Get()->Values)
         {
-            AllVisits.Add(ConnectionPair.Key, 0);
+            AllVisits.Add(FString(ConnectionPair.Key), 0);
         }
     }
     const TSharedPtr<FJsonObject>* BranchesObject;
@@ -1512,7 +1515,7 @@ TMap<FString, int> UArcweaveSubsystem::InitVisits(const TSharedPtr<FJsonObject>&
     {
         for (const auto& BranchPair : BranchesObject->Get()->Values)
         {
-            AllVisits.Add(BranchPair.Key, 0);
+            AllVisits.Add(FString(BranchPair.Key), 0);
         }
     }
 
@@ -1521,7 +1524,7 @@ TMap<FString, int> UArcweaveSubsystem::InitVisits(const TSharedPtr<FJsonObject>&
     {
         for (const auto& ConditionPair : ConditionsObject->Get()->Values)
         {
-            AllVisits.Add(ConditionPair.Key, 0);
+            AllVisits.Add(FString(ConditionPair.Key), 0);
         }
     }
 
@@ -1530,7 +1533,7 @@ TMap<FString, int> UArcweaveSubsystem::InitVisits(const TSharedPtr<FJsonObject>&
     {
         for (const auto& JumperPair : JumpersObject->Get()->Values)
         {
-            AllVisits.Add(JumperPair.Key, 0);
+            AllVisits.Add(FString(JumperPair.Key), 0);
         }
     }
 
@@ -1552,7 +1555,7 @@ TArray<FArcweaveComponentData> UArcweaveSubsystem::ParseComponents(const TShared
             {
                 for (const auto& CompPair : CompObject->Get()->Values)
                 {
-                    if (CompPair.Key == ComponentId)
+                    if (FString(CompPair.Key) == ComponentId)
                     {
                         FArcweaveComponentData ElComponent;
                         ElComponent.Id = CompPair.Key;
