@@ -78,6 +78,10 @@ public:
     UFUNCTION(BlueprintPure, Category = "Arcweave")
     FArcweaveProjectData GetArcweaveProjectData() const {return ProjectData;};
 
+    /** Try to get the component data with the Id given for the current project data, returns true if success false otherwise */
+    UFUNCTION(BlueprintCallable, Category = "Arcweave")
+    bool TryGetArcweaveComponentById(FArcweaveComponentData& AWComponent, const FString& AWComponentId);
+
     /** Capture completed runtime state. Fails during imports or script callbacks; leaves State unchanged on failure. */
     UFUNCTION(BlueprintCallable, BlueprintPure = false, Category = "Arcweave|State")
     bool CaptureState(FArcweaveRuntimeState& State, FString& Error) const;
@@ -201,8 +205,8 @@ private:
     FArcweaveConditionData ParseConditionData(const TSharedPtr<FJsonObject>& MainJsonObject, const TSharedPtr<FJsonObject>& ConditionsObject, const FString& ConditionName, FArcweaveBoardData& OutBoardObj);
     FArcweaveConditionData ParseConditionById(const TSharedPtr<FJsonObject>& MainJsonObject, const FString& ConditionId);
     TMap<FString, int> InitVisits(const TSharedPtr<FJsonObject>& MainJsonObject);
-    TArray<FArcweaveComponentData> ParseComponents(const TSharedPtr<FJsonObject>& MainJsonObject, const TSharedPtr<FJsonObject>& ElementValueObject);
-    TArray<FArcweaveComponentData> ParseAllComponents(const TSharedPtr<FJsonObject>& MainJsonObject);
+    TArray<FString> ParseComponentIds(const TSharedPtr<FJsonObject>& ElementValueObject);
+    TMap<FString, FArcweaveComponentData> ParseAllComponents(const TSharedPtr<FJsonObject>& MainJsonObject);
     TArray<FArcweaveConditionData> ParseAllConditions(const TSharedPtr<FJsonObject>& MainJsonObject);
     TArray<FArcweaveConnectionsData> ParseAllConnections(const TSharedPtr<FJsonObject>& MainJsonObject);
     FArcweaveCoverData ParseCoverData(const TSharedPtr<FJsonObject>& CoverValueObject);
@@ -224,6 +228,7 @@ private:
 
     UFUNCTION(BlueprintCallable, Category = "Arcweave | Debug")
     void PrintBranchData(const FArcweaveBranchData &InData);
+
 private:
     friend class FArcweaveComponentBoardVariablesTest;
     friend class FArcweaveConnectionLabelTest;
@@ -242,7 +247,5 @@ private:
     FArcweaveProjectData ProjectData = FArcweaveProjectData();
     UPROPERTY()
     FArcweaveBoardData BoardObj = FArcweaveBoardData();
-    /*UPROPERTY()
-    FArcweaveAPISettings ArcweaveAPISettings = FArcweaveAPISettings();*/
 
 };

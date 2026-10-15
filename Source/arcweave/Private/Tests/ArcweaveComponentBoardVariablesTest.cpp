@@ -41,16 +41,17 @@ bool FArcweaveComponentBoardVariablesTest::RunTest(const FString& Parameters)
     TestFalse(TEXT("Attribute without custom ID is excluded"), Project.CurrentVars.Contains(TEXT("board-ordinary")));
 
     TestEqual(TEXT("One board imports"), Project.Boards.Num(), 1);
-    TestEqual(TEXT("One component imports"), Project.Components.Num(), 1);
-    if (Project.Boards.Num() != 1 || Project.Components.Num() != 1)
+    TestEqual(TEXT("One component imports"), Project.ComponentsMap.Num(), 1);
+    const FArcweaveComponentData* Component = Project.ComponentsMap.Find(TEXT("component-1"));
+    if (Project.Boards.Num() != 1 || Component == nullptr)
     {
         return false;
     }
 
     TestEqual(TEXT("Board custom ID imports"), Project.Boards[0].CustomId, FString(TEXT("castle")));
     TestEqual(TEXT("Board attributes import"), Project.Boards[0].Attributes.Num(), 6);
-    TestEqual(TEXT("Component custom ID imports"), Project.Components[0].CustomId, FString(TEXT("hero")));
-    TestEqual(TEXT("Component attributes import"), Project.Components[0].Attributes.Num(), 2);
+    TestEqual(TEXT("Component custom ID imports"), Component->CustomId, FString(TEXT("hero")));
+    TestEqual(TEXT("Component attributes import"), Component->Attributes.Num(), 2);
 
     const auto TestVariable = [this, &Project](
         const TCHAR* Id,
