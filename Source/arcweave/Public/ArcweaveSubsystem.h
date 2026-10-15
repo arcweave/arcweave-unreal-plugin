@@ -140,12 +140,22 @@ public:
     FArcweaveConnectionsData GetConnectionsData(const FArcweaveBoardData BoardData, const FString& ConnectionId) const;
 
     /*
-    * Update the label for the connection if contains some code,
-    * otherwise fallback to the raw label stored while parsing the content.
-    * Warning: Will not update the global variable values
+    * Text to show for the connection as an option, as in play mode: the label,
+    * else the title of the element it leads to through jumpers and branches,
+    * else the start of that element's content, else "[ Empty element ]".
+    * Empty when no branch condition on the way holds.
+    * Running the label's code can change variables
     */
     UFUNCTION(BlueprintCallable, Category = "Arcweave")
     FString TranspileConnectionLabel(const FArcweaveConnectionsData& Connection, const FArcweaveBoardData& BoardData);
+
+    /*
+    * False when the element has no options, or a single one without label text.
+    * Play mode continues to the next element without showing that option.
+    * Runs label code and branch conditions without changing variables
+    */
+    UFUNCTION(BlueprintCallable, Category = "Arcweave")
+    bool HasOptions(const FArcweaveElementData& Element, const FArcweaveBoardData& BoardData);
 
 public:
     
@@ -221,11 +231,22 @@ private:
     void ResetVisits();
     /** Check if ContentToTest contains code that needs transpiling */
     bool ContainsCodePattern(const FString& ContentToTest) const;
+    /**
+     * Follow the connection through branches and jumpers to the element it leads to.
+     * OutLabel gets the last label text on the way. False when no branch condition holds
+     */
+    bool ResolveConnectionPath(const FArcweaveConnectionsData& Connection, const FArcweaveBoardData& BoardData,
+        const FString& OriginElementId, bool bEvaluateLabel, FString& OutLabel, FArcweaveElementData& OutTarget, int32 Depth = 0);
+    /** Label text without HTML, running its code without changing variables */
+    FString GetLabelText(const FString& Label, const FString& OriginElementId);
+    /** Option text for an element when its connection has no label, as in play mode */
+    FString GetElementOptionText(const FArcweaveElementData& Element);
 
     UFUNCTION(BlueprintCallable, Category = "Arcweave | Debug")
     void PrintBranchData(const FArcweaveBranchData &InData);
 private:
     friend class FArcweaveComponentBoardVariablesTest;
+    friend class FArcweaveConnectionLabelFallbackTest;
     friend class FArcweaveConnectionLabelTest;
     friend class FArcweaveImportFailuresTest;
     friend class FArcweaveRuntimeStateTest;

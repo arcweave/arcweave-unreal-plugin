@@ -34,6 +34,12 @@
 
 namespace
 {
+// Arcscript accepts attributes on both tags, e.g. <pre attr='x'><code rem='y'>
+const TCHAR* CodeBlockRegex = TEXT(R"(<pre(\s[^>]*)?><code(\s[^>]*)?>[\s\S]*?</code></pre>)");
+
+// Branches can lead to other branches; a longer chain is treated as a loop
+constexpr int32 MaxBranchDepth = 32;
+
 // Object-key ordering and JSON whitespace do not change snapshot compatibility.
 TSharedPtr<FJsonValue> SortProjectJson(const TSharedPtr<FJsonValue>& Value)
 {
@@ -438,8 +444,7 @@ bool UArcweaveSubsystem::GetBoardObjectForElement(FString ConditionId, FArcweave
 
 bool UArcweaveSubsystem::ContainsCodePattern(const FString& ContentToTest) const
 {
-    // Arcscript accepts attributes on both tags, e.g. <pre attr='x'><code rem='y'>
-    const FRegexPattern CodeBlockPattern(TEXT(R"(<pre(\s[^>]*)?><code(\s[^>]*)?>[\s\S]*?</code></pre>)"));
+    const FRegexPattern CodeBlockPattern(CodeBlockRegex);
     FRegexMatcher Matcher(CodeBlockPattern, ContentToTest);
 
     return Matcher.FindNext();
@@ -683,7 +688,7 @@ bool UArcweaveSubsystem::RestoreState(const FArcweaveRuntimeState& State, FStrin
 
 void UArcweaveSubsystem::EvaluateCondition(const FArcweaveConditionData& Condition, const FString& OriginElementId, FArcscriptTranspilerOutput& TranspilerOutput)
 {
-    UE_LOG(LogArcwarePlugin, Warning,
+    UE_LOG(LogArcwarePlugin, Log,
         TEXT("Transpiling condition %s..."), *Condition.Id);
 
     bool bTranspileSucceeded = false;
@@ -817,12 +822,139 @@ FString UArcweaveSubsystem::TranspileConnectionLabel(const FArcweaveConnectionsD
         BoardData
     );
 
-    if (bSuccess)
+    // Code that prints nothing, or fails, leaves no label to show
+    const FString Label = bSuccess ? Output.Output : ContainsCodePattern(Connection.Label) ? FString() : Connection.Label;
+    if (!Label.TrimStartAndEnd().IsEmpty())
     {
-        return Output.Output;
+        return Label;
     }
 
-    return Connection.Label;
+    // Like play mode, show the element the connection leads to
+    FString PathLabel;
+    FArcweaveElementData Target;
+    if (!ResolveConnectionPath(Connection, BoardData, Connection.Sourceid, false, PathLabel, Target))
+    {
+        return FString();
+    }
+    return PathLabel.IsEmpty() ? GetElementOptionText(Target) : PathLabel;
+}
+
+bool UArcweaveSubsystem::HasOptions(const FArcweaveElementData& Element, const FArcweaveBoardData& BoardData)
+{
+    int32 OptionCount = 0;
+    bool bHasLabel = false;
+    for (const FArcweaveConnectionsData& Output : Element.Outputs)
+    {
+        FString Label;
+        FArcweaveElementData Target;
+        if (ResolveConnectionPath(Output, BoardData, Element.Id, true, Label, Target))
+        {
+            OptionCount++;
+            bHasLabel = !Label.IsEmpty();
+        }
+    }
+    return OptionCount > 1 || (OptionCount == 1 && bHasLabel);
+}
+
+bool UArcweaveSubsystem::ResolveConnectionPath(const FArcweaveConnectionsData& Connection, const FArcweaveBoardData& BoardData,
+    const FString& OriginElementId, bool bEvaluateLabel, FString& OutLabel, FArcweaveElementData& OutTarget, int32 Depth)
+{
+    if (bEvaluateLabel)
+    {
+        const FString Label = GetLabelText(Connection.Label, OriginElementId);
+        if (!Label.IsEmpty())
+        {
+            OutLabel = Label;
+        }
+    }
+
+    if (Connection.TargetType == TEXT("branches"))
+    {
+        if (Depth >= MaxBranchDepth)
+        {
+            UE_LOG(LogArcwarePlugin, Warning, TEXT("Connection %s leads to a loop of branches"), *Connection.Id);
+            return false;
+        }
+        const FGetIsTargetBranchOutput Branch = GetIsTargetBranch(BoardData, Connection);
+        if (Branch.BranchConnections.IsEmpty())
+        {
+            return false;
+        }
+        return ResolveConnectionPath(Branch.BranchConnections[0], BoardData, OriginElementId, true, OutLabel, OutTarget, Depth + 1);
+    }
+
+    if (Connection.TargetType == TEXT("jumpers"))
+    {
+        for (const FArcweaveJumpersData& Jumper : BoardData.Jumpers)
+        {
+            if (Jumper.Id == Connection.Targetid)
+            {
+                OutTarget = Jumper.ElementData;
+                return !OutTarget.Id.IsEmpty();
+            }
+        }
+        return false;
+    }
+
+    for (const FArcweaveElementData& Element : BoardData.Elements)
+    {
+        if (Element.Id == Connection.Targetid)
+        {
+            OutTarget = Element;
+            return true;
+        }
+    }
+    FArcweaveBoardData* TargetBoard = nullptr;
+    return GetBoardForObject(Connection.Targetid, OutTarget, TargetBoard);
+}
+
+FString UArcweaveSubsystem::GetLabelText(const FString& Label, const FString& OriginElementId)
+{
+    FString Text = Label;
+    if (ContainsCodePattern(Label))
+    {
+        Text = RunTranspiler(Label, OriginElementId, ProjectData.CurrentVars, ProjectData.Visits, false).Output;
+    }
+    return RemoveHtmlTags(Text).TrimStartAndEnd();
+}
+
+FString UArcweaveSubsystem::GetElementOptionText(const FArcweaveElementData& Element)
+{
+    const FString Title = Element.Title.TrimStartAndEnd();
+    if (!Title.IsEmpty())
+    {
+        return Title;
+    }
+
+    // Play mode shows the content's first paragraph, without code, cut to 70 characters
+    FString Content;
+    const FRegexPattern CodeBlockPattern(CodeBlockRegex);
+    FRegexMatcher CodeMatcher(CodeBlockPattern, Element.Content);
+    int32 CopyStart = 0;
+    while (CodeMatcher.FindNext())
+    {
+        Content += Element.Content.Mid(CopyStart, CodeMatcher.GetMatchBeginning() - CopyStart);
+        CopyStart = CodeMatcher.GetMatchEnding();
+    }
+    Content += Element.Content.Mid(CopyStart);
+
+    FString Text;
+    const FRegexPattern ParagraphPattern(TEXT(R"(<p(\s[^>]*)?>([\s\S]*?)</p>)"));
+    FRegexMatcher ParagraphMatcher(ParagraphPattern, Content);
+    while (Text.IsEmpty() && ParagraphMatcher.FindNext())
+    {
+        Text = RemoveHtmlTags(ParagraphMatcher.GetCaptureGroup(2)).TrimStartAndEnd();
+    }
+    if (Text.IsEmpty())
+    {
+        Text = RemoveHtmlTags(Content).TrimStartAndEnd();
+    }
+
+    if (Text.Len() > 74)
+    {
+        Text = Text.Left(70) + TEXT("...");
+    }
+    return Text.IsEmpty() ? FString(TEXT("[ Empty element ]")) : Text;
 }
 
 FArcweaveElementData UArcweaveSubsystem::TranspileObject(FString ObjectId, bool& Success, bool bStripHtmlTags /*true*/)
@@ -891,15 +1023,16 @@ FArcscriptTranspilerOutput UArcweaveSubsystem::TranspileConnection(
         return Output;
     }
 
-    if (ScriptData.IsEmpty())
-    {
-        UE_LOG(LogArcwarePlugin, Error, TEXT("TranspileConnection failed: ScriptData is empty for connection id: %s"), *ConnectionId);
-        return Output;
-    }
-
     if (BoardObjRef.BoardId.IsEmpty())
     {
         UE_LOG(LogArcwarePlugin, Error, TEXT("TranspileConnection failed: BoardObjRef.BoardId is empty for connection id: %s"), *ConnectionId);
+        return Output;
+    }
+
+    // Connections without a label are valid
+    if (ScriptData.IsEmpty())
+    {
+        Success = true;
         return Output;
     }
 
