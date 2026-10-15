@@ -490,6 +490,12 @@ void UArcweaveSubsystem::PrintBranchData(const FArcweaveBranchData& InData)
 
 FArcscriptTranspilerOutput UArcweaveSubsystem::TranspileCondition(const FString& ConditionId, const FString& OriginElementId, bool& Success)
 {
+    return RunConditionScript(ConditionId, OriginElementId, Success, true);
+}
+
+FArcscriptTranspilerOutput UArcweaveSubsystem::RunConditionScript(const FString& ConditionId, const FString& OriginElementId,
+    bool& Success, bool bShouldUpdateVariables)
+{
     UE_LOG(LogArcwarePlugin, Log, TEXT("----- TranspileCondition for id: %s -----"), *ConditionId);
     Success = false;
     FArcscriptTranspilerOutput Output;
@@ -514,7 +520,7 @@ FArcscriptTranspilerOutput UArcweaveSubsystem::TranspileCondition(const FString&
 
         //run the transpiler
         FString ScriptModified = FString("<pre><code>") + ConditionData.Script + FString("</code></pre>");
-        Output = RunTranspiler(ScriptModified, OriginElementId, ProjectData.CurrentVars, ProjectData.Visits);
+        Output = RunTranspiler(ScriptModified, OriginElementId, ProjectData.CurrentVars, ProjectData.Visits, bShouldUpdateVariables);
 
         Success = true;
     }
@@ -683,13 +689,14 @@ bool UArcweaveSubsystem::RestoreState(const FArcweaveRuntimeState& State, FStrin
     return true;
 }
 
-void UArcweaveSubsystem::EvaluateCondition(const FArcweaveConditionData& Condition, const FString& OriginElementId, FArcscriptTranspilerOutput& TranspilerOutput)
+void UArcweaveSubsystem::EvaluateCondition(const FArcweaveConditionData& Condition, const FString& OriginElementId,
+    FArcscriptTranspilerOutput& TranspilerOutput, bool bShouldUpdateVariables)
 {
     UE_LOG(LogArcwarePlugin, Log,
         TEXT("Transpiling condition %s..."), *Condition.Id);
 
     bool bTranspileSucceeded = false;
-    TranspilerOutput = TranspileCondition(Condition.Id, OriginElementId, bTranspileSucceeded);
+    TranspilerOutput = RunConditionScript(Condition.Id, OriginElementId, bTranspileSucceeded, bShouldUpdateVariables);
 
     if (!bTranspileSucceeded)
     {
@@ -727,13 +734,14 @@ FGetIsTargetBranchOutput UArcweaveSubsystem::GetIsTargetBranch(
     const FArcweaveBoardData& BoardData,
     const FArcweaveConnectionsData& TargetConnection)
 {
-    return EvaluateBranch(BoardData, TargetConnection.Targetid, TargetConnection.Sourceid);
+    return EvaluateBranch(BoardData, TargetConnection.Targetid, TargetConnection.Sourceid, true);
 }
 
 FGetIsTargetBranchOutput UArcweaveSubsystem::EvaluateBranch(
     const FArcweaveBoardData& BoardData,
     const FString& BranchId,
-    const FString& OriginElementId)
+    const FString& OriginElementId,
+    bool bShouldUpdateVariables)
 {
     FGetIsTargetBranchOutput Result;
 
@@ -748,7 +756,7 @@ FGetIsTargetBranchOutput UArcweaveSubsystem::EvaluateBranch(
         Result.BranchData = Branch;
         const FArcweaveConditionData* FiredConditionData = nullptr;
         FArcscriptTranspilerOutput TranspilerOutput = FArcscriptTranspilerOutput();
-        EvaluateCondition(Branch.IfCondition, OriginElementId, TranspilerOutput);
+        EvaluateCondition(Branch.IfCondition, OriginElementId, TranspilerOutput, bShouldUpdateVariables);
         Result.BranchConditionResult = TranspilerOutput.ConditionResult;
 
         if (Result.BranchConditionResult)
@@ -765,7 +773,7 @@ FGetIsTargetBranchOutput UArcweaveSubsystem::EvaluateBranch(
         {
             for (const auto& ElseIf : Branch.ElseIfConditions)
             {
-                EvaluateCondition(ElseIf, OriginElementId, TranspilerOutput);
+                EvaluateCondition(ElseIf, OriginElementId, TranspilerOutput, bShouldUpdateVariables);
                 if (TranspilerOutput.ConditionResult)
                 {
                     FiredConditionData = &ElseIf;
@@ -892,8 +900,9 @@ bool UArcweaveSubsystem::ResolveConnectionPath(const FArcweaveConnectionsData& C
             return false;
         }
 
-        // Conditions refer to the element the option starts from, as in play mode
-        const FGetIsTargetBranchOutput Branch = EvaluateBranch(BoardData, Current.Targetid, OriginElementId);
+        // Conditions refer to the element the option starts from, as in play mode.
+        // Like labels here, they're only checked, so they must not change state
+        const FGetIsTargetBranchOutput Branch = EvaluateBranch(BoardData, Current.Targetid, OriginElementId, false);
         if (Branch.BranchConnections.IsEmpty())
         {
             return false;

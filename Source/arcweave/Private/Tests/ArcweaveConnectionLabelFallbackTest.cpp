@@ -19,13 +19,13 @@ bool FArcweaveConnectionLabelFallbackTest::RunTest(const FString& Parameters)
         "boards": {
             "board-1": {
                 "name": "Main",
-                "elements": ["healer", "help", "pay", "untitled", "long", "empty", "single", "single-labelled", "single-code", "single-branch", "single-reset", "ending"],
+                "elements": ["healer", "help", "pay", "untitled", "long", "empty", "single", "single-labelled", "single-code", "single-branch", "single-reset", "reset-branch", "ending"],
                 "jumpers": ["jumper-1"],
-                "branches": ["branch-1", "branch-none", "branch-a", "branch-b", "branch-loop"],
+                "branches": ["branch-1", "branch-none", "branch-a", "branch-b", "branch-loop", "branch-reset"],
                 "connections": [
                     "c-empty", "c-labelled", "c-code-only", "c-untitled", "c-long", "c-empty-element", "c-jumper", "c-branch",
                     "c-branch-yes", "c-branch-no", "c-single", "c-single-labelled", "c-single-code", "c-dead", "c-dead-out", "c-alive",
-                    "c-empty-html", "c-nested", "c-a-out", "c-b-yes", "c-b-no", "c-loop", "c-loop-back", "c-single-reset"
+                    "c-empty-html", "c-nested", "c-a-out", "c-b-yes", "c-b-no", "c-loop", "c-loop-back", "c-single-reset", "c-reset-branch", "c-reset-out"
                 ]
             },
             "board-2": {
@@ -59,6 +59,7 @@ bool FArcweaveConnectionLabelFallbackTest::RunTest(const FString& Parameters)
             "single-code": {"title": "Single code", "content": "", "outputs": ["c-single-code"]},
             "single-branch": {"title": "Single branch", "content": "", "outputs": ["c-dead", "c-alive"]},
             "single-reset": {"title": "Single reset", "content": "", "outputs": ["c-single-reset"]},
+            "reset-branch": {"title": "Reset branch", "content": "", "outputs": ["c-reset-branch"]},
             "ending": {"title": "Ending", "content": "", "outputs": []}
         },
         "jumpers": {
@@ -69,7 +70,8 @@ bool FArcweaveConnectionLabelFallbackTest::RunTest(const FString& Parameters)
             "branch-none": {"conditions": {"ifCondition": "cond-none", "elseIfConditions": []}},
             "branch-a": {"conditions": {"ifCondition": "cond-a", "elseIfConditions": []}},
             "branch-b": {"conditions": {"ifCondition": "cond-b", "elseIfConditions": [], "elseCondition": "cond-b-else"}},
-            "branch-loop": {"conditions": {"ifCondition": "cond-loop", "elseIfConditions": []}}
+            "branch-loop": {"conditions": {"ifCondition": "cond-loop", "elseIfConditions": []}},
+            "branch-reset": {"conditions": {"ifCondition": "cond-reset", "elseIfConditions": []}}
         },
         "conditions": {
             "cond-if": {"output": "c-branch-yes", "script": "money > 3"},
@@ -78,8 +80,11 @@ bool FArcweaveConnectionLabelFallbackTest::RunTest(const FString& Parameters)
             "cond-a": {"output": "c-a-out", "script": "true"},
             "cond-b": {"output": "c-b-yes", "script": "visits() == 1"},
             "cond-b-else": {"output": "c-b-no"},
-            "cond-loop": {"output": "c-loop-back", "script": "true"}
-        },
+            "cond-loop": {"output": "c-loop-back", "script": "true"},
+            "cond-reset": {"output": "c-reset-out", "script": "resetVisits() or true"}
+        },)JSON")
+    // Split in two: MSVC limits a single string literal to about 16 KB
+    TEXT(R"JSON(
         "connections": {
             "c-empty": {"label": null, "sourceid": "healer", "targetid": "help", "sourceType": "elements", "targetType": "elements"},
             "c-labelled": {"label": "<p>Ask for help</p>", "sourceid": "healer", "targetid": "help", "sourceType": "elements", "targetType": "elements"},
@@ -104,13 +109,18 @@ bool FArcweaveConnectionLabelFallbackTest::RunTest(const FString& Parameters)
             "c-b-no": {"label": null, "sourceid": "branch-b", "targetid": "help", "sourceType": "branches", "targetType": "elements"},
             "c-loop": {"label": null, "sourceid": "healer", "targetid": "branch-loop", "sourceType": "elements", "targetType": "branches"},
             "c-loop-back": {"label": null, "sourceid": "branch-loop", "targetid": "branch-loop", "sourceType": "branches", "targetType": "branches"},
-            "c-single-reset": {"label": "<pre><code>resetVisits()</code></pre>", "sourceid": "single-reset", "targetid": "help", "sourceType": "elements", "targetType": "elements"}
+            "c-single-reset": {"label": "<pre><code>resetVisits()</code></pre>", "sourceid": "single-reset", "targetid": "help", "sourceType": "elements", "targetType": "elements"},
+            "c-reset-branch": {"label": null, "sourceid": "reset-branch", "targetid": "branch-reset", "sourceType": "elements", "targetType": "branches"},
+            "c-reset-out": {"label": null, "sourceid": "branch-reset", "targetid": "help", "sourceType": "branches", "targetType": "elements"}
         },
         "components": {},
         "variables": {
             "money-variable": {"name": "money", "type": "integer", "value": 0, "cType": "global"}
         }
     })JSON");
+
+    // c-loop leads to a branch that loops back to itself; HasOptions on the healer follows it too
+    AddExpectedMessagePlain(TEXT("leads to a loop of branches"), ELogVerbosity::Warning, EAutomationExpectedMessageFlags::Contains, 0);
 
     UArcweaveSubsystem* Subsystem = NewObject<UArcweaveSubsystem>();
     if (!TestTrue(TEXT("The project imports"), Subsystem->ParseResponse(Json)))
@@ -182,12 +192,14 @@ bool FArcweaveConnectionLabelFallbackTest::RunTest(const FString& Parameters)
     Subsystem->IncrementVisits(TEXT("healer"));
     TestEqual(TEXT("Conditions after a branch use the element the option starts from"), Label(TEXT("c-nested")), FString(TEXT("Pay")));
 
-    // HasOptions on the healer also follows this loop, so the warning appears more than once
-    AddExpectedMessagePlain(TEXT("leads to a loop of branches"), ELogVerbosity::Warning, EAutomationExpectedMessageFlags::Contains, 0);
     TestTrue(TEXT("A loop of branches leads nowhere"), Label(TEXT("c-loop")).IsEmpty());
 
     TestFalse(TEXT("A single output that resets visits is not an option"), Subsystem->HasOptions(Element(TEXT("single-reset")), Board));
     TestEqual(TEXT("Checking for options does not reset visits"),
+        Subsystem->GetArcweaveProjectData().Visits.FindChecked(TEXT("healer")), 1);
+
+    Subsystem->HasOptions(Element(TEXT("reset-branch")), Board);
+    TestEqual(TEXT("Branch conditions checked for options do not reset visits"),
         Subsystem->GetArcweaveProjectData().Visits.FindChecked(TEXT("healer")), 1);
 #endif
 

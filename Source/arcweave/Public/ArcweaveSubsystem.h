@@ -222,7 +222,10 @@ private:
         const TMap<FString, FArcweaveVariable>& InitialVars, const TMap<FString, int>& Visits, bool bShouldUpdateVariables = true);
     void UpdateVariables(const FArcscriptTranspilerOutput& Output);
     FArcweaveElementData ExtractElementData(const TSharedPtr<FJsonObject>& MainJsonObject, const FString& ElementId, FArcweaveBoardData& BoardObjRef);
-    void EvaluateCondition(const FArcweaveConditionData& Condition, const FString& OriginElementId, FArcscriptTranspilerOutput& TranspilerOutput);
+    void EvaluateCondition(const FArcweaveConditionData& Condition, const FString& OriginElementId,
+        FArcscriptTranspilerOutput& TranspilerOutput, bool bShouldUpdateVariables = true);
+    FArcscriptTranspilerOutput RunConditionScript(const FString& ConditionId, const FString& OriginElementId,
+        bool& Success, bool bShouldUpdateVariables);
     FArcweaveConnectionsData TryGetNExtConnectionData(const FArcweaveBoardData& BoardData, const FArcweaveBranchData& Branch, const FArcweaveConditionData* FiredConditionData);
     void LogTranspilerOutput(const FArcscriptTranspilerOutput& TranspilerOutput);
     bool GetBoardObjectForElement(FString ConditionId, FArcweaveConditionData& OutConditionData, FArcweaveBoardData*& OutBoardObj);
@@ -238,7 +241,8 @@ private:
     bool ResolveConnectionPath(const FArcweaveConnectionsData& Connection, const FArcweaveBoardData& BoardData,
         const FString& OriginElementId, bool bEvaluateLabel, FString& OutLabel, FArcweaveElementData& OutTarget);
     /** Evaluate the branch's conditions for the element the path started from */
-    FGetIsTargetBranchOutput EvaluateBranch(const FArcweaveBoardData& BoardData, const FString& BranchId, const FString& OriginElementId);
+    FGetIsTargetBranchOutput EvaluateBranch(const FArcweaveBoardData& BoardData, const FString& BranchId,
+        const FString& OriginElementId, bool bShouldUpdateVariables);
     /** Label text without HTML, running its code without changing variables */
     FString GetLabelText(const FString& Label, const FString& OriginElementId);
     /** Option text for an element when its connection has no label, as in play mode */
