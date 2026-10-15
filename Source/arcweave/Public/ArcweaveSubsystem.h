@@ -236,7 +236,9 @@ private:
      * OutLabel gets the last label text on the way. False when no branch condition holds
      */
     bool ResolveConnectionPath(const FArcweaveConnectionsData& Connection, const FArcweaveBoardData& BoardData,
-        const FString& OriginElementId, bool bEvaluateLabel, FString& OutLabel, FArcweaveElementData& OutTarget, int32 Depth = 0);
+        const FString& OriginElementId, bool bEvaluateLabel, FString& OutLabel, FArcweaveElementData& OutTarget);
+    /** Evaluate the branch's conditions for the element the path started from */
+    FGetIsTargetBranchOutput EvaluateBranch(const FArcweaveBoardData& BoardData, const FString& BranchId, const FString& OriginElementId);
     /** Label text without HTML, running its code without changing variables */
     FString GetLabelText(const FString& Label, const FString& OriginElementId);
     /** Option text for an element when its connection has no label, as in play mode */

@@ -37,9 +37,6 @@ namespace
 // Arcscript accepts attributes on both tags, e.g. <pre attr='x'><code rem='y'>
 const TCHAR* CodeBlockRegex = TEXT(R"(<pre(\s[^>]*)?><code(\s[^>]*)?>[\s\S]*?</code></pre>)");
 
-// Branches can lead to other branches; a longer chain is treated as a loop
-constexpr int32 MaxBranchDepth = 32;
-
 // Object-key ordering and JSON whitespace do not change snapshot compatibility.
 TSharedPtr<FJsonValue> SortProjectJson(const TSharedPtr<FJsonValue>& Value)
 {
@@ -730,11 +727,19 @@ FGetIsTargetBranchOutput UArcweaveSubsystem::GetIsTargetBranch(
     const FArcweaveBoardData& BoardData,
     const FArcweaveConnectionsData& TargetConnection)
 {
+    return EvaluateBranch(BoardData, TargetConnection.Targetid, TargetConnection.Sourceid);
+}
+
+FGetIsTargetBranchOutput UArcweaveSubsystem::EvaluateBranch(
+    const FArcweaveBoardData& BoardData,
+    const FString& BranchId,
+    const FString& OriginElementId)
+{
     FGetIsTargetBranchOutput Result;
 
     for (const FArcweaveBranchData& Branch : BoardData.Branches)
     {
-        if (Branch.Id != TargetConnection.Targetid)
+        if (Branch.Id != BranchId)
         {
             continue;
         }
@@ -743,7 +748,7 @@ FGetIsTargetBranchOutput UArcweaveSubsystem::GetIsTargetBranch(
         Result.BranchData = Branch;
         const FArcweaveConditionData* FiredConditionData = nullptr;
         FArcscriptTranspilerOutput TranspilerOutput = FArcscriptTranspilerOutput();
-        EvaluateCondition(Branch.IfCondition, TargetConnection.Sourceid, TranspilerOutput);
+        EvaluateCondition(Branch.IfCondition, OriginElementId, TranspilerOutput);
         Result.BranchConditionResult = TranspilerOutput.ConditionResult;
 
         if (Result.BranchConditionResult)
@@ -760,7 +765,7 @@ FGetIsTargetBranchOutput UArcweaveSubsystem::GetIsTargetBranch(
         {
             for (const auto& ElseIf : Branch.ElseIfConditions)
             {
-                EvaluateCondition(ElseIf, TargetConnection.Sourceid, TranspilerOutput);
+                EvaluateCondition(ElseIf, OriginElementId, TranspilerOutput);
                 if (TranspilerOutput.ConditionResult)
                 {
                     FiredConditionData = &ElseIf;
@@ -823,7 +828,7 @@ FString UArcweaveSubsystem::TranspileConnectionLabel(const FArcweaveConnectionsD
     );
 
     // Code that prints nothing, or fails, leaves no label to show
-    const FString Label = bSuccess ? Output.Output : ContainsCodePattern(Connection.Label) ? FString() : Connection.Label;
+    const FString Label = bSuccess ? Output.Output : ContainsCodePattern(Connection.Label) ? FString() : RemoveHtmlTags(Connection.Label);
     if (!Label.TrimStartAndEnd().IsEmpty())
     {
         return Label;
@@ -857,37 +862,50 @@ bool UArcweaveSubsystem::HasOptions(const FArcweaveElementData& Element, const F
 }
 
 bool UArcweaveSubsystem::ResolveConnectionPath(const FArcweaveConnectionsData& Connection, const FArcweaveBoardData& BoardData,
-    const FString& OriginElementId, bool bEvaluateLabel, FString& OutLabel, FArcweaveElementData& OutTarget, int32 Depth)
+    const FString& OriginElementId, bool bEvaluateLabel, FString& OutLabel, FArcweaveElementData& OutTarget)
 {
-    if (bEvaluateLabel)
+    FArcweaveConnectionsData Current = Connection;
+    TSet<FString> VisitedBranches;
+    while (true)
     {
-        const FString Label = GetLabelText(Connection.Label, OriginElementId);
-        if (!Label.IsEmpty())
+        if (bEvaluateLabel)
         {
-            OutLabel = Label;
+            const FString Label = GetLabelText(Current.Label, OriginElementId);
+            if (!Label.IsEmpty())
+            {
+                OutLabel = Label;
+            }
         }
-    }
+        bEvaluateLabel = true;
 
-    if (Connection.TargetType == TEXT("branches"))
-    {
-        if (Depth >= MaxBranchDepth)
+        if (Current.TargetType != TEXT("branches"))
+        {
+            break;
+        }
+
+        // A branch reached twice on one path would lead the same way again
+        bool bAlreadyVisited = false;
+        VisitedBranches.Add(Current.Targetid, &bAlreadyVisited);
+        if (bAlreadyVisited)
         {
             UE_LOG(LogArcwarePlugin, Warning, TEXT("Connection %s leads to a loop of branches"), *Connection.Id);
             return false;
         }
-        const FGetIsTargetBranchOutput Branch = GetIsTargetBranch(BoardData, Connection);
+
+        // Conditions refer to the element the option starts from, as in play mode
+        const FGetIsTargetBranchOutput Branch = EvaluateBranch(BoardData, Current.Targetid, OriginElementId);
         if (Branch.BranchConnections.IsEmpty())
         {
             return false;
         }
-        return ResolveConnectionPath(Branch.BranchConnections[0], BoardData, OriginElementId, true, OutLabel, OutTarget, Depth + 1);
+        Current = Branch.BranchConnections[0];
     }
 
-    if (Connection.TargetType == TEXT("jumpers"))
+    if (Current.TargetType == TEXT("jumpers"))
     {
         for (const FArcweaveJumpersData& Jumper : BoardData.Jumpers)
         {
-            if (Jumper.Id == Connection.Targetid)
+            if (Jumper.Id == Current.Targetid)
             {
                 OutTarget = Jumper.ElementData;
                 return !OutTarget.Id.IsEmpty();
@@ -898,14 +916,14 @@ bool UArcweaveSubsystem::ResolveConnectionPath(const FArcweaveConnectionsData& C
 
     for (const FArcweaveElementData& Element : BoardData.Elements)
     {
-        if (Element.Id == Connection.Targetid)
+        if (Element.Id == Current.Targetid)
         {
             OutTarget = Element;
             return true;
         }
     }
     FArcweaveBoardData* TargetBoard = nullptr;
-    return GetBoardForObject(Connection.Targetid, OutTarget, TargetBoard);
+    return GetBoardForObject(Current.Targetid, OutTarget, TargetBoard);
 }
 
 FString UArcweaveSubsystem::GetLabelText(const FString& Label, const FString& OriginElementId)
@@ -1916,7 +1934,13 @@ FArcscriptTranspilerOutput UArcweaveSubsystem::RunTranspiler(const FString& Node
     {
         UE_LOG(LogArcwarePlugin, Display, TEXT("Code=%s"), *NodeCode);
         UE_LOG(LogArcwarePlugin, Display, TEXT("ElementId=%s"), *OriginElementId);
-        Output = ArcscriptWrapper->RunScript(NodeCode, OriginElementId, InitialVars, Visits, std::bind(&UArcweaveSubsystem::OnEventCallback, this, std::placeholders::_1));
+        // A run that doesn't update variables must not change state through events either, e.g. resetVisits()
+        std::function<void(const char*)> OnEvent = [](const char*) {};
+        if (bShouldUpdateVariables)
+        {
+            OnEvent = std::bind(&UArcweaveSubsystem::OnEventCallback, this, std::placeholders::_1);
+        }
+        Output = ArcscriptWrapper->RunScript(NodeCode, OriginElementId, InitialVars, Visits, OnEvent);
 
         LogTranspilerOutput(Output);
 
