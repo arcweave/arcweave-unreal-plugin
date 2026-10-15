@@ -16,5 +16,8 @@ enum class EArcweaveAttributeValueDataType : uint8
     String UMETA(DisplayName = "String (Plain Text)"),
     StringRichText UMETA(DisplayName = "String (Rich Text)"),
     ComponentList UMETA(DisplayName = "Component List"),
-    AssetList UMETA(DisplayName = "Asset List")
+    AssetList UMETA(DisplayName = "Asset List"),
+    Boolean UMETA(DisplayName = "Boolean"),
+    Integer UMETA(DisplayName = "Integer"),
+    Float UMETA(DisplayName = "Float")
 };

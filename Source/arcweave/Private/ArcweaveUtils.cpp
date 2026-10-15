@@ -10,7 +10,10 @@ const TMap<FString, EArcweaveAttributeValueDataType> ArcweaveUtils::AttributeVal
     { TEXT("string"),  EArcweaveAttributeValueDataType::String },
     { TEXT("StringRichText"), EArcweaveAttributeValueDataType::StringRichText },
     { TEXT("component-list"), EArcweaveAttributeValueDataType::ComponentList },
-    { TEXT("asset-list"),   EArcweaveAttributeValueDataType::AssetList }
+    { TEXT("asset-list"),   EArcweaveAttributeValueDataType::AssetList },
+    { TEXT("boolean"), EArcweaveAttributeValueDataType::Boolean },
+    { TEXT("integer"), EArcweaveAttributeValueDataType::Integer },
+    { TEXT("float"), EArcweaveAttributeValueDataType::Float }
 };
 
 const TMap<FString, EArcweaveAttributeDataType> ArcweaveUtils::AttributeDataTypeMap =
@@ -18,6 +21,7 @@ const TMap<FString, EArcweaveAttributeDataType> ArcweaveUtils::AttributeDataType
     { TEXT("elements"), EArcweaveAttributeDataType::Elements },
     { TEXT("components"), EArcweaveAttributeDataType::Components },
     { TEXT("global"), EArcweaveAttributeDataType::Global },
+    { TEXT("boards"), EArcweaveAttributeDataType::Boards },
 };
 
 

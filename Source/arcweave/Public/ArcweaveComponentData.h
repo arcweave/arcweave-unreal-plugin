@@ -19,6 +19,9 @@ struct FArcweaveComponentData
     FString Id = FString("");
 
     UPROPERTY(BlueprintReadWrite, Category = "Arcweave")
+    FString CustomId = FString("");
+
+    UPROPERTY(BlueprintReadWrite, Category = "Arcweave")
     FString Name = FString("");
 
     UPROPERTY(BlueprintReadWrite, Category = "Arcweave")
@@ -35,6 +38,7 @@ struct FArcweaveComponentData
 
     FArcweaveComponentData()
         : Id(FString(""))
+        , CustomId(FString(""))
         , Name(FString(""))
         , Root(false)
         , Children(TArray<FString>())

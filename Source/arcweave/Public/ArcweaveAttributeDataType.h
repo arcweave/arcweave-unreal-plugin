@@ -12,6 +12,7 @@
  * - belong to an element
  * - be globally defined
  * - be part of a component
+ * - belong to a board
  */
 UENUM(BlueprintType)
 enum class EArcweaveAttributeDataType : uint8
@@ -20,4 +21,5 @@ enum class EArcweaveAttributeDataType : uint8
     Elements UMETA(DisplayName = "Elements"),
     Global UMETA(DisplayName = "Global"),
     Components UMETA(DisplayName = "Components"),
+    Boards UMETA(DisplayName = "Boards"),
 };
