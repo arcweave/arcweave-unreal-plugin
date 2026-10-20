@@ -841,6 +841,12 @@ FString UArcweaveSubsystem::TranspileConnectionLabel(const FArcweaveConnectionsD
 
 bool UArcweaveSubsystem::TryGetArcweaveComponentById(FArcweaveComponentData& AWComponent, const FString& AWComponentId)
 {
+    if (AWComponentId.IsEmpty())
+    {
+        // Elements without components have an empty ComponentIds array: nothing to look up.
+        return false;
+    }
+
     const FArcweaveComponentData* AWComponentPtr = ProjectData.ComponentsMap.Find(AWComponentId);
     if (AWComponentPtr != nullptr)
     {
@@ -1089,6 +1095,12 @@ void UArcweaveSubsystem::ParseAttributeValue(const TSharedPtr<FJsonObject>& Valu
         return;
     }
     AttributeValue.Type = *FoundType;
+
+    // Arcweave exports both plain and rich text as "string", distinguished by the "plain" flag.
+    if (AttributeValue.Type == EArcweaveAttributeValueDataType::String && !AttributeValue.Plain)
+    {
+        AttributeValue.Type = EArcweaveAttributeValueDataType::StringRichText;
+    }
 
     switch (AttributeValue.Type)
     {

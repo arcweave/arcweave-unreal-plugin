@@ -8,15 +8,15 @@
 #include "ArcweaveAttributeDataType.h"
 #include "ArcweaveAttributeValueDataType.h"
 
-static class ArcweaveUtils
+/** Helpers to convert the strings found in an Arcweave export into the plugin enums. */
+class ArcweaveUtils
 {
-
-public: 
+public:
 
     static const EArcweaveAttributeValueDataType* TryGetAttributeValueDataTypeFromString(const FString& Type);
     static const EArcweaveAttributeDataType* TryGetAttributeDataTypeFromString(const FString& Type);
 
-protected:
+private:
     static const TMap<FString, EArcweaveAttributeValueDataType> AttributeValueDataTypeMap;
     static const TMap<FString, EArcweaveAttributeDataType> AttributeDataTypeMap;
 };

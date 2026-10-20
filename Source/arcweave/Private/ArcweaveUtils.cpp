@@ -8,7 +8,6 @@
 const TMap<FString, EArcweaveAttributeValueDataType> ArcweaveUtils::AttributeValueDataTypeMap =
 {
     { TEXT("string"),  EArcweaveAttributeValueDataType::String },
-    { TEXT("StringRichText"), EArcweaveAttributeValueDataType::StringRichText },
     { TEXT("component-list"), EArcweaveAttributeValueDataType::ComponentList },
     { TEXT("asset-list"),   EArcweaveAttributeValueDataType::AssetList },
     { TEXT("boolean"), EArcweaveAttributeValueDataType::Boolean },
