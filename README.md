@@ -80,7 +80,6 @@ exports, failed requests, retries and cancellation.
    classDiagram
    class UArcweaveSubsystem{}
 
-<<<<<<< HEAD
    class UArcscriptTranspilerWrapper{}
    class FarcweaveModule {}
    class FArcweaveProjectData {}
@@ -90,17 +89,6 @@ exports, failed requests, retries and cancellation.
    UArcscriptTranspilerWrapper ..> FArcweaveProjectData
    UArcweaveSubsystem ..> FarcweaveModule
    FarcweaveModule *--> UArcscriptTranspilerWrapper
-=======
-   class ArcscriptTranspilerWrapper{}
-   class Arcweave {}
-   class ArcweaveTypes {}
-   ArcweaveSubsystem --|> UEngineSubsystem
-   ArcweaveSubsystem "1"--"1..*" ArcweaveTypes
-   ArcweaveSubsystem ..> ArcscriptTranspilerWrapper
-   ArcscriptTranspilerWrapper ..> ArcweaveTypes
-   ArcweaveSubsystem ..> Arcweave
-   Arcweave *--> ArcscriptTranspilerWrapper
->>>>>>> origin/main
 ```
 The primary class that contains all the blueprint-exposed functions and data is **UArcweaveSubsystem**. This class is located in the file path `Plugins\arcweave\Source\arcweave\Public\ArcweaveSubsystem.h`. 
 It provides a range of functions that can be utilized in both Blueprints and C++ to interact with, modify, and retrieve data.
@@ -116,11 +104,7 @@ It provides a range of functions that can be utilized in both Blueprints and C++
       +TranspileData
    }
 
-<<<<<<< HEAD
    UArcweaveSubsystem --|> UEngineSubsystem
-=======
-   ArcweaveSubsystem --|> UEngineSubsystem
->>>>>>> origin/main
 ```
 1. **Fetch Data from Arcweave API or local JSON**
    - This function allows you to fetch data from the Arcweave API by providing the API token and project hash.
@@ -226,7 +210,7 @@ This class provides the possibility to access the Arcweave wrapper to call the D
 ### Data structs:
 Wrapper structs containing a series of Blueprint-type structs needed to use the transpiler, and convert the data from and to JSON.
 
-[View Complete relationship between data structs UML Diagram](./Docs/DataDiagramClassUML.md)
+[View Complete relationship between data structs UML Diagram](./docs/DataDiagramClassUML.md)
 
 #### Project struct :`ArcweaveProjectData`
 This is the struct containing the board(ref to the image below) objects, the cover, all the components, and connection present in the project
@@ -275,7 +259,7 @@ note for FArcweaveProjectData "Main Data Container"
 ```
 
 #### Board struct :`ArcweaveBoardData`
-<img src="./Docs/BoardExample.png" width="200" height="300" alt="ArcweaveBoard image in web app">
+<img src="./docs/BoardExample.png" width="200" height="300" alt="ArcweaveBoard image in web app">
 
 The board is the second most important container and represent what we see in the app in the red rectangle looking at the figure
 
@@ -325,7 +309,7 @@ direction TB
 ```
 
 #### Attribute struct: `ArcweaveAttributeData`
-<img src="./Docs/AttributeDataExample.png" width="300" height="300" alt="ArcweaveAttributeData image in web app ">
+<img src="./docs/AttributeDataExample.png" width="300" height="300" alt="ArcweaveAttributeData image in web app ">
 
 Attributes are metadata containers that can be attached to **Elements**, **Components**, or defined **globally** in your Arcweave project. They enable flexible data organization and provide a mechanism to store custom properties with type-safe values.
 
@@ -353,6 +337,7 @@ direction TB
         Elements
         Global
         Components
+        Boards
     }
 
     class EArcweaveAttributeValueDataType {
@@ -362,6 +347,9 @@ direction TB
         String (Rich Text)
         Component List
         Asset List
+        Boolean
+        Integer
+        Float
     }
 
     <<USTRUCT>> FArcweaveAttributeData
@@ -377,14 +365,14 @@ direction TB
 - **Id**: Unique identifier for the attribute
 - **cId**: Container ID - identifies the element, component, or project it belongs to
 - **Name**: Human-readable name of the attribute
-- **cType**: Defines the scope of the attribute (Elements, Global, or Components)
+- **cType**: Defines the scope of the attribute (Elements, Global, Components, or Boards)
 - **Value**: Contains the actual data and type information
 
 **Attribute Value Properties:**
 
 - **Data**: The actual value stored as a string
 - **ComponentIds**: Array of component IDs if the attribute references components
-- **Type**: The data type of the attribute value (String, Rich Text, Component List, or Asset List)
+- **Type**: The data type of the attribute value (String, Rich Text, Component List, Asset List, Boolean, Integer, or Float)
 - **Plain**: Boolean flag indicating if the string is plain text or rich text
 
 **Usage Example:**
@@ -451,6 +439,7 @@ for (const FArcweaveAttributeData& Attribute : ElementData.Attributes)
 }
 ```
 </details>
+
 
 ## Using the Demo Project
 
