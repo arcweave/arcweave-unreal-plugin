@@ -7,6 +7,7 @@
 #include "Arcweave.h"
 #include "ArcweaveAPISettings.h"
 #include "ArcweaveBranchData.h"
+#include "ArcweaveComponentData.h"
 #include "ArcweaveConditionData.h"
 #include "ArcweaveConnectionsData.h"
 #include "ArcweaveSettings.h"
@@ -839,11 +840,11 @@ FString UArcweaveSubsystem::TranspileConnectionLabel(const FArcweaveConnectionsD
     return Connection.Label;
 }
 
-bool UArcweaveSubsystem::TryGetArcweaveComponentById(FArcweaveComponentData& AWComponent, const FString& AWComponentId)
+bool UArcweaveSubsystem::TryGetArcweaveComponentById(FArcweaveComponentData& AWComponent, const FString& AWComponentId) const
 {
     if (AWComponentId.IsEmpty())
     {
-        // Elements without components have an empty ComponentIds array: nothing to look up.
+        // An empty id can never match a component: skip the lookup and the "not found" warning.
         return false;
     }
 
@@ -1063,7 +1064,7 @@ TArray<FArcweaveAttributeData> UArcweaveSubsystem::ParseObjectAttributes(const T
         const EArcweaveAttributeDataType* FoundCType = ArcweaveUtils::TryGetAttributeDataTypeFromString(CTypeString);
         if (FoundCType == nullptr)
         {
-            UE_LOG(LogArcwarePlugin, Error, TEXT("Could not find Enum value for attribute cType: %s"), *CTypeString);
+            UE_LOG(LogArcwarePlugin, Warning, TEXT("Unknown attribute cType '%s', treating it as Undefined"), *CTypeString);
             Attribute.cType = EArcweaveAttributeDataType::Undefined;
         }
         else
@@ -1090,7 +1091,7 @@ void UArcweaveSubsystem::ParseAttributeValue(const TSharedPtr<FJsonObject>& Valu
     const EArcweaveAttributeValueDataType* FoundType = ArcweaveUtils::TryGetAttributeValueDataTypeFromString(TypeString);
     if (FoundType == nullptr)
     {
-        UE_LOG(LogArcwarePlugin, Error, TEXT("Could not find Enum value for attribute value type: %s"), *TypeString);
+        UE_LOG(LogArcwarePlugin, Warning, TEXT("Unknown attribute value type '%s', its data will be ignored"), *TypeString);
         AttributeValue.Type = EArcweaveAttributeValueDataType::Undefined;
         return;
     }

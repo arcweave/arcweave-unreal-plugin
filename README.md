@@ -1,6 +1,6 @@
 # Arcweave Plugin for Unreal Engine
 
-[![Version](https://img.shields.io/badge/version-1.1-blue.svg)](https://github.com/arcweave/arcweave-unreal-plugin)
+[![Version](https://img.shields.io/badge/version-2.2.0-blue.svg)](https://github.com/arcweave/arcweave-unreal-plugin)
 [![Unreal Engine](https://img.shields.io/badge/Unreal%20Engine-5.0%2B-0E1128?logo=unrealengine)](https://www.unrealengine.com/)
 [![Language](https://img.shields.io/badge/language-C%2B%2B-00599C?logo=cplusplus)](https://isocpp.org/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
@@ -28,6 +28,7 @@ The plugin can import data from an exported Arcweave JSON file (available to all
    - [ArcscriptTranspilerWrapper](#arcweave-transpiler-script-wrapper-arcscripttranspilerwrapper)
    - [ArcweaveModule](#plugin-module-arcweavemodule)
    - [Data structs](#data-structs)
+- [Breaking changes / upgrading](#breaking-changes--upgrading)
 - [Using the Demo Project](#using-the-demo-project)
 - [Support](#support)
 - [License](#license)
@@ -224,7 +225,7 @@ note for FArcweaveProjectData "Main Data Container"
     class FArcweaveProjectData {
 	    +FString Name
 	    +  Boards
-	    +  Variables
+	    +  CurrentVars
 	    +  Cover
 	    +  ComponentsMap
 	    +  Conditions
@@ -383,7 +384,7 @@ Components in `AttributeData` can be accessed using the IDs stored inside the "C
 
 ```cpp
 // Get the Arcweave subsystem
-UArcweaveSubsystem* ArcweaveSubsystem = GetWorld()->GetSubsystem<UArcweaveSubsystem>();
+UArcweaveSubsystem* ArcweaveSubsystem = GEngine->GetEngineSubsystem<UArcweaveSubsystem>();
 if (!ArcweaveSubsystem)
     return;
 
@@ -440,6 +441,23 @@ for (const FArcweaveAttributeData& Attribute : ElementData.Attributes)
 ```
 </details>
 
+## Breaking changes / upgrading
+
+Attribute and component handling changed in this release. Existing C++ code that uses the old members will not compile, and Blueprints that use the old pins will show broken nodes until they are updated. These changes are part of version 2.2.0.
+
+| Before | Now |
+| ------ | --- |
+| `FArcweaveElementData::Components` (`TArray<FArcweaveComponentData>`, copies) | `FArcweaveElementData::ComponentIds` (`TArray<FString>`) |
+| `FArcweaveProjectData::Components` (`TArray<FArcweaveComponentData>`) | `FArcweaveProjectData::ComponentsMap` (`TMap<FString, FArcweaveComponentData>`, keyed by component id) |
+| `FArcweaveAttributeData::cType` (`FString`) | `EArcweaveAttributeDataType` (`Elements`, `Global`, `Components`, `Boards`, `Undefined`) |
+| `FArcweaveAttributeValueData::Type` (`FString`) | `EArcweaveAttributeValueDataType` (`String`, `StringRichText`, `ComponentList`, `AssetList`, `Boolean`, `Integer`, `Float`, `Undefined`) |
+
+**Upgrading**
+
+1. Replace reads of `Element.Components` with a loop over `Element.ComponentIds`, resolving each id with `UArcweaveSubsystem::TryGetArcweaveComponentById`. Check the returned boolean, and guard against elements whose `ComponentIds` array is empty before reading index 0.
+2. Replace reads of `ProjectData.Components` with `ProjectData.ComponentsMap` (use `Find(Id)` or iterate the map).
+3. Replace string comparisons such as `Attribute.cType == TEXT("components")` or `Attribute.Value.Type == TEXT("string")` with the enum values. Rich text is now reported as `StringRichText` (a `"string"` value with `plain: false`); plain text stays `String`.
+4. In Blueprints, refresh or re-create the nodes that used `Components`, `cType` or `Value.Type`, and switch on the new enums.
 
 ## Using the Demo Project
 

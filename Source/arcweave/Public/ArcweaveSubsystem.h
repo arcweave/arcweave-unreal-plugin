@@ -80,7 +80,7 @@ public:
 
     /** Try to get the component data with the Id given for the current project data, returns true if success false otherwise */
     UFUNCTION(BlueprintCallable, Category = "Arcweave")
-    bool TryGetArcweaveComponentById(FArcweaveComponentData& AWComponent, const FString& AWComponentId);
+    bool TryGetArcweaveComponentById(FArcweaveComponentData& AWComponent, const FString& AWComponentId) const;
 
     /** Capture completed runtime state. Fails during imports or script callbacks; leaves State unchanged on failure. */
     UFUNCTION(BlueprintCallable, BlueprintPure = false, Category = "Arcweave|State")
@@ -230,6 +230,7 @@ private:
     void PrintBranchData(const FArcweaveBranchData &InData);
 
 private:
+    friend class FArcweaveAttributeTypesTest;
     friend class FArcweaveComponentBoardVariablesTest;
     friend class FArcweaveConnectionLabelTest;
     friend class FArcweaveImportFailuresTest;
