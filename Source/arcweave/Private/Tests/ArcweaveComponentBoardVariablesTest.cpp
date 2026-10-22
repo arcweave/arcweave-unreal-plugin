@@ -41,16 +41,39 @@ bool FArcweaveComponentBoardVariablesTest::RunTest(const FString& Parameters)
     TestFalse(TEXT("Attribute without custom ID is excluded"), Project.CurrentVars.Contains(TEXT("board-ordinary")));
 
     TestEqual(TEXT("One board imports"), Project.Boards.Num(), 1);
-    TestEqual(TEXT("One component imports"), Project.Components.Num(), 1);
-    if (Project.Boards.Num() != 1 || Project.Components.Num() != 1)
+    TestEqual(TEXT("One component imports"), Project.ComponentsMap.Num(), 1);
+    const FArcweaveComponentData* Component = Project.ComponentsMap.Find(TEXT("component-1"));
+    if (Project.Boards.Num() != 1 || Component == nullptr)
     {
         return false;
     }
 
     TestEqual(TEXT("Board custom ID imports"), Project.Boards[0].CustomId, FString(TEXT("castle")));
     TestEqual(TEXT("Board attributes import"), Project.Boards[0].Attributes.Num(), 6);
-    TestEqual(TEXT("Component custom ID imports"), Project.Components[0].CustomId, FString(TEXT("hero")));
-    TestEqual(TEXT("Component attributes import"), Project.Components[0].Attributes.Num(), 2);
+    TestEqual(TEXT("Component custom ID imports"), Component->CustomId, FString(TEXT("hero")));
+    TestEqual(TEXT("Component attributes import"), Component->Attributes.Num(), 2);
+
+    const FArcweaveAttributeData* RichAttribute = Project.Boards[0].Attributes.FindByPredicate(
+        [](const FArcweaveAttributeData& Attribute) { return Attribute.Id == TEXT("board-rich"); });
+    if (TestNotNull(TEXT("Rich text board attribute imports"), RichAttribute))
+    {
+        TestTrue(TEXT("A string without plain: true is rich text"), RichAttribute->Value.Type == EArcweaveAttributeValueDataType::StringRichText);
+        TestTrue(TEXT("Board attributes keep the boards owner type"), RichAttribute->cType == EArcweaveAttributeDataType::Boards);
+    }
+    const FArcweaveAttributeData* PlainAttribute = Project.Boards[0].Attributes.FindByPredicate(
+        [](const FArcweaveAttributeData& Attribute) { return Attribute.Id == TEXT("board-title"); });
+    if (TestNotNull(TEXT("Plain text board attribute imports"), PlainAttribute))
+    {
+        TestTrue(TEXT("A string with plain: true stays String"), PlainAttribute->Value.Type == EArcweaveAttributeValueDataType::String);
+    }
+
+    TestEqual(TEXT("Elements reference components by id"), Project.Boards[0].Elements[0].ComponentIds, TArray<FString>{TEXT("component-1")});
+    FArcweaveComponentData Found;
+    TestTrue(TEXT("A known component id resolves"), Subsystem->TryGetArcweaveComponentById(Found, TEXT("component-1")));
+    TestEqual(TEXT("The resolved component is the requested one"), Found.CustomId, FString(TEXT("hero")));
+    FArcweaveComponentData Missing;
+    TestFalse(TEXT("An unknown component id does not resolve"), Subsystem->TryGetArcweaveComponentById(Missing, TEXT("no-such-component")));
+    TestFalse(TEXT("An empty component id does not resolve"), Subsystem->TryGetArcweaveComponentById(Missing, FString()));
 
     const auto TestVariable = [this, &Project](
         const TCHAR* Id,
