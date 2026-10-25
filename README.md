@@ -1,6 +1,6 @@
 # Arcweave Plugin for Unreal Engine
 
-[![Version](https://img.shields.io/badge/version-2.2.0-blue.svg)](https://github.com/arcweave/arcweave-unreal-plugin)
+[![Version](https://img.shields.io/badge/version-3.0.0-blue.svg)](https://github.com/arcweave/arcweave-unreal-plugin)
 [![Unreal Engine](https://img.shields.io/badge/Unreal%20Engine-5.0%2B-0E1128?logo=unrealengine)](https://www.unrealengine.com/)
 [![Language](https://img.shields.io/badge/language-C%2B%2B-00599C?logo=cplusplus)](https://isocpp.org/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
@@ -269,34 +269,36 @@ The board is the second most important container and represent what we see in th
 classDiagram
 direction TB
     class FArcweaveBoardData {
-	    +FString Id
+	    +FString BoardId
+	    +FString CustomId
 	    +FString Name
-	    +TArray\~FArcweaveElementData\~ Elements
-	    +TArray\~FArcweaveConnectionsData\~ Connections
-	    +TArray\~FArcweaveBranchData\~ Branches
-	    +TArray\~FArcweaveJumpersData\~ Jumpers
+	    +TArray~FArcweaveElementData~ Elements
+	    +TArray~FArcweaveConnectionsData~ Connections
+	    +TArray~FArcweaveBranchData~ Branches
+	    +TArray~FArcweaveJumpersData~ Jumpers
     }
 
     class FArcweaveElementData {
 	    +FString Id
 	    +FString Title
 	    +FString Content
-	    +TArray\~FArcweaveConnectionsData\~ Outputs
-	    +TArray\~FString\~ ComponentIds
-	    +TArray\~FArcweaveAttributeData\~ Attributes
+	    +TArray~FArcweaveConnectionsData~ Outputs
+	    +TArray~FString~ ComponentIds
+	    +TArray~FArcweaveAttributeData~ Attributes
     }
 
     class FArcweaveConnectionsData {
 	    +FString Id
 	    +FString Label
-	    +FString SourceId
-	    +FString TargetId
+	    +FString Sourceid
+	    +FString Targetid
     }
 
     class FArcweaveBranchData {
 	    +FString Id
-	    +TArray\~FArcweaveConditionData\~ Conditions
-	    +TArray\~FString\~ ConnectionIds
+	    +FArcweaveConditionData IfCondition
+	    +FArcweaveConditionData ElseCondition
+	    +TArray~FArcweaveConditionData~ ElseIfConditions
     }
 
 	<<USTRUCT>> FArcweaveBoardData
@@ -443,7 +445,7 @@ for (const FArcweaveAttributeData& Attribute : ElementData.Attributes)
 
 ## Breaking changes / upgrading
 
-Attribute and component handling changed in this release. Existing C++ code that uses the old members will not compile, and Blueprints that use the old pins will show broken nodes until they are updated. These changes are part of version 2.2.0.
+Attribute and component handling changed in this release. Existing C++ code that uses the old members will not compile, and Blueprints that use the old pins will show broken nodes until they are updated. These changes are part of version 3.0.0 (the previous release was 2.2.0).
 
 | Before | Now |
 | ------ | --- |
