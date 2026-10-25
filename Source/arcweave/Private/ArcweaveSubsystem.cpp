@@ -7,7 +7,6 @@
 #include "Arcweave.h"
 #include "ArcweaveAPISettings.h"
 #include "ArcweaveBranchData.h"
-#include "ArcweaveComponentData.h"
 #include "ArcweaveConditionData.h"
 #include "ArcweaveConnectionsData.h"
 #include "ArcweaveSettings.h"
@@ -1142,8 +1141,10 @@ void UArcweaveSubsystem::ParseAttributeValue(const TSharedPtr<FJsonObject>& Valu
     }
 
     case EArcweaveAttributeValueDataType::AssetList:
+    {
         UE_LOG(LogArcwarePlugin, Warning, TEXT("Support for attribute type %s not implemented yet"), *TypeString);
         break;
+    }
 
     default:
         break;
@@ -1638,14 +1639,9 @@ TMap<FString, int> UArcweaveSubsystem::InitVisits(const TSharedPtr<FJsonObject>&
 
 TArray<FString> UArcweaveSubsystem::ParseComponentIds(const TSharedPtr<FJsonObject>& ElementValueObject)
 {
+    // "components" is optional: an element without it simply has no components.
     TArray<FString> ComponentsStringArray;
-    if (!ElementValueObject->TryGetStringArrayField(TEXT("components"), ComponentsStringArray))
-    {
-        FString Id = FString("-1");
-        ElementValueObject->TryGetStringField(TEXT("id"), Id);
-        UE_LOG(LogArcwarePlugin, Warning, TEXT("Failed to parse component ids for element with id %s"), *Id);
-    }
-
+    ElementValueObject->TryGetStringArrayField(TEXT("components"), ComponentsStringArray);
     return ComponentsStringArray;
 }
 
