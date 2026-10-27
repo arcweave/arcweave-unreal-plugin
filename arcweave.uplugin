@@ -1,7 +1,7 @@
 {
 	"FileVersion": 3,
-	"Version": 5,
-	"VersionName": "2.2.0",
+	"Version": 6,
+	"VersionName": "3.0.0",
 	"FriendlyName": "Arcweave",
 	"Description": "This plugin is for importing Arcweave projects into Unreal engine",
 	"Category": "Other",
