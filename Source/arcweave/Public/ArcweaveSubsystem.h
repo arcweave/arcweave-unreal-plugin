@@ -243,9 +243,12 @@ private:
     FString ProcessConnectionLabel(const FString& RawLabel);
     /* Given a locale iso, will look for the corresponding fallback locale*/
     FString GetFallbackLanguageForLocale(const FString& Locale) const;
+    /* Returns the translation of the field (e.g. "title", "label") of the content for the locale, or an empty string if none is found.
+     * Missing labels and names are not logged since they are empty in many projects */
     FString GetTranslatedContent(const FString& ContentKey, const FString& FieldName, const FString& CurrentLocale, bool ShouldFallback /*= true*/) const;
-    /* Tries to find a fallback translation for the specified content and locale*/
-    FString TryToFindFallbackTranslation(const struct FArcweaveContent& Content, const FString& FieldName, const FString& CurrentLocale) const;
+    /* Tries to find a fallback translation for the specified content and locale, walking the locale bases (e.g. it -> fr -> en).
+     * Returns false if no locale has the field */
+    bool TryToFindFallbackTranslation(FString& OutTranslation, const struct FArcweaveContent& Content, const FString& FieldName, const FString& CurrentLocale) const;
     // Helper function to get desired locale and fallback flag from ArcweaveSettings
     void GetLanguageSettings(FString& OutDesiredLocale, bool& OutFallbackToDefaultLanguage);
 
