@@ -881,6 +881,41 @@ FString UArcweaveSubsystem::TranspileConnectionLabel(const FArcweaveConnectionsD
     return Connection.Label;
 }
 
+bool UArcweaveSubsystem::HasLocales() const
+{
+    return ProjectData.Locales.Num() > 1;
+}
+
+bool UArcweaveSubsystem::TryGetArcweaveComponentById(FArcweaveComponentData& AWComponent, const FString& AWComponentId) const
+{
+    if (AWComponentId.IsEmpty())
+    {
+        // An empty id can never match a component: skip the lookup and the "not found" warning.
+        return false;
+    }
+
+    const FArcweaveComponentData* AWComponentPtr = ProjectData.ComponentsMap.Find(AWComponentId);
+    if (AWComponentPtr != nullptr)
+    {
+        AWComponent = *AWComponentPtr;
+        return true;
+    }
+
+    UE_LOG(LogArcwarePlugin, Warning, TEXT("Cannot find Arcweave component for id: %s"), *AWComponentId);
+    return false;
+}
+
+FString UArcweaveSubsystem::ProcessConnectionLabel(const FString& RawLabel)
+{
+    if (RawLabel.IsEmpty())
+    {
+        return RawLabel;
+    }
+
+    // Keep raw code so it can be analysed later, otherwise html tags can be removed
+    return ContainsCodePattern(RawLabel) ? RawLabel : RemoveHtmlTags(RawLabel);
+}
+
 FArcweaveElementData UArcweaveSubsystem::TranspileObject(FString ObjectId, bool& Success, bool bStripHtmlTags /*true*/)
 {
     Success = false;
@@ -1362,19 +1397,7 @@ TArray<FArcweaveConnectionsData> UArcweaveSubsystem::ParseConnections(const FStr
                                 ConObject->TryGetStringField(TEXT("label"), RawLabel);
                             }
 
-                            if (!RawLabel.IsEmpty())
-                            {
-                                if (ContainsCodePattern(RawLabel))
-                                {
-                                    // Keep the raw code so it can be analysed later
-                                    Connection.Label = RawLabel;
-                                }
-                                else
-                                {
-                                    // no code: html tag can be removed
-                                    Connection.Label = RemoveHtmlTags(RawLabel);
-                                }
-                            }
+                            Connection.Label = ProcessConnectionLabel(RawLabel);
 
                             ConObject->TryGetStringField(TEXT("type"), Connection.Type);
                             ConObject->TryGetStringField(TEXT("theme"), Connection.Theme);
@@ -1693,42 +1716,11 @@ TArray<FString> UArcweaveSubsystem::ParseComponentIds(const TSharedPtr<FJsonObje
 {
     // "components" is optional: an element without it simply has no components.
     TArray<FString> ComponentsStringArray;
-    if (ElementValueObject->TryGetStringArrayField(TEXT("components"), ComponentsStringArray))
-    {
-        for (const auto& ComponentId : ComponentsStringArray)
-        {
-            // Iterate through the array of components and find with this id
-            const TSharedPtr<FJsonObject>* CompObject;
-            if (MainJsonObject->TryGetObjectField(TEXT("components"), CompObject))
-            {
-                for (const auto& CompPair : CompObject->Get()->Values)
-                {
-                    if (CompPair.Key == ComponentId)
-                    {
-                        FArcweaveComponentData ElComponent;
-                        ElComponent.Id = CompPair.Key;
-                        const TSharedPtr<FJsonObject> ComponentValueObject = CompPair.Value->AsObject();
-
-                        if (ComponentValueObject.IsValid())
-                        {
-                            // Extract the "name" and "root"
-                            ComponentValueObject->TryGetStringField(TEXT("name"), ElComponent.Name);
-                            ComponentValueObject->TryGetBoolField(TEXT("root"), ElComponent.Root);
-                            ComponentValueObject->TryGetStringArrayField(TEXT("children"), ElComponent.Children);
-                            ElComponent.Assets = ParseComponentAsset(ComponentValueObject);
-                            ElComponent.Attributes = ParseObjectAttributes(MainJsonObject, ComponentValueObject);
-
-                            Components.Add(ElComponent);
-                        }
-                    }
-                }
-            }
-        }
-    }
-    return Components;
+    ElementValueObject->TryGetStringArrayField(TEXT("components"), ComponentsStringArray);
+    return ComponentsStringArray;
 }
 
-TArray<FArcweaveComponentData> UArcweaveSubsystem::ParseAllComponents(const TSharedPtr<FJsonObject>& MainJsonObject)
+TMap<FString, FArcweaveComponentData> UArcweaveSubsystem::ParseAllComponents(const TSharedPtr<FJsonObject>& MainJsonObject)
 {
     // Parse "components" as a map of component data structs, keyed by component id
     TMap<FString, FArcweaveComponentData> ComponentsMap;
@@ -1747,15 +1739,23 @@ TArray<FArcweaveComponentData> UArcweaveSubsystem::ParseAllComponents(const TSha
             AWComponent.Id = CompPair.Key;
             const TSharedPtr<FJsonObject> ComponentValueObject = CompPair.Value->AsObject();
 
-            // Extract the "name" and "root"
             if (ComponentValueObject.IsValid())
             {
-                // Extract the "name" and "root"
-                ComponentValueObject->TryGetStringField(TEXT("name"), ElComponent.Name);
-                ComponentValueObject->TryGetBoolField(TEXT("root"), ElComponent.Root);
-                ComponentValueObject->TryGetStringArrayField(TEXT("children"), ElComponent.Children);
-                ElComponent.Assets = ParseComponentAsset(ComponentValueObject);
-                ElComponent.Attributes = ParseObjectAttributes(MainJsonObject, ComponentValueObject);
+                // With multiple locales the name is stored in "contents", not on the component
+                if (HasLocales())
+                {
+                    AWComponent.Name = GetTranslatedContent(AWComponent.Id, TEXT("name"), DesiredLocale, bFallbackToDefaultLanguage);
+                }
+                else
+                {
+                    ComponentValueObject->TryGetStringField(TEXT("name"), AWComponent.Name);
+                }
+                // Extract the "customId" and "root"
+                ComponentValueObject->TryGetStringField(TEXT("customId"), AWComponent.CustomId);
+                ComponentValueObject->TryGetBoolField(TEXT("root"), AWComponent.Root);
+                ComponentValueObject->TryGetStringArrayField(TEXT("children"), AWComponent.Children);
+                AWComponent.Assets = ParseComponentAsset(ComponentValueObject);
+                AWComponent.Attributes = ParseObjectAttributes(MainJsonObject, ComponentValueObject);
 
                 ComponentsMap.Add(AWComponent.Id, AWComponent);
             }
@@ -1991,27 +1991,31 @@ void UArcweaveSubsystem::UpdateContentsWithLocale(const FString& DesiredLocale)
             element.Title = RemoveHtmlTags(GetTranslatedContent(element.Id, TEXT("title"), DesiredLocale, bFallbackToDefaultLanguage));
             element.Content = GetTranslatedContent(element.Id, TEXT("content"), DesiredLocale, bFallbackToDefaultLanguage);
 
-            for (auto& component : element.Components)
-            {
-                component.Name = GetTranslatedContent(component.Id, TEXT("name"), DesiredLocale, bFallbackToDefaultLanguage);
-            }
+            // Elements only reference components by id (ComponentIds): names are updated in ComponentsMap below
 
+            // Outputs are copies of the board connections, so they need to be updated separately
             for (auto& output : element.Outputs)
             {
-                output.Label = GetTranslatedContent(output.Id, TEXT("label"), DesiredLocale, bFallbackToDefaultLanguage);
+                output.Label = ProcessConnectionLabel(GetTranslatedContent(output.Id, TEXT("label"), DesiredLocale, bFallbackToDefaultLanguage));
             }
         }
 
         for (FArcweaveConnectionsData& connection : board.Connections)
         {
-            connection.Label = GetTranslatedContent(connection.Id, TEXT("label"), DesiredLocale, bFallbackToDefaultLanguage);
+            connection.Label = ProcessConnectionLabel(GetTranslatedContent(connection.Id, TEXT("label"), DesiredLocale, bFallbackToDefaultLanguage));
         }
-
     }
 
-    for (FArcweaveComponentData& component : ProjectData.Components)
+    // All the project components, not only the ones referenced by elements
+    for (TPair<FString, FArcweaveComponentData>& ComponentPair : ProjectData.ComponentsMap)
     {
-        component.Name = GetTranslatedContent(component.Id, TEXT("name"), DesiredLocale, bFallbackToDefaultLanguage);
+        ComponentPair.Value.Name = GetTranslatedContent(ComponentPair.Key, TEXT("name"), DesiredLocale, bFallbackToDefaultLanguage);
+    }
+
+    // Keep the flat connections list in sync
+    for (FArcweaveConnectionsData& connection : ProjectData.Connections)
+    {
+        connection.Label = GetTranslatedContent(connection.Id, TEXT("label"), DesiredLocale, bFallbackToDefaultLanguage);
     }
 
     if (OnArcweaveLanguageChanged.IsBound())
@@ -2043,10 +2047,24 @@ bool UArcweaveSubsystem::ParseResponse(const FString& ResponseString)
     }
 
     // Extract project name and cover data     
-    if (RootObject->TryGetStringField(TEXT("name"), ProjectData.Name))
+    FString ProjectName;
+    if (RootObject->TryGetStringField(TEXT("name"), ProjectName) && !ProjectName.IsEmpty())
     {
+        // Validate the export before touching the current project. A malformed response
+        // must not partially replace a working session.
+        for (const TCHAR* Field : {TEXT("boards"), TEXT("elements"), TEXT("components"), TEXT("variables")})
+        {
+            const TSharedPtr<FJsonObject>* Object = nullptr;
+            if (!RootObject->TryGetObjectField(Field, Object)) return false;
+        }
+        ProjectData.Name = ProjectName;
+        ProjectData.StartingElementId.Empty();
+        RootObject->TryGetStringField(TEXT("startingElement"), ProjectData.StartingElementId);
+        // Locales and contents are used by the parsers below, so they need to be first
+        ProjectData.Locales = ParseProjectLocales(RootObject);
+        ProjectData.Contents = ParseAllContents(RootObject);
         ProjectData.Cover = ParseCoverData(RootObject);
-        ProjectData.Components = ParseAllComponents(RootObject);
+        ProjectData.ComponentsMap = ParseAllComponents(RootObject);
         ProjectData.Conditions = ParseAllConditions(RootObject);
         ProjectData.Connections = ParseAllConnections(RootObject);
         ProjectData.Boards = ParseBoard(RootObject);
