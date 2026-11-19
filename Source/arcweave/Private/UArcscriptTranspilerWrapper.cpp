@@ -35,11 +35,12 @@ FArcscriptTranspilerOutput UArcscriptTranspilerWrapper::RunScript(const FString&
         if (!var.Value.Scope.IsEmpty()) {
             dllVars[i].scope = strdup(TCHAR_TO_UTF8(*var.Value.Scope));
         }
-        else {
-            dllVars[i].scope = nullptr;
-        }
+		else {
+			dllVars[i].scope = nullptr;
+		}
 
-        dllVars[i].type = VariableType::AW_ANY;
+		dllVars[i].type = VariableType::AW_ANY;
+		dllVars[i].has_default_value = var.Value.bHasDefaultValue;
 
 	    UE_LOG(LogArcweavePlugin, Log, TEXT("var_name: %s, var_value %s, var_type %s, scope %hs"), 
             *var.Value.Name,
@@ -51,22 +52,28 @@ FArcscriptTranspilerOutput UArcscriptTranspilerWrapper::RunScript(const FString&
 		if (var.Value.Type.Equals(TEXT("string"))) {
 			dllVars[i].type = VariableType::AW_STRING;
 			dllVars[i].string_val = strdup(TCHAR_TO_UTF8(*(var.Value.Value)));
+			if (var.Value.bHasDefaultValue) {
+				dllVars[i].default_string_val = strdup(TCHAR_TO_UTF8(*(var.Value.DefaultValue)));
+			}
 		}
 		else if (var.Value.Type.Equals(TEXT("integer"))) {
 			dllVars[i].type = VariableType::AW_INTEGER;
-		    TCHAR* EndPtr = nullptr;
+			TCHAR* EndPtr = nullptr;
 			dllVars[i].int_val = FCString::Strtoi(*var.Value.Value, &EndPtr, 10);
+			dllVars[i].default_int_val = FCString::Strtoi(*var.Value.DefaultValue, &EndPtr, 10);
 		}
 	    // here we consider float as double
 	    // because in UVariableChange there is no float possibility
 	    // we will consider every float from the Arcweave platform as double from now on
 		else if (var.Value.Type.Equals(TEXT("float"))) {
-		    dllVars[i].type = VariableType::AW_DOUBLE;
-		    dllVars[i].double_val = FCString::Atod(*var.Value.Value);
+			dllVars[i].type = VariableType::AW_DOUBLE;
+			dllVars[i].double_val = FCString::Atod(*var.Value.Value);
+			dllVars[i].default_double_val = FCString::Atod(*var.Value.DefaultValue);
 		}
-        else if (var.Value.Type.Equals(TEXT("boolean"))) {
-            dllVars[i].type = VariableType::AW_BOOLEAN;
-            dllVars[i].bool_val = (var.Value.Value == FString("true")) ? true : false;
+		else if (var.Value.Type.Equals(TEXT("boolean"))) {
+			dllVars[i].type = VariableType::AW_BOOLEAN;
+			dllVars[i].bool_val = (var.Value.Value == FString("true")) ? true : false;
+			dllVars[i].default_bool_val = var.Value.DefaultValue == FString("true");
         }
         i++;
     }
@@ -154,9 +161,12 @@ FArcscriptTranspilerOutput UArcscriptTranspilerWrapper::RunScript(const FString&
             free((char*)dllVars[i].scope);
         }
 
-        if (dllVars[i].type == VariableType::AW_STRING) {
-            free((char*)dllVars[i].string_val);
-        }
+		if (dllVars[i].type == VariableType::AW_STRING) {
+			free((char*)dllVars[i].string_val);
+			if (dllVars[i].default_string_val != nullptr) {
+				free((char*)dllVars[i].default_string_val);
+			}
+		}
     }
     delete[] dllVars;
     for (i = 0; i < visitsLength; i++) {

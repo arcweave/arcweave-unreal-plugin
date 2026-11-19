@@ -103,6 +103,11 @@ namespace Arcweave
 		double double_val;
 		const char* string_val;
 		bool bool_val;
+		int default_int_val;
+		double default_double_val;
+		const char* default_string_val;
+		bool default_bool_val;
+		bool has_default_value;
 		const char* scope;
 
         UVariable() {
@@ -113,6 +118,11 @@ namespace Arcweave
             double_val = 0;
             string_val = nullptr;
             bool_val = false;
+			default_int_val = 0;
+			default_double_val = 0;
+			default_string_val = nullptr;
+			default_bool_val = false;
+			has_default_value = false;
         	scope = nullptr;
         }
 	};

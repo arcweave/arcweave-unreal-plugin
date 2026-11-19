@@ -5,6 +5,7 @@
 
 // Arcweave includes
 #include "ArcweaveAttributeValueData.h"
+#include "ArcweaveAttributeDataType.h"
 
 // Generated include
 #include "ArcweaveAttributeData.generated.h"
@@ -18,13 +19,16 @@ struct FArcweaveAttributeData
     FString Id = FString("");
 
     UPROPERTY(BlueprintReadWrite, Category = "Arcweave")
+    FString CustomId = FString("");
+
+    UPROPERTY(BlueprintReadWrite, Category = "Arcweave")
     FString cId = FString("");
 
     UPROPERTY(BlueprintReadWrite, Category = "Arcweave")
     FString Name = FString("");
 
     UPROPERTY(BlueprintReadWrite, Category = "Arcweave")
-    FString cType = FString("");
+    EArcweaveAttributeDataType cType = EArcweaveAttributeDataType::Undefined;
 
     UPROPERTY(BlueprintReadWrite, Category = "Arcweave")
     FArcweaveAttributeValueData Value = FArcweaveAttributeValueData();

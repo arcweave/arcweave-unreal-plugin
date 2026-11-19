@@ -21,10 +21,21 @@ public:
 
     /*
      * Enable to receive the data from local JSON file instead of API.
-     * The JSON file and resource files should be located in the Content/ArcweaveExport folder.
+     * The JSON file and resource files should be located in the JsonDirectoryPath folder.
      */
     UPROPERTY(Config, EditAnywhere, Category = "ArcweaveSettings")
     bool EnableReceiveMethodFromLocalJSON = false;
+
+    UPROPERTY(
+        Config,
+        EditAnywhere,
+        meta = (
+            EditCondition = "EnableReceiveMethodFromLocalJSON",
+            ToolTip = "Insert the folder path relative to the project folder containing the .json file"
+            ),
+        Category = ArcweaveSettings
+    )
+    FString JsonDirectoryPath = FString("Content/ArcweaveExport/");
 
     /*
      * API token that you can find in your Arcweave account settings.
@@ -40,7 +51,6 @@ public:
 
     //override post init properties to check if the settings are valid
     virtual void PostInitProperties() override;
-
 
 #pragma region Language
 
@@ -58,33 +68,33 @@ public:
     void SetFallbackToDefaultLocale(bool bValue) { bFallbackToDefaultLocale = bValue; }
 
 private:
-    UPROPERTY(Config,
+    UPROPERTY(
+        Config,
         EditAnywhere,
-        Category = "ArcweaveSettings| Languages",
-        meta = (
-            ToolTip = "Allow using a custom language for the application if available (e.g. en, it, fr ...)"
-            )
-    )
+        meta = (ToolTip = "Allow using a custom language for the application if available (e.g. en, it, fr ...)"),
+        Category = ArcweaveSettings
+        )
     bool bUseLocale = false;
 
-
-    UPROPERTY(Config,
+    UPROPERTY(
+        Config,
         EditAnywhere,
-        Category = "ArcweaveSettings| Languages",
         meta = (
             EditCondition = "bUseLocale",
             ToolTip = "Default language used for the application if available (e.g. en, it, fr ...)"
-            )
+            ),
+        Category = ArcweaveSettings
     )
     FString Locale = FString("fr");
 
-    UPROPERTY(Config,
+    UPROPERTY(
+        Config,
         EditAnywhere,
-        Category = "ArcweaveSettings| Languages",
         meta = (
-            EditCondition = "bUseLocale",
-            ToolTip = "If the specified language is not available, fallback to the standard language (the one defined for the current locale as base in the app)"
-            )
+            EditCondition = "!EnableReceiveMethodFromLocalJSON && bUseLocale",
+            ToolTip = "If the specified language is not available, fallback to the standard language (usually en-us). This option is available only from web api"
+            ),
+        Category = ArcweaveSettings
     )
     bool bFallbackToDefaultLocale = true;
 

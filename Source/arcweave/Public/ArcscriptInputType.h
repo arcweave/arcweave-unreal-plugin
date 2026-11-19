@@ -7,7 +7,7 @@
 #include "ArcscriptInputType.generated.h"
 
 UENUM(BlueprintType)
-enum FArcscriptInputType {
+enum FArcscriptInputType : int32 {
 	CONDITION,
 	SCRIPT
 };

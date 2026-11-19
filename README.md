@@ -1,4 +1,13 @@
 # Arcweave Plugin for Unreal Engine
+
+[![Version](https://img.shields.io/badge/version-3.0.0-blue.svg)](https://github.com/arcweave/arcweave-unreal-plugin)
+[![Unreal Engine](https://img.shields.io/badge/Unreal%20Engine-5.0%2B-0E1128?logo=unrealengine)](https://www.unrealengine.com/)
+[![Language](https://img.shields.io/badge/language-C%2B%2B-00599C?logo=cplusplus)](https://isocpp.org/)
+[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![GitHub Issues](https://img.shields.io/github/issues/arcweave/arcweave-unreal-plugin)](https://github.com/arcweave/arcweave-unreal-plugin/issues)
+[![Discord](https://img.shields.io/badge/Discord-Join%20Us-7289DA?logo=discord&logoColor=white)](https://discord.gg/kb4FxBxw)
+[![YouTube](https://img.shields.io/badge/YouTube-Tutorial%20Series-FF0000?logo=youtube&logoColor=white)](https://www.youtube.com/playlist?list=PLP2s5PcDiBdYRg0zHpJTuiDVf9JF_inyH)
+
 [![IMAGE ALT TEXT HERE](https://img.youtube.com/vi/Ws_Cz-IQQYg/0.jpg)](https://www.youtube.com/watch?v=Ws_Cz-IQQYg)
 
 This is the official README file for the Arcweave plugin repository, which facilitates the import of [Arcweave](https://arcweave.com/) projects into Unreal Engine (version 5.0 and later). 
@@ -13,11 +22,16 @@ The plugin can import data from an exported Arcweave JSON file (available to all
    - [Web API](#web-api)
 - [Important Classes and Functions](#important-classes-and-functions)
    - [UArcweaveSubsystem Functions](#list-of-important-functions-in-uarcweavesubsystem)
+   - [Starting element](#starting-element)
+   - [Scoped variables](#scoped-variables)
+   - [Runtime save/load](#runtime-saveload)
    - [ArcscriptTranspilerWrapper](#arcweave-transpiler-script-wrapper-arcscripttranspilerwrapper)
    - [ArcweaveModule](#plugin-module-arcweavemodule)
-   - [ArcweaveTypes](#data-wrapper-arcweavetypes)
+   - [Data structs](#data-structs)
+- [Breaking changes / upgrading](#breaking-changes--upgrading)
 - [Using the Demo Project](#using-the-demo-project)
 - [Support](#support)
+- [License](#license)
 
 ## Plugin Installation
 
@@ -35,9 +49,9 @@ There are two primary methods for collecting Arcweave project data:
 For this method, you'll need to do the following: 
 - Export your Arcweave project for Unreal Engine and unzip it.
 - Move the exported JSON file along with all required assets in the **Content->ArcweaveExport** directory. If this directory does not exist create it.
-- ⚠️ Make sure you set the thick to the field "Enable receive method from local JSON" inside Unreal under ProjectSettings at the tab "Arcweave Settings"
-  
-  <img width="686" height="55" alt="immagine" src="https://github.com/user-attachments/assets/e372638f-e237-4a5b-bd16-09382a8252d1" />
+- ⚠️ Make sure you set the tick to the field "Enable receive method from local JSON" inside Unreal under ProjectSettings at the tab "Arcweave Settings"
+
+  <img width="686" alt="Arcweave Settings - Enable receive method from local JSON" src="https://github.com/user-attachments/assets/e372638f-e237-4a5b-bd16-09382a8252d1" />
 
 ### Web API:
 This involves fetching data directly from the Arcweave Web API within Unreal Engine. You will need:
@@ -47,19 +61,35 @@ This involves fetching data directly from the Arcweave Web API within Unreal Eng
 
 ## Important Classes and Functions
 
+### Runtime import results
+
+Bind `OnArcweaveResponseReceived` to apply a successfully loaded project. Bind
+`OnArcweaveFetchCompleted(bool bSuccess, const FString& Message)` to show the API
+result in your own UI, including Shipping builds. Failures cover request startup,
+transport/timeouts, HTTP errors and invalid JSON exports. A failed import keeps
+the previous project; error messages do not include the response body or token.
+
+API requests have a 20-second timeout. Starting a new API import, loading local
+JSON or calling `CancelFetch()` cancels the previous request. Cancelled requests
+do not emit a completion event and late responses are ignored. `LoadJsonFile()`
+returns false for invalid JSON as well as file errors.
+
+Run `Arcweave.Project.ImportFailures` in Unreal Automation to verify malformed
+exports, failed requests, retries and cancellation.
+
 ``` mermaid
    classDiagram
-   class ArcweaveSubsystem{}
+   class UArcweaveSubsystem{}
 
-   class ArcscriptTranspilerWrapper{}
-   class Arcweave {}
-   class ArcweaveTypes {}
-   ArcweaveSubsystem --|> GameInstanceSubsystem
-   ArcweaveSubsystem "1"--"1..*" ArcweaveTypes
-   ArcweaveSubsystem ..> ArcscriptTranspilerWrapper
-   ArcscriptTranspilerWrapper ..> ArcweaveTypes
-   ArcweaveSubsystem ..> Arcweave
-   Arcweave *--> ArcscriptTranspilerWrapper
+   class UArcscriptTranspilerWrapper{}
+   class FarcweaveModule {}
+   class FArcweaveProjectData {}
+   UArcweaveSubsystem --|> UEngineSubsystem
+   UArcweaveSubsystem *--> FArcweaveProjectData: provides
+   UArcweaveSubsystem ..> UArcscriptTranspilerWrapper
+   UArcscriptTranspilerWrapper ..> FArcweaveProjectData
+   UArcweaveSubsystem ..> FarcweaveModule
+   FarcweaveModule *--> UArcscriptTranspilerWrapper
 ```
 The primary class that contains all the blueprint-exposed functions and data is **UArcweaveSubsystem**. This class is located in the file path `Plugins\arcweave\Source\arcweave\Public\ArcweaveSubsystem.h`. 
 It provides a range of functions that can be utilized in both Blueprints and C++ to interact with, modify, and retrieve data.
@@ -67,7 +97,7 @@ It provides a range of functions that can be utilized in both Blueprints and C++
 #### List of Important Functions in `UArcweaveSubsystem`:
 ``` mermaid
    classDiagram
-   class ArcweaveSubsystem{
+   class UArcweaveSubsystem{
       +HandleApiCall
       +HandleSettings
       +HandleArcweaveProjectData
@@ -75,7 +105,7 @@ It provides a range of functions that can be utilized in both Blueprints and C++
       +TranspileData
    }
 
-   ArcweaveSubsystem --|> GameInstanceSubsystem
+   UArcweaveSubsystem --|> UEngineSubsystem
 ```
 1. **Fetch Data from Arcweave API or local JSON**
    - This function allows you to fetch data from the Arcweave API by providing the API token and project hash.
@@ -99,6 +129,55 @@ It provides a range of functions that can be utilized in both Blueprints and C++
    - This function lets you modify the current variable value outside the dialogue logic. From anywhere in the project. You only need to provide the variable ID.
 
 These functions provide a comprehensive set of tools for interacting with the Arcweave API and managing project data within your Unreal Engine project.
+
+#### Starting element
+
+After a successful local or API import, `FArcweaveProjectData.StartingElementId` contains the exported `startingElement` ID. Read it from `GetArcweaveProjectData()` or the project data supplied by `OnArcweaveResponseReceived`. The value is empty when the export omits the field or sets it to `null` or an empty string. Each successful import replaces the previous value; a rejected import preserves the loaded project.
+
+Importing does not execute the starting element. When the game is ready to run it, pass the ID to `TranspileObject`:
+
+```cpp
+#include "ArcweaveSubsystem.h"
+#include "Engine/Engine.h"
+
+// Run after a successful import.
+UArcweaveSubsystem* Arcweave = GEngine->GetEngineSubsystem<UArcweaveSubsystem>();
+const FString StartingElementId = Arcweave->GetArcweaveProjectData().StartingElementId;
+if (!StartingElementId.IsEmpty())
+{
+    bool bSuccess = false;
+    FArcweaveElementData Element = Arcweave->TranspileObject(StartingElementId, bSuccess);
+    // Use Element when bSuccess is true.
+}
+```
+
+In Blueprints, break the `ArcweaveProjectData` struct, read **Starting Element Id**, and connect it to the transpiler node's **Object Id** input when nonempty. This is the project-wide starting element; it does not identify a separate entry for every board.
+
+Run `Arcweave.Project.StartingElement` in Unreal Automation to verify imports, reimports, and explicit execution using the imported ID.
+
+#### Scoped variables
+
+Boolean, integer, float, and plain-string attributes can be used as Arcscript variables when both the attribute and its owning board or component have custom IDs. The attribute custom ID is the variable name, the owner custom ID is its scope, and the attribute ID remains the stable ID used by `SetVariable` and variable-change events.
+
+```arcscript
+health = 100
+castle.health = 10
+hero.health = 20
+```
+
+All global, board, and component variables are available in `FArcweaveProjectData.CurrentVars`. Each `FArcweaveVariable` stores its mutable `Value` separately from its project-authored `DefaultValue`, so `reset` and `resetAll` continue to restore project defaults after earlier interpreter calls.
+
+All parsed attributes remain available through the owning board, component, or element's `Attributes` collection. Only eligible board and component attributes are added to `CurrentVars` and passed to Arcscript; element attributes, unsupported attribute types, and attributes without the required custom IDs are not exposed as Arcscript variables.
+
+For local JSON imports, re-export the project from the current Arcweave version so legacy board variables are migrated to attributes. Web API imports already use the current schema.
+
+#### Runtime save/load
+
+`CaptureState` and `RestoreState` save and restore current global, board, and component variable values and project visit counts through `FArcweaveRuntimeState`. Store this reflected struct in your game's `USaveGame`; the plugin does not write save files or manage the game's narrative cursor or world state.
+
+Import the same project content before restoring. Restore validates the entire snapshot before applying it, preserves authored defaults and metadata, and emits only `OnArcweaveStateRestored`, without replaying variable-change or Arcscript events. Changed project content requires a game-specific migration; it is not accepted automatically.
+
+See the [C++ runtime save/load guide](docs/runtime-state.md) for a `USaveGame` example, import coordination, safe resume behavior, and the `Arcweave.Project.RuntimeState` automation test.
 
 ### Arcweave Transpiler script wrapper `ArcscriptTranspilerWrapper`:
 ```mermaid
@@ -129,8 +208,258 @@ This class provides the possibility to access the Arcweave wrapper to call the D
          FarcweaveModule* arcweaveModule = FModuleManager::GetModulePtr<FarcweaveModule>("Arcweave");
          UArcscriptTranspilerWrapper* ArcscriptWrapper = arcweaveModule->getArcscriptWrapper();
 ```
-### Data wrapper `ArcweaveTypes`:
-Class wrapper containing a series of Blueprint-type structs needed to use the transpiler, and convert the data from and to JSON.
+### Data structs:
+Wrapper structs containing a series of Blueprint-type structs needed to use the transpiler, and convert the data from and to JSON.
+
+[View Complete relationship between data structs UML Diagram](./docs/DataDiagramClassUML.md)
+
+#### Project struct :`ArcweaveProjectData`
+This is the struct containing the board(ref to the image below) objects, the cover, all the components, and connection present in the project
+
+```mermaid
+
+classDiagram
+direction TB
+
+note for FArcweaveProjectData "Main Data Container"
+    class FArcweaveProjectData {
+	    +FString Name
+	    +  Boards
+	    +  CurrentVars
+	    +  Cover
+	    +  ComponentsMap
+	    +  Conditions
+	    +  Connections
+    }
+
+    class FArcweaveBoardData {
+	    +FString Id
+	    +FString Name
+	    + Elements
+	    + Connections
+	    + Branches
+	    + Jumpers
+    }
+
+    class FArcweaveVariable {
+	    +FString Id
+	    +FString Name
+	    +FString Type
+	    +FString Value
+    }
+
+   
+	<<USTRUCT>> FArcweaveProjectData
+	<<USTRUCT>> FArcweaveBoardData
+	<<USTRUCT>> FArcweaveVariable
+
+
+    FArcweaveProjectData --> FArcweaveBoardData : contains
+    FArcweaveProjectData --> FArcweaveVariable : has
+
+```
+
+#### Board struct :`ArcweaveBoardData`
+<img src="./docs/BoardExample.png" width="200" height="300" alt="ArcweaveBoard image in web app">
+
+The board is the second most important container and represent what we see in the app in the red rectangle looking at the figure
+
+
+```mermaid
+classDiagram
+direction TB
+    class FArcweaveBoardData {
+	    +FString BoardId
+	    +FString CustomId
+	    +FString Name
+	    +TArray~FArcweaveElementData~ Elements
+	    +TArray~FArcweaveConnectionsData~ Connections
+	    +TArray~FArcweaveBranchData~ Branches
+	    +TArray~FArcweaveJumpersData~ Jumpers
+    }
+
+    class FArcweaveElementData {
+	    +FString Id
+	    +FString Title
+	    +FString Content
+	    +TArray~FArcweaveConnectionsData~ Outputs
+	    +TArray~FString~ ComponentIds
+	    +TArray~FArcweaveAttributeData~ Attributes
+    }
+
+    class FArcweaveConnectionsData {
+	    +FString Id
+	    +FString Label
+	    +FString Sourceid
+	    +FString Targetid
+    }
+
+    class FArcweaveBranchData {
+	    +FString Id
+	    +FArcweaveConditionData IfCondition
+	    +FArcweaveConditionData ElseCondition
+	    +TArray~FArcweaveConditionData~ ElseIfConditions
+    }
+
+	<<USTRUCT>> FArcweaveBoardData
+	<<USTRUCT>> FArcweaveElementData
+	<<USTRUCT>> FArcweaveConnectionsData
+	<<USTRUCT>> FArcweaveBranchData
+
+    FArcweaveBoardData --> FArcweaveElementData : has
+    FArcweaveBoardData --> FArcweaveConnectionsData : connects via
+    FArcweaveBoardData --> FArcweaveBranchData : manages
+```
+
+#### Attribute struct: `ArcweaveAttributeData`
+<img src="./docs/AttributeDataExample.png" width="300" height="300" alt="ArcweaveAttributeData image in web app ">
+
+Attributes are metadata containers that can be attached to **Elements**, **Components**, or defined **globally** in your Arcweave project. They enable flexible data organization and provide a mechanism to store custom properties with type-safe values.
+
+```mermaid
+classDiagram
+direction TB
+    class FArcweaveAttributeData {
+        +FString Id
+        +FString cId
+        +FString Name
+        +EArcweaveAttributeDataType cType
+        +FArcweaveAttributeValueData Value
+    }
+
+    class FArcweaveAttributeValueData {
+        +FString Data
+        +TArray~FString~ ComponentIds
+        +EArcweaveAttributeValueDataType Type
+        +bool Plain
+    }
+
+    class EArcweaveAttributeDataType {
+        <<enumeration>>
+        Undefined
+        Elements
+        Global
+        Components
+        Boards
+    }
+
+    class EArcweaveAttributeValueDataType {
+        <<enumeration>>
+        Undefined
+        String (Plain Text)
+        String (Rich Text)
+        Component List
+        Asset List
+        Boolean
+        Integer
+        Float
+    }
+
+    <<USTRUCT>> FArcweaveAttributeData
+    <<USTRUCT>> FArcweaveAttributeValueData
+
+    FArcweaveAttributeData --> FArcweaveAttributeValueData : contains
+    FArcweaveAttributeData --> EArcweaveAttributeDataType : defines scope via
+    FArcweaveAttributeValueData --> EArcweaveAttributeValueDataType : typed by
+```
+
+**Key Properties:**
+
+- **Id**: Unique identifier for the attribute
+- **cId**: Container ID - identifies the element, component, or project it belongs to
+- **Name**: Human-readable name of the attribute
+- **cType**: Defines the scope of the attribute (Elements, Global, Components, or Boards)
+- **Value**: Contains the actual data and type information
+
+**Attribute Value Properties:**
+
+- **Data**: The actual value stored as a string
+- **ComponentIds**: Array of component IDs if the attribute references components
+- **Type**: The data type of the attribute value (String, Rich Text, Component List, Asset List, Boolean, Integer, or Float)
+- **Plain**: Boolean flag indicating if the string is plain text or rich text
+
+**Usage Example:**
+
+<details>
+
+Components in `AttributeData` can be accessed using the IDs stored inside the "ComponentIds" array in `AttributeValueData` through the blueprint callable method `TryGetArcweaveComponentById`:
+
+```cpp
+// Get the Arcweave subsystem
+UArcweaveSubsystem* ArcweaveSubsystem = GEngine->GetEngineSubsystem<UArcweaveSubsystem>();
+if (!ArcweaveSubsystem)
+    return;
+
+// Access attributes from an element
+for (const FArcweaveAttributeData& Attribute : ElementData.Attributes)
+{
+    FString AttributeName = Attribute.Name;
+    FString AttributeValue = Attribute.Value.Data;
+    EArcweaveAttributeValueDataType ValueType = Attribute.Value.Type;
+
+    // Handle different attribute types
+    switch (ValueType)
+    {
+        case EArcweaveAttributeValueDataType::String:
+        {
+            // Handle plain text
+            break;
+        }
+        case EArcweaveAttributeValueDataType::StringRichText:
+        {
+            // Handle rich text
+            break;
+        }
+        case EArcweaveAttributeValueDataType::ComponentList:
+        {
+            // Handle component list - iterate through all component IDs referenced by this attribute
+            for (const FString& ComponentId : Attribute.Value.ComponentIds)
+            {
+                FArcweaveComponentData ReferencedComponent;
+                if (ArcweaveSubsystem->TryGetArcweaveComponentById(ReferencedComponent, ComponentId))
+                {
+                    // You can now work with the component data
+                    // For example, access its attributes
+                    for (const FArcweaveAttributeData& ComponentAttribute : ReferencedComponent.Attributes)
+                    {
+                        UE_LOG(LogTemp, Warning, TEXT("  Component Attribute: %s = %s"), 
+                            *ComponentAttribute.Name, *ComponentAttribute.Value.Data);
+                    }
+                }
+            }
+            break;
+        }
+        case EArcweaveAttributeValueDataType::AssetList:
+        {
+            // Handle asset references
+            break;
+        }
+        default:
+        {
+            break;
+        }
+    }
+}
+```
+</details>
+
+## Breaking changes / upgrading
+
+Attribute and component handling changed in this release. Existing C++ code that uses the old members will not compile, and Blueprints that use the old pins will show broken nodes until they are updated. These changes are part of version 3.0.0 (the previous release was 2.2.0).
+
+| Before | Now |
+| ------ | --- |
+| `FArcweaveElementData::Components` (`TArray<FArcweaveComponentData>`, copies) | `FArcweaveElementData::ComponentIds` (`TArray<FString>`) |
+| `FArcweaveProjectData::Components` (`TArray<FArcweaveComponentData>`) | `FArcweaveProjectData::ComponentsMap` (`TMap<FString, FArcweaveComponentData>`, keyed by component id) |
+| `FArcweaveAttributeData::cType` (`FString`) | `EArcweaveAttributeDataType` (`Elements`, `Global`, `Components`, `Boards`, `Undefined`) |
+| `FArcweaveAttributeValueData::Type` (`FString`) | `EArcweaveAttributeValueDataType` (`String`, `StringRichText`, `ComponentList`, `AssetList`, `Boolean`, `Integer`, `Float`, `Undefined`) |
+
+**Upgrading**
+
+1. Replace reads of `Element.Components` with a loop over `Element.ComponentIds`, resolving each id with `UArcweaveSubsystem::TryGetArcweaveComponentById`. Check the returned boolean, and guard against elements whose `ComponentIds` array is empty before reading index 0.
+2. Replace reads of `ProjectData.Components` with `ProjectData.ComponentsMap` (use `Find(Id)` or iterate the map).
+3. Replace string comparisons such as `Attribute.cType == TEXT("components")` or `Attribute.Value.Type == TEXT("string")` with the enum values. Rich text is now reported as `StringRichText` (a `"string"` value with `plain: false`); plain text stays `String`.
+4. In Blueprints, refresh or re-create the nodes that used `Components`, `cType` or `Value.Type`, and switch on the new enums.
 
 ## Using the Demo Project
 
@@ -141,3 +470,7 @@ This project includes a demo scene and samples of logic implementation using Arc
 
 If you need support for an issue, you can open it using the CONTRIBUTING.md guide on GitHub or you can reach out on the  [🔗 Discord server](https://discord.gg/kb4FxBxw).
 .
+
+## License
+
+The plugin is available under the [MIT license](LICENSE). The bundled Arcscript and ANTLR runtimes retain their [BSD 3-Clause licenses](THIRD_PARTY_NOTICES.md); their notices are included in packaged games.

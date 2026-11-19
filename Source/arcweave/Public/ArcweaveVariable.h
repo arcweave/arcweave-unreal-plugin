@@ -18,8 +18,14 @@ struct FArcweaveVariable
     UPROPERTY(BlueprintReadWrite, Category = "Arcweave")
 	FString Type;
 
-    UPROPERTY(BlueprintReadWrite, Category = "Arcweave")
+	UPROPERTY(BlueprintReadWrite, Category = "Arcweave")
 	FString Value;
+
+	UPROPERTY(BlueprintReadWrite, Category = "Arcweave")
+	FString DefaultValue;
+
+	UPROPERTY(BlueprintReadWrite, Category = "Arcweave")
+	bool bHasDefaultValue;
     
     UPROPERTY(BlueprintReadWrite, Category = "Arcweave", meta = (ToolTip = "Component Type"))
     FString cType;
@@ -32,7 +38,9 @@ struct FArcweaveVariable
 		Name = FString("");
 		Type = FString("");
 		Value = FString("");
-        cType = FString("");
-        Scope = FString("");
+		DefaultValue = FString("");
+		bHasDefaultValue = false;
+		cType = FString("");
+		Scope = FString("");
 	}
 };

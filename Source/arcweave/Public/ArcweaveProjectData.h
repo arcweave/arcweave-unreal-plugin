@@ -21,6 +21,10 @@ struct FArcweaveProjectData
     UPROPERTY(BlueprintReadWrite, Category = "Arcweave")
     FString Name = FString("");
 
+    /** Authored project starting element; empty when no starting element is set. */
+    UPROPERTY(BlueprintReadWrite, Category = "Arcweave")
+    FString StartingElementId = FString("");
+
     //project cover
     UPROPERTY(BlueprintReadWrite, Category = "Arcweave")
     FArcweaveCoverData Cover = FArcweaveCoverData();
@@ -32,10 +36,9 @@ struct FArcweaveProjectData
     //project boards
     UPROPERTY(BlueprintReadWrite, Category = "Arcweave")
     TArray<FArcweaveBoardData> Boards = TArray<FArcweaveBoardData>();
-
-    //project components
+    /** Records all the components present in the project by their id */
     UPROPERTY(BlueprintReadWrite, Category = "Arcweave")
-    TArray<FArcweaveComponentData> Components = TArray<FArcweaveComponentData>();
+    TMap<FString, FArcweaveComponentData> ComponentsMap;
 
     //project conditions
     UPROPERTY(BlueprintReadWrite, Category = "Arcweave")
@@ -58,10 +61,10 @@ struct FArcweaveProjectData
     //constructor
     FArcweaveProjectData()
         : Name(FString(""))
+        , StartingElementId(FString(""))
         , Cover(FArcweaveCoverData())
         , CurrentVars(TMap<FString, FArcweaveVariable>())
         , Boards(TArray<FArcweaveBoardData>())
-        , Components(TArray<FArcweaveComponentData>())
         , Visits(TMap<FString, int>())
         , Locales(TArray<FArcweaveLocaleData>())
         , Contents(FArcweaveContents())

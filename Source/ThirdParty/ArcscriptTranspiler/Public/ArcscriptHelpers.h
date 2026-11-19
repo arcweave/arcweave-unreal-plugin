@@ -8,6 +8,7 @@
 #include <functional>
 
 #include "ArcscriptOutputs.h"
+#include "ArcscriptErrorExceptions.h"
 
 namespace Arcweave {
 
@@ -30,6 +31,7 @@ struct Variable {
   VariableType type;
   std::any value;
   std::string scope;
+  std::any defaultValue;
 };
 
 class ArcscriptState {
@@ -47,6 +49,16 @@ public:
     currentElement = std::move(elementId);
     variableValues = std::move(varValues);
     for(const auto&[varId, variable] : variableValues) {
+      if (!variable.value.has_value()) {
+        throw RuntimeErrorException(
+          "Variable " + variable.id + " is missing a current value."
+        );
+      }
+      if (!variable.defaultValue.has_value()) {
+        throw RuntimeErrorException(
+          "Variable " + variable.id + " is missing a default value."
+        );
+      }
       std::string name = variable.name;
       if (variable.scope != "") {
         name = variable.scope + "." + variable.name;
@@ -83,7 +95,7 @@ public:
 
   inline void resetVars(std::vector<Variable> vars) {
     for (Variable var : vars) {
-      variableChanges[var.id] = var.value;
+      variableChanges[var.id] = var.defaultValue;
     }
   }
 
@@ -96,7 +108,7 @@ public:
     while (it != variableValues.end())
     {
       if (exceptVariableIds.find(it->first) == exceptVariableIds.end()) { // not in except vars
-        variableChanges[it->first] = it->second.value;
+        variableChanges[it->first] = it->second.defaultValue;
       }
       it++;
     }

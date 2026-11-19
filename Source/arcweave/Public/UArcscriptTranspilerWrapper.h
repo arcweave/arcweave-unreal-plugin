@@ -4,6 +4,7 @@
 
 // Plugin headers
 #include "ArcscriptTranspilerOutput.h"
+#include "ArcweaveVariable.h"
 
 // Engine headers
 #include "CoreMinimal.h"

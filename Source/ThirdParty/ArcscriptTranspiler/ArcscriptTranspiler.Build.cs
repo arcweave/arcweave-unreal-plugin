@@ -6,6 +6,12 @@ public class ArcscriptTranspiler : ModuleRules
     {
         Type = ModuleType.External;
 
+        // Keep redistribution notices alongside the runtime libraries in packaged games.
+        RuntimeDependencies.Add("$(PluginDir)/LICENSE", StagedFileType.NonUFS);
+        RuntimeDependencies.Add("$(PluginDir)/THIRD_PARTY_NOTICES.md", StagedFileType.NonUFS);
+        RuntimeDependencies.Add("$(PluginDir)/Source/ThirdParty/ArcscriptTranspiler/licenses/Arcscript-LICENSE.txt", StagedFileType.NonUFS);
+        RuntimeDependencies.Add("$(PluginDir)/Source/ThirdParty/ArcscriptTranspiler/licenses/ANTLR4-LICENSE.txt", StagedFileType.NonUFS);
+
         if (Target.Platform == UnrealTargetPlatform.Win64)
         {
             // Add the import library

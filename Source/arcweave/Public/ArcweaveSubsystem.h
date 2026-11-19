@@ -8,6 +8,7 @@
 #include "ArcweaveAttributeData.h"
 #include "ArcweaveCoverData.h"
 #include "ArcweaveProjectData.h"
+#include "ArcweaveRuntimeState.h"
 #include "ArcweaveConditionData.h"
 #include "ArcweaveJumpersData.h"
 
@@ -36,6 +37,8 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnArcweaveResponseReceived, const F
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnArcweaveVariableChanged, const TArray<FArcweaveVariable>&, ArcweaveVariables);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnArcweaveArcscriptEventReceived, const FString&, EventName);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnArcweaveLanguageChanged, const FString&, DesiredLocale);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnArcweaveFetchCompleted, bool, bSuccess, const FString&, Message);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnArcweaveStateRestored);
 
 UCLASS()
 class ARCWEAVE_API UArcweaveSubsystem : public UEngineSubsystem
@@ -44,6 +47,10 @@ class ARCWEAVE_API UArcweaveSubsystem : public UEngineSubsystem
 	
 public:
     void FetchDataFromAPI(FString APIToken, FString ProjectHash);
+
+    /** Cancel the pending API import without changing the loaded project. */
+    UFUNCTION(BlueprintCallable, Category = "Arcweave")
+    void CancelFetch();
 
 	/*
 	 * Fetch the data from Arcweave API
@@ -78,6 +85,17 @@ public:
     /** Return true if in the project config has more than one language/locale */
     UFUNCTION(BlueprintPure, Category = "Arcweave")
     bool HasLocales() const;
+    /** Try to get the component data with the Id given for the current project data, returns true if success false otherwise */
+    UFUNCTION(BlueprintCallable, Category = "Arcweave")
+    bool TryGetArcweaveComponentById(FArcweaveComponentData& AWComponent, const FString& AWComponentId) const;
+
+    /** Capture completed runtime state. Fails during imports or script callbacks; leaves State unchanged on failure. */
+    UFUNCTION(BlueprintCallable, BlueprintPure = false, Category = "Arcweave|State")
+    bool CaptureState(FArcweaveRuntimeState& State, FString& Error) const;
+
+    /** Restore into matching imported content without executing scripts or broadcasting variable changes. */
+    UFUNCTION(BlueprintCallable, Category = "Arcweave|State")
+    bool RestoreState(const FArcweaveRuntimeState& State, FString& Error);
 
     /*
      * Run transpiler for the element
@@ -160,10 +178,18 @@ public:
 
     UPROPERTY(BlueprintAssignable, Category = "Arcweave| Languages")
     FOnArcweaveLanguageChanged OnArcweaveLanguageChanged;
+    /** API import result, including transport, HTTP and invalid-JSON failures. */
+    UPROPERTY(BlueprintAssignable, Category = "Arcweave")
+    FOnArcweaveFetchCompleted OnArcweaveFetchCompleted;
+
+    /** The complete snapshot has been restored. Ordinary gameplay change events are not emitted. */
+    UPROPERTY(BlueprintAssignable, Category = "Arcweave|State")
+    FOnArcweaveStateRestored OnArcweaveStateRestored;
 
 protected:
     //override init function
     virtual void Initialize(FSubsystemCollectionBase& Collection) override;
+    virtual void Deinitialize() override;
     void LogFetchStatus(const bool& Success, const FString& Message);
 
 private:
@@ -195,8 +221,8 @@ private:
     FArcweaveConditionData ParseConditionData(const TSharedPtr<FJsonObject>& MainJsonObject, const TSharedPtr<FJsonObject>& ConditionsObject, const FString& ConditionName, FArcweaveBoardData& OutBoardObj);
     FArcweaveConditionData ParseConditionById(const TSharedPtr<FJsonObject>& MainJsonObject, const FString& ConditionId);
     TMap<FString, int> InitVisits(const TSharedPtr<FJsonObject>& MainJsonObject);
-    TArray<FArcweaveComponentData> ParseComponents(const TSharedPtr<FJsonObject>& MainJsonObject, const TSharedPtr<FJsonObject>& ElementValueObject);
-    TArray<FArcweaveComponentData> ParseAllComponents(const TSharedPtr<FJsonObject>& MainJsonObject);
+    TArray<FString> ParseComponentIds(const TSharedPtr<FJsonObject>& ElementValueObject);
+    TMap<FString, FArcweaveComponentData> ParseAllComponents(const TSharedPtr<FJsonObject>& MainJsonObject);
     TArray<FArcweaveConditionData> ParseAllConditions(const TSharedPtr<FJsonObject>& MainJsonObject);
     TArray<FArcweaveConnectionsData> ParseAllConnections(const TSharedPtr<FJsonObject>& MainJsonObject);
     FArcweaveCoverData ParseCoverData(const TSharedPtr<FJsonObject>& CoverValueObject);
@@ -204,6 +230,7 @@ private:
     TArray<FArcweaveLocaleData> ParseProjectLocales(const TSharedPtr<FJsonObject>& MainJsonObject);
     void ParseResponse(const FString& ResponseString);
     FArcweaveContents ParseAllContents(const TSharedPtr<FJsonObject>& MainJsonObject);
+    bool ParseResponse(const FString& ResponseString);
     void OnEventCallback(const char* EventName);
     FArcscriptTranspilerOutput RunTranspiler(const FString& NodeCode, const FString& OriginElementId,
         const TMap<FString, FArcweaveVariable>& InitialVars, const TMap<FString, int>& Visits, bool bShouldUpdateVariables = true);
@@ -231,6 +258,20 @@ private:
     void PrintBranchData(const FArcweaveBranchData &InData);
 
 private:
+    friend class FArcweaveAttributeTypesTest;
+    friend class FArcweaveComponentBoardVariablesTest;
+    friend class FArcweaveConnectionLabelTest;
+    friend class FArcweaveImportFailuresTest;
+    friend class FArcweaveRuntimeStateTest;
+    friend class FArcweaveStartingElementTest;
+
+    bool CanAccessRuntimeState(FString& Error) const;
+
+    FString ProjectFingerprint;
+    bool bIsRunningScript = false;
+
+    FHttpRequestPtr ActiveFetchRequest;
+
     UPROPERTY()
     FArcweaveProjectData ProjectData = FArcweaveProjectData();
     UPROPERTY()
