@@ -142,6 +142,7 @@ public:
     void UpdateVariablesFromConnection(const FArcweaveConnectionsData& Connection);
 
     /* Update the language of the boards with the specified desired locale (e.g. "en", "fr"..).
+     * The language is kept by the subsystem until the project is imported again: the language saved in the settings is not changed (see SaveArcweaveLanguageSettings).
      * Returns false, without changing anything, if the project has no other locale or the desired one is not available in the project */
     UFUNCTION(BlueprintCallable, Category = "Arcweave| Languages")
     bool UpdateContentsWithLocale(const FString& DesiredLocale);
@@ -283,6 +284,9 @@ private:
 
     FString ProjectFingerprint;
     bool bIsRunningScript = false;
+
+    /** Language chosen at runtime with UpdateContentsWithLocale, empty if the one in the settings is used */
+    FString RuntimeLocale;
 
     FHttpRequestPtr ActiveFetchRequest;
 

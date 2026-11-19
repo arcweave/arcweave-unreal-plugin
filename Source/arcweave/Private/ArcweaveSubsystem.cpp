@@ -581,7 +581,11 @@ FString UArcweaveSubsystem::GetProjectLocalesAsString() const
 void UArcweaveSubsystem::ReportUnavailableConfiguredLocale() const
 {
     const UArcweaveSettings* ArcweaveSettings = GetDefault<UArcweaveSettings>();
-    if (!HasLocales() || !IsValid(ArcweaveSettings) || !ArcweaveSettings->GetUseLocale())
+    // The language chosen at runtime overrides the settings one, which is then not used
+    if (!HasLocales() ||
+     !IsValid(ArcweaveSettings) || 
+     !ArcweaveSettings->GetUseLocale() || 
+     !RuntimeLocale.IsEmpty())
     {
         return;
     }
@@ -2037,6 +2041,12 @@ void UArcweaveSubsystem::GetLanguageSettings(FString& OutDesiredLocale, bool& Ou
         OutFallbackToDefaultLanguage = ArcweaveSettings->GetFallbackToDefaultLocale();
     }
 
+    // The language chosen at runtime (UpdateContentsWithLocale) wins over the one in the settings
+    if (!RuntimeLocale.IsEmpty())
+    {
+        OutDesiredLocale = RuntimeLocale;
+    }
+
     if (HasLocales())
     {
         // The translations are indexed by project locale: use the matching one
@@ -2063,15 +2073,16 @@ bool UArcweaveSubsystem::UpdateContentsWithLocale(const FString& DesiredLocale)
         return false;
     }
 
-    UArcweaveSettings* ArcweaveSettings = GetMutableDefault<UArcweaveSettings>();
+    const UArcweaveSettings* ArcweaveSettings = GetDefault<UArcweaveSettings>();
     if (!IsValid(ArcweaveSettings))
     {
-        UE_LOG(LogArcwarePlugin, Error, TEXT("Unable to change settings locale to %s - settings not available"), *Locale);
+        UE_LOG(LogArcwarePlugin, Error, TEXT("Unable to change the language to %s - settings not available"), *Locale);
         return false;
     }
 
-    ArcweaveSettings->SetLocale(Locale);
-    ArcweaveSettings->SetUseLocale(true);
+    // The language is kept in the subsystem and not in the settings (the project defaults,
+    // which would be changed for good). It is reset by the next import of the project
+    RuntimeLocale = Locale;
     const bool bFallbackToDefaultLanguage = ArcweaveSettings->GetFallbackToDefaultLocale();
 
     for (auto& board : ProjectData.Boards)
@@ -2156,6 +2167,10 @@ bool UArcweaveSubsystem::ParseResponse(const FString& ResponseString)
         ProjectData.Locales = ParseProjectLocales(RootObject);
         ProjectData.Contents = ParseAllContents(RootObject);
         ProjectData.Cover = ParseCoverData(RootObject);
+
+        // This is an engine subsystem, so it outlives PIE sessions in the editor: every import
+        // starts again from the language in the settings, a language chosen at runtime is not kept
+        RuntimeLocale.Empty();
         ReportUnavailableConfiguredLocale();
         ProjectData.ComponentsMap = ParseAllComponents(RootObject);
         ProjectData.Conditions = ParseAllConditions(RootObject);
