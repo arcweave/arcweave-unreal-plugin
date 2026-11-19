@@ -91,8 +91,8 @@ private:
         Config,
         EditAnywhere,
         meta = (
-            EditCondition = "!EnableReceiveMethodFromLocalJSON && bUseLocale",
-            ToolTip = "If the specified language is not available, fallback to the standard language (usually en-us). This option is available only from web api"
+            EditCondition = "bUseLocale",
+            ToolTip = "If the specified language is not available, fallback to the standard language (the one defined for the current locale as base in the app)"
             ),
         Category = ArcweaveSettings
     )

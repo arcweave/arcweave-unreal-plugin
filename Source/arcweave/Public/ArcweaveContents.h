@@ -28,6 +28,8 @@ struct ARCWEAVE_API FArcweaveContents
 
     void PrintContents() const;
 
+    bool IsEmpty() const { return Contents.IsEmpty(); }
+
 private:
     /*
     * Map containing all the contents of the project, indexed by their id.

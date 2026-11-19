@@ -532,9 +532,68 @@ FString UArcweaveSubsystem::GetFallbackLanguageForLocale(const FString& Locale) 
         }
     }
 
-    UE_LOG(LogArcwarePlugin, Error, TEXT("Cannot get fallback language for locale: %s in the current locales"), *Locale);
+    // Not expected: the locales are resolved with TryResolveProjectLocale before looking for translations,
+    // so an unknown locale just ends the chain instead of logging once for every translated text
+    UE_LOG(LogArcwarePlugin, Verbose, TEXT("Locale %s is not one of the project locales, it has no fallback language"), *Locale);
 
     return FString();
+}
+
+bool UArcweaveSubsystem::TryResolveProjectLocale(FString& OutProjectLocale, const FString& Locale) const
+{
+    for (const FArcweaveLocaleData& LocaleData : ProjectData.Locales)
+    {
+        if (LocaleData.Iso.Equals(Locale, ESearchCase::IgnoreCase))
+        {
+            // Return the locale as written in the project, the translations are indexed with it
+            OutProjectLocale = LocaleData.Iso;
+            return true;
+        }
+    }
+
+    return false;
+}
+
+FString UArcweaveSubsystem::GetDefaultProjectLocale() const
+{
+    // The default language is the only one that has no base language
+    for (const FArcweaveLocaleData& LocaleData : ProjectData.Locales)
+    {
+        if (!LocaleData.HasFallbackLanguage())
+        {
+            return LocaleData.Iso;
+        }
+    }
+
+    return ProjectData.Locales.IsEmpty() ? FString() : ProjectData.Locales[0].Iso;
+}
+
+FString UArcweaveSubsystem::GetProjectLocalesAsString() const
+{
+    TArray<FString> Isos;
+    for (const FArcweaveLocaleData& LocaleData : ProjectData.Locales)
+    {
+        Isos.Add(LocaleData.Iso);
+    }
+    return FString::Join(Isos, TEXT(", "));
+}
+
+void UArcweaveSubsystem::ReportUnavailableConfiguredLocale() const
+{
+    const UArcweaveSettings* ArcweaveSettings = GetDefault<UArcweaveSettings>();
+    if (!HasLocales() || !IsValid(ArcweaveSettings) || !ArcweaveSettings->GetUseLocale())
+    {
+        return;
+    }
+
+    const FString ConfiguredLocale = ArcweaveSettings->GetLocale();
+    FString ProjectLocale;
+    if (!TryResolveProjectLocale(ProjectLocale, ConfiguredLocale))
+    {
+        UE_LOG(LogArcwarePlugin, Warning,
+            TEXT("The locale '%s' set in the Arcweave settings is not one of the project locales (%s): using the default project locale '%s' instead."),
+            *ConfiguredLocale, *GetProjectLocalesAsString(), *GetDefaultProjectLocale());
+    }
 }
 
 FArcscriptTranspilerOutput UArcweaveSubsystem::TranspileCondition(const FString& ConditionId, const FString& OriginElementId, bool& Success)
@@ -891,7 +950,7 @@ FString UArcweaveSubsystem::TranspileConnectionLabel(const FArcweaveConnectionsD
 
 bool UArcweaveSubsystem::HasLocales() const
 {
-    return ProjectData.Locales.Num() > 1;
+    return ProjectData.Locales.Num() > 1 && !ProjectData.Contents.IsEmpty();
 }
 
 bool UArcweaveSubsystem::TryGetArcweaveComponentById(FArcweaveComponentData& AWComponent, const FString& AWComponentId) const
@@ -1922,7 +1981,7 @@ bool UArcweaveSubsystem::TryToFindFallbackTranslation(FString& OutTranslation, c
     TSet<FString> VisitedLocales;
 
     FString NextLocale = CurrentLocale;
-    while (true)
+    do
     {
         VisitedLocales.Add(NextLocale);
         FString FallbackLocale = GetFallbackLanguageForLocale(NextLocale);
@@ -1949,7 +2008,7 @@ bool UArcweaveSubsystem::TryToFindFallbackTranslation(FString& OutTranslation, c
             return true;
         }
         NextLocale = FallbackLocale;
-    }
+    }while(true);
 
     // As a last resort, try any available translation for the field
     for (const FArcweaveLocaleData& LocaleData : ProjectData.Locales)
@@ -1973,70 +2032,88 @@ void UArcweaveSubsystem::GetLanguageSettings(FString& OutDesiredLocale, bool& Ou
     OutFallbackToDefaultLanguage = false;
     if (IsValid(ArcweaveSettings))
     {
-        OutDesiredLocale = !ArcweaveSettings->GetLocale().IsEmpty() ? ArcweaveSettings->GetLocale() : TEXT("en");
+        // Without "Use Locale" the project is shown in its default language
+        OutDesiredLocale = ArcweaveSettings->GetUseLocale() ? ArcweaveSettings->GetLocale() : FString();
         OutFallbackToDefaultLanguage = ArcweaveSettings->GetFallbackToDefaultLocale();
+    }
+
+    if (HasLocales())
+    {
+        // The translations are indexed by project locale: use the matching one
+        // or the default project locale if it is not available (reported once in ReportUnavailableConfiguredLocale)
+        FString ProjectLocale;
+        OutDesiredLocale = TryResolveProjectLocale(ProjectLocale, OutDesiredLocale) ? ProjectLocale : GetDefaultProjectLocale();
     }
 }
 
-void UArcweaveSubsystem::UpdateContentsWithLocale(const FString& DesiredLocale)
+bool UArcweaveSubsystem::UpdateContentsWithLocale(const FString& DesiredLocale)
 {
-
     if (!HasLocales())
     {
-        UE_LOG(LogArcwarePlugin, Warning, TEXT("No other locale is available - can't update the locale to %s"), *DesiredLocale);
-        return;
+        UE_LOG(LogArcwarePlugin, Warning, TEXT("The project has a single locale or no translated contents - can't change the language to '%s'. Nothing was changed."), *DesiredLocale);
+        return false;
+    }
+
+    // Validate the locale before touching anything: an unknown one would blank (or mix up) all the texts
+    FString Locale;
+    if (!TryResolveProjectLocale(Locale, DesiredLocale))
+    {
+        UE_LOG(LogArcwarePlugin, Warning, TEXT("Can't change the language to '%s': it is not one of the project locales (%s). Nothing was changed."),
+            *DesiredLocale, *GetProjectLocalesAsString());
+        return false;
     }
 
     UArcweaveSettings* ArcweaveSettings = GetMutableDefault<UArcweaveSettings>();
-    bool bFallbackToDefaultLanguage = false;
     if (!IsValid(ArcweaveSettings))
     {
-        UE_LOG(LogArcwarePlugin, Error, TEXT("Unable to change settings locale to %s - settings not available"), *DesiredLocale);
-        return;
+        UE_LOG(LogArcwarePlugin, Error, TEXT("Unable to change settings locale to %s - settings not available"), *Locale);
+        return false;
     }
 
-    ArcweaveSettings->SetLocale(DesiredLocale);
+    ArcweaveSettings->SetLocale(Locale);
     ArcweaveSettings->SetUseLocale(true);
-    bFallbackToDefaultLanguage = ArcweaveSettings->GetFallbackToDefaultLocale();
+    const bool bFallbackToDefaultLanguage = ArcweaveSettings->GetFallbackToDefaultLocale();
 
     for (auto& board : ProjectData.Boards)
     {
         for (FArcweaveElementData& element : board.Elements)
         {
-            element.Title = RemoveHtmlTags(GetTranslatedContent(element.Id, TEXT("title"), DesiredLocale, bFallbackToDefaultLanguage));
-            element.Content = GetTranslatedContent(element.Id, TEXT("content"), DesiredLocale, bFallbackToDefaultLanguage);
+            element.Title = RemoveHtmlTags(GetTranslatedContent(element.Id, TEXT("title"), Locale, bFallbackToDefaultLanguage));
+            element.Content = GetTranslatedContent(element.Id, TEXT("content"), Locale, bFallbackToDefaultLanguage);
 
             // Elements only reference components by id (ComponentIds): names are updated in ComponentsMap below
 
             // Outputs are copies of the board connections, so they need to be updated separately
             for (auto& output : element.Outputs)
             {
-                output.Label = ProcessConnectionLabel(GetTranslatedContent(output.Id, TEXT("label"), DesiredLocale, bFallbackToDefaultLanguage));
+                output.Label = ProcessConnectionLabel(GetTranslatedContent(output.Id, TEXT("label"), Locale, bFallbackToDefaultLanguage));
             }
         }
 
         for (FArcweaveConnectionsData& connection : board.Connections)
         {
-            connection.Label = ProcessConnectionLabel(GetTranslatedContent(connection.Id, TEXT("label"), DesiredLocale, bFallbackToDefaultLanguage));
+            connection.Label = ProcessConnectionLabel(GetTranslatedContent(connection.Id, TEXT("label"), Locale, bFallbackToDefaultLanguage));
         }
     }
 
     // All the project components, not only the ones referenced by elements
     for (TPair<FString, FArcweaveComponentData>& ComponentPair : ProjectData.ComponentsMap)
     {
-        ComponentPair.Value.Name = GetTranslatedContent(ComponentPair.Key, TEXT("name"), DesiredLocale, bFallbackToDefaultLanguage);
+        ComponentPair.Value.Name = GetTranslatedContent(ComponentPair.Key, TEXT("name"), Locale, bFallbackToDefaultLanguage);
     }
 
     // Keep the flat connections list in sync
     for (FArcweaveConnectionsData& connection : ProjectData.Connections)
     {
-        connection.Label = GetTranslatedContent(connection.Id, TEXT("label"), DesiredLocale, bFallbackToDefaultLanguage);
+        connection.Label = GetTranslatedContent(connection.Id, TEXT("label"), Locale, bFallbackToDefaultLanguage);
     }
 
     if (OnArcweaveLanguageChanged.IsBound())
     {
-        OnArcweaveLanguageChanged.Broadcast(DesiredLocale);
+        OnArcweaveLanguageChanged.Broadcast(Locale);
     }
+
+    return true;
 }
 
 bool UArcweaveSubsystem::ParseResponse(const FString& ResponseString)
@@ -2079,6 +2156,7 @@ bool UArcweaveSubsystem::ParseResponse(const FString& ResponseString)
         ProjectData.Locales = ParseProjectLocales(RootObject);
         ProjectData.Contents = ParseAllContents(RootObject);
         ProjectData.Cover = ParseCoverData(RootObject);
+        ReportUnavailableConfiguredLocale();
         ProjectData.ComponentsMap = ParseAllComponents(RootObject);
         ProjectData.Conditions = ParseAllConditions(RootObject);
         ProjectData.Connections = ParseAllConnections(RootObject);

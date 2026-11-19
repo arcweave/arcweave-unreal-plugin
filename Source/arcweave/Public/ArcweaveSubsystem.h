@@ -82,7 +82,7 @@ public:
     UFUNCTION(BlueprintPure, Category = "Arcweave")
     FArcweaveProjectData GetArcweaveProjectData() const {return ProjectData;};
 
-    /** Return true if in the project config has more than one language/locale */
+    /** Return true if the project has more than one language/locale and their translated contents, so the language can be changed at runtime */
     UFUNCTION(BlueprintPure, Category = "Arcweave")
     bool HasLocales() const;
     /** Try to get the component data with the Id given for the current project data, returns true if success false otherwise */
@@ -141,9 +141,10 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Arcweave")
     void UpdateVariablesFromConnection(const FArcweaveConnectionsData& Connection);
 
-    /* Update the language of the boards with the specified desired locale (e.g. "en", "fr"..) */
+    /* Update the language of the boards with the specified desired locale (e.g. "en", "fr"..).
+     * Returns false, without changing anything, if the project has no other locale or the desired one is not available in the project */
     UFUNCTION(BlueprintCallable, Category = "Arcweave| Languages")
-    void UpdateContentsWithLocale(const FString& DesiredLocale);
+    bool UpdateContentsWithLocale(const FString& DesiredLocale);
     /*
      * Check if the target is the branch
      */    
@@ -241,6 +242,15 @@ private:
     bool GetBoardObjectForElement(FString ConditionId, FArcweaveConditionData& OutConditionData, FArcweaveBoardData*& OutBoardObj);
     /* Keeps the label raw if it contains arcscript code (transpiled later), otherwise strips the html tags */
     FString ProcessConnectionLabel(const FString& RawLabel);
+    /* Finds the project locale matching the given one (ignoring the case, e.g. "FR" resolves to the project locale "fr").
+     * Returns false if the project has no such locale */
+    bool TryResolveProjectLocale(FString& OutProjectLocale, const FString& Locale) const;
+    /* The locale of the project that has no base (e.g. "en"): the one used when no other locale is requested or available */
+    FString GetDefaultProjectLocale() const;
+    /* Comma separated list of the project locales, for the log messages */
+    FString GetProjectLocalesAsString() const;
+    /* Logs once per import if the locale set in the Arcweave settings is not available in the project */
+    void ReportUnavailableConfiguredLocale() const;
     /* Given a locale iso, will look for the corresponding fallback locale*/
     FString GetFallbackLanguageForLocale(const FString& Locale) const;
     /* Returns the translation of the field (e.g. "title", "label") of the content for the locale, or an empty string if none is found.
