@@ -14,7 +14,7 @@
 #include "ArcweaveContent.generated.h"
 
 USTRUCT(BlueprintType)
-struct FArcweaveContent {
+struct ARCWEAVE_API FArcweaveContent {
 
     GENERATED_BODY()
 

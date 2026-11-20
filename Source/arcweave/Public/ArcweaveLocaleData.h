@@ -8,7 +8,7 @@
 #include "ArcweaveLocaleData.generated.h"
 
 USTRUCT(BlueprintType)
-struct FArcweaveLocaleData
+struct ARCWEAVE_API FArcweaveLocaleData
 {
     GENERATED_BODY()
 

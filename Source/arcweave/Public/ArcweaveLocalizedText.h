@@ -13,7 +13,7 @@
 * the different locales (e.g. en, fr, it...)
 */
 USTRUCT(BlueprintType)
-struct FArcweaveLocalizedText
+struct ARCWEAVE_API FArcweaveLocalizedText
 {
     GENERATED_BODY()
 
