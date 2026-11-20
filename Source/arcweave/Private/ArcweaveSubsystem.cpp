@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+﻿// Fill out your copyright notice in the Description page of Project Settings.
 
 // File includes
 #include "ArcweaveSubsystem.h"
@@ -76,6 +76,18 @@ FString GetProjectFingerprint(const TSharedPtr<FJsonObject>& Project)
     uint8 Hash[FSHA1::DigestSize];
     FSHA1::HashBuffer(Utf8.Get(), Utf8.Length(), Hash);
     return BytesToHex(Hash, UE_ARRAY_COUNT(Hash));
+}
+
+// Returns the object held by Value, or an invalid pointer if Value is null or not an object.
+// Unlike AsObject(), it does not log a LogJson error on non-object values (e.g. null).
+TSharedPtr<FJsonObject> TryGetJsonObject(const TSharedPtr<FJsonValue>& Value)
+{
+    const TSharedPtr<FJsonObject>* Object = nullptr;
+    if (Value.IsValid() && Value->TryGetObject(Object) && Object)
+    {
+        return *Object;
+    }
+    return nullptr;
 }
 
 bool IsSavedVariableValueValid(const FArcweaveSavedVariable& Variable)
@@ -2206,7 +2218,7 @@ FArcweaveContents UArcweaveSubsystem::ParseAllContents(const TSharedPtr<FJsonObj
         for (const auto& ContentPair : ContentsObject->Get()->Values)
         {
             FString ContentId = ContentPair.Key;
-            const TSharedPtr<FJsonObject> ContentData = ContentPair.Value->AsObject();
+            const TSharedPtr<FJsonObject> ContentData = TryGetJsonObject(ContentPair.Value);
 
             if (!ContentData.IsValid())
             {
@@ -2226,7 +2238,7 @@ FArcweaveContents UArcweaveSubsystem::ParseAllContents(const TSharedPtr<FJsonObj
                 {
                     continue;
                 }
-                const TSharedPtr<FJsonObject> LocalizedObject = FieldPair.Value->AsObject();
+                const TSharedPtr<FJsonObject> LocalizedObject = TryGetJsonObject(FieldPair.Value);
 
                 if (LocalizedObject.IsValid())
                 {
@@ -2234,7 +2246,7 @@ FArcweaveContents UArcweaveSubsystem::ParseAllContents(const TSharedPtr<FJsonObj
                     for (const auto& LocalePair : LocalizedObject->Values)
                     {
                         FString Locale = LocalePair.Key;
-                        const TSharedPtr<FJsonObject> LocaleData = LocalePair.Value->AsObject();
+                        const TSharedPtr<FJsonObject> LocaleData = TryGetJsonObject(LocalePair.Value);
 
                         if (LocaleData.IsValid())
                         {

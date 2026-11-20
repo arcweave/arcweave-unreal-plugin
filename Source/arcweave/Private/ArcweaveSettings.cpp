@@ -15,5 +15,5 @@ void UArcweaveSettings::PostInitProperties()
 
 FString UArcweaveSettings::GetLocale() const
 {
-        return Locale;
+    return Locale;
 }
