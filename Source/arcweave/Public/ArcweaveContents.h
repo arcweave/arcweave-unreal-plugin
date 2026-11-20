@@ -9,7 +9,6 @@
 #include "CoreMinimal.h"
 #include "Containers/Map.h"
 #include "Containers/UnrealString.h"
-#include "JsonObjectConverter.h"
 
 // Generated include
 #include "ArcweaveContents.generated.h"

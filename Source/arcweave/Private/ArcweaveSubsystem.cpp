@@ -257,7 +257,7 @@ void UArcweaveSubsystem::Deinitialize()
 
 void UArcweaveSubsystem::TryAddLanguageOptionToURL(FString& ApiUrl)
 {
-    const UArcweaveSettings* ArcweaveSettings = GetMutableDefault<UArcweaveSettings>();
+    const UArcweaveSettings* ArcweaveSettings = GetDefault<UArcweaveSettings>();
     if (!IsValid(ArcweaveSettings))
     {
         UE_LOG(LogArcwarePlugin, Warning, TEXT("ArcweaveSettings is not valid, cannot add language option to URL"));
@@ -662,7 +662,7 @@ bool UArcweaveSubsystem::GetBoardForObject(FString ElementId, FArcweaveElementDa
     return false;
 }
 
-bool UArcweaveSubsystem::GetBoard(FArcweaveBoardData& OutBoardObj, const FString& BoardId)
+bool UArcweaveSubsystem::GetBoard(FArcweaveBoardData& OutBoardObj, const FString& BoardId) const
 {
     for (auto& Board : ProjectData.Boards)
     {

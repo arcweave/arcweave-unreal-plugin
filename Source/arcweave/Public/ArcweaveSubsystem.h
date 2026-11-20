@@ -126,7 +126,7 @@ public:
     bool GetBoardForObject(FString ObjectId, FArcweaveElementData& OutElement, FArcweaveBoardData*& OutBoardObj);
     /* Given a board id it will get the board object*/
     UFUNCTION(BlueprintCallable, Category = "Arcweave")
-    bool GetBoard(FArcweaveBoardData& OutBoardObj, const FString& BoardId);
+    bool GetBoard(FArcweaveBoardData& OutBoardObj, const FString& BoardId) const;
     /* Given a condition Id (e.g. if visit()) gets the corresponding branch id */
     bool GetBranchForObject(FArcweaveBranchData& OutBranch, const FString& ObjectId, const FArcweaveBoardData& InBoardObj) const;
 
