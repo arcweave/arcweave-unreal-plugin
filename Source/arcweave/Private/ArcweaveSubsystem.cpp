@@ -1,4 +1,4 @@
-﻿// Fill out your copyright notice in the Description page of Project Settings.
+// Fill out your copyright notice in the Description page of Project Settings.
 
 // File includes
 #include "ArcweaveSubsystem.h"
@@ -581,11 +581,7 @@ FString UArcweaveSubsystem::GetProjectLocalesAsString() const
 void UArcweaveSubsystem::ReportUnavailableConfiguredLocale() const
 {
     const UArcweaveSettings* ArcweaveSettings = GetDefault<UArcweaveSettings>();
-    // The language chosen at runtime overrides the settings one, which is then not used
-    if (!HasLocales() ||
-     !IsValid(ArcweaveSettings) || 
-     !ArcweaveSettings->GetUseLocale() || 
-     !RuntimeLocale.IsEmpty())
+    if (!HasLocales() || !IsValid(ArcweaveSettings) || !ArcweaveSettings->GetUseLocale())
     {
         return;
     }
@@ -1945,6 +1941,7 @@ TArray<FArcweaveLocaleData> UArcweaveSubsystem::ParseProjectLocales(const TShare
     }
     return Locales;
 }
+
 #pragma region Locale Management
 FString UArcweaveSubsystem::GetTranslatedContent(const FString& ContentKey, const FString& FieldName, const FString& CurrentLocale, bool ShouldFallback) const
 {
@@ -2177,7 +2174,8 @@ bool UArcweaveSubsystem::ParseResponse(const FString& ResponseString)
         ProjectData.Contents = ParseAllContents(RootObject);
         ProjectData.Cover = ParseCoverData(RootObject);
 
-        // Wipe the previous runtime locale since it may have changed between imports
+        // This is an engine subsystem, so it outlives PIE sessions in the editor: every import
+        // starts again from the language in the settings, a language chosen at runtime is not kept
         RuntimeLocale.Empty();
         ReportUnavailableConfiguredLocale();
         ProjectData.ComponentsMap = ParseAllComponents(RootObject);
