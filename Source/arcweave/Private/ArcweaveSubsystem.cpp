@@ -2031,7 +2031,7 @@ bool UArcweaveSubsystem::TryToFindFallbackTranslation(FString& OutTranslation, c
 
 void UArcweaveSubsystem::GetLanguageSettings(FString& OutDesiredLocale, bool& OutFallbackToDefaultLanguage)
 {
-    const UArcweaveSettings* ArcweaveSettings = GetMutableDefault<UArcweaveSettings>();
+    const UArcweaveSettings* ArcweaveSettings = GetDefault<UArcweaveSettings>();
 
     OutDesiredLocale = TEXT("");
     OutFallbackToDefaultLanguage = false;
