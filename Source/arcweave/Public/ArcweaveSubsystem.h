@@ -292,9 +292,6 @@ private:
     FString ProjectFingerprint;
     bool bIsRunningScript = false;
 
-    /** Language chosen at runtime with UpdateContentsWithLocale, empty if the one in the settings is used */
-    FString RuntimeLocale;
-
     FHttpRequestPtr ActiveFetchRequest;
 
     UPROPERTY()
