@@ -283,6 +283,7 @@ private:
     friend class FArcweaveComponentBoardVariablesTest;
     friend class FArcweaveConnectionLabelTest;
     friend class FArcweaveImportFailuresTest;
+    friend class FArcweaveLocalesTest;
     friend class FArcweaveRuntimeStateTest;
     friend class FArcweaveStartingElementTest;
 
