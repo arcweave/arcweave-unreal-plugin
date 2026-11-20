@@ -3,16 +3,9 @@
 // File include
 #include "ArcweaveContents.h"
 
-bool FArcweaveContents::GetContent(FArcweaveContent& OutContent, const FString& Id) const
+const FArcweaveContent* FArcweaveContents::GetContent(const FString& Id) const
 {
-    const FArcweaveContent* FoundContent = Contents.Find(Id);
-    if (FoundContent != nullptr)
-    {
-        OutContent = *FoundContent;
-        return true;
-    }
-
-    return false;
+    return Contents.Find(Id);
 }
 
 void FArcweaveContents::AddContent(const FString& ContentKey, const FArcweaveContent& Content)

@@ -22,7 +22,8 @@ struct ARCWEAVE_API FArcweaveContents
 {
     GENERATED_BODY()
 
-    bool GetContent(FArcweaveContent& OutContent, const FString& Id) const;
+    /** Returns the content with the given id, or nullptr if there is none. The pointer is valid until the contents are changed */
+    const FArcweaveContent* GetContent(const FString& Id) const;
 
     void AddContent(const FString& ContentKey, const FArcweaveContent& Content);
 

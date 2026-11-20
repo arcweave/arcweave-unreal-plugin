@@ -1945,15 +1945,15 @@ TArray<FArcweaveLocaleData> UArcweaveSubsystem::ParseProjectLocales(const TShare
     }
     return Locales;
 }
-
+#pragma region Locale Management
 FString UArcweaveSubsystem::GetTranslatedContent(const FString& ContentKey, const FString& FieldName, const FString& CurrentLocale, bool ShouldFallback) const
 {
     // Missing labels and names are expected (see IsOptionalContentField), so they are not reported
     const bool bReportMissing = !IsOptionalContentField(FieldName);
 
     FString OutTranslation;
-    FArcweaveContent Content;
-    if (!ProjectData.Contents.GetContent(Content, ContentKey))
+    const FArcweaveContent* ContentPtr = ProjectData.Contents.GetContent(ContentKey);
+    if (ContentPtr == nullptr)
     {
         if (bReportMissing)
         {
@@ -1961,6 +1961,8 @@ FString UArcweaveSubsystem::GetTranslatedContent(const FString& ContentKey, cons
         }
         return FString();
     }
+
+    const FArcweaveContent& Content = *ContentPtr;
 
     // Try direct translation first
     if (Content.GetTranslationForKey(OutTranslation, CurrentLocale, FieldName))
@@ -2014,17 +2016,7 @@ bool UArcweaveSubsystem::TryToFindFallbackTranslation(FString& OutTranslation, c
         NextLocale = FallbackLocale;
     }while(true);
 
-    // As a last resort, try any available translation for the field
-    for (const FArcweaveLocaleData& LocaleData : ProjectData.Locales)
-    {
-        if (!VisitedLocales.Contains(LocaleData.Iso)  &&
-            Content.GetTranslationForKey(OutTranslation, LocaleData.Iso, FieldName))
-        {
-
-                return true;
-        }
-    }
-
+    // The chain of base locales ends here: no translation is taken from unrelated locales
     return false;
 }
 
@@ -2053,6 +2045,24 @@ void UArcweaveSubsystem::GetLanguageSettings(FString& OutDesiredLocale, bool& Ou
         // or the default project locale if it is not available (reported once in ReportUnavailableConfiguredLocale)
         FString ProjectLocale;
         OutDesiredLocale = TryResolveProjectLocale(ProjectLocale, OutDesiredLocale) ? ProjectLocale : GetDefaultProjectLocale();
+    }
+}
+
+void UArcweaveSubsystem::ApplyLocaleToElement(FArcweaveElementData& Element, const FString& Locale, bool bFallbackToDefaultLanguage)
+{
+    // A jumper without a valid target has an empty element
+    if (Element.Id.IsEmpty())
+    {
+        return;
+    }
+
+    Element.Title = RemoveHtmlTags(GetTranslatedContent(Element.Id, TEXT("title"), Locale, bFallbackToDefaultLanguage));
+    Element.Content = GetTranslatedContent(Element.Id, TEXT("content"), Locale, bFallbackToDefaultLanguage);
+
+    // Outputs are copies of the board connections, so they need to be updated separately
+    for (FArcweaveConnectionsData& Output : Element.Outputs)
+    {
+        Output.Label = ProcessConnectionLabel(GetTranslatedContent(Output.Id, TEXT("label"), Locale, bFallbackToDefaultLanguage));
     }
 }
 
@@ -2087,18 +2097,16 @@ bool UArcweaveSubsystem::UpdateContentsWithLocale(const FString& DesiredLocale)
 
     for (auto& board : ProjectData.Boards)
     {
+        // Elements only reference components by id (ComponentIds): names are updated in ComponentsMap below
         for (FArcweaveElementData& element : board.Elements)
         {
-            element.Title = RemoveHtmlTags(GetTranslatedContent(element.Id, TEXT("title"), Locale, bFallbackToDefaultLanguage));
-            element.Content = GetTranslatedContent(element.Id, TEXT("content"), Locale, bFallbackToDefaultLanguage);
+            ApplyLocaleToElement(element, Locale, bFallbackToDefaultLanguage);
+        }
 
-            // Elements only reference components by id (ComponentIds): names are updated in ComponentsMap below
-
-            // Outputs are copies of the board connections, so they need to be updated separately
-            for (auto& output : element.Outputs)
-            {
-                output.Label = ProcessConnectionLabel(GetTranslatedContent(output.Id, TEXT("label"), Locale, bFallbackToDefaultLanguage));
-            }
+        // Each jumper keeps its own copy of the element it points to
+        for (FArcweaveJumpersData& jumper : board.Jumpers)
+        {
+            ApplyLocaleToElement(jumper.ElementData, Locale, bFallbackToDefaultLanguage);
         }
 
         for (FArcweaveConnectionsData& connection : board.Connections)
@@ -2126,6 +2134,7 @@ bool UArcweaveSubsystem::UpdateContentsWithLocale(const FString& DesiredLocale)
 
     return true;
 }
+#pragma endregion
 
 bool UArcweaveSubsystem::ParseResponse(const FString& ResponseString)
 {
@@ -2168,8 +2177,7 @@ bool UArcweaveSubsystem::ParseResponse(const FString& ResponseString)
         ProjectData.Contents = ParseAllContents(RootObject);
         ProjectData.Cover = ParseCoverData(RootObject);
 
-        // This is an engine subsystem, so it outlives PIE sessions in the editor: every import
-        // starts again from the language in the settings, a language chosen at runtime is not kept
+        // Wipe the previous runtime locale since it may have changed between imports
         RuntimeLocale.Empty();
         ReportUnavailableConfiguredLocale();
         ProjectData.ComponentsMap = ParseAllComponents(RootObject);
@@ -2181,11 +2189,9 @@ bool UArcweaveSubsystem::ParseResponse(const FString& ResponseString)
         ProjectFingerprint = GetProjectFingerprint(RootObject);
         OnArcweaveResponseReceived.Broadcast(ProjectData);
         return true;
-        //LogStructFieldsRecursive(&ProjectData, FArcweaveProjectData::StaticStruct(),0);
     }
     else
     {
-        // Handle error here.
         UE_LOG(LogArcwarePlugin, Error, TEXT("Project name is invalid!"));
     }
     return false;

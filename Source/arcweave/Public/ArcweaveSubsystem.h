@@ -243,6 +243,11 @@ private:
     bool GetBoardObjectForElement(FString ConditionId, FArcweaveConditionData& OutConditionData, FArcweaveBoardData*& OutBoardObj);
     /* Keeps the label raw if it contains arcscript code (transpiled later), otherwise strips the html tags */
     FString ProcessConnectionLabel(const FString& RawLabel);
+    
+#pragma region Locale Management
+    /* Sets title, content and output labels of the element (or of the copy of it kept by a jumper) in the given locale.
+     * Used for both elements and jumpers so they can't drift apart */
+    void ApplyLocaleToElement(FArcweaveElementData& Element, const FString& Locale, bool bFallbackToDefaultLanguage);
     /* Finds the project locale matching the given one (ignoring the case, e.g. "FR" resolves to the project locale "fr").
      * Returns false if the project has no such locale */
     bool TryResolveProjectLocale(FString& OutProjectLocale, const FString& Locale) const;
@@ -262,6 +267,7 @@ private:
     bool TryToFindFallbackTranslation(FString& OutTranslation, const struct FArcweaveContent& Content, const FString& FieldName, const FString& CurrentLocale) const;
     // Helper function to get desired locale and fallback flag from ArcweaveSettings
     void GetLanguageSettings(FString& OutDesiredLocale, bool& OutFallbackToDefaultLanguage);
+#pragma endregion
 
     /* Increment visit counter for the given element id*/
     void IncrementVisits(const FString& ElementId);
