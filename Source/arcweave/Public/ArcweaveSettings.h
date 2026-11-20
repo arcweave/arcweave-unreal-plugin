@@ -85,7 +85,7 @@ private:
             ),
         Category = ArcweaveSettings
     )
-    FString Locale = FString("fr");
+    FString Locale = FString("en");
 
     UPROPERTY(
         Config,

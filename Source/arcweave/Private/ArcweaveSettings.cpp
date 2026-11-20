@@ -15,12 +15,5 @@ void UArcweaveSettings::PostInitProperties()
 
 FString UArcweaveSettings::GetLocale() const
 {
-    if (bUseLocale)
-    {
         return Locale;
-    }
-    else
-    {
-        return TEXT("en");
-    }
 }
