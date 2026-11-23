@@ -606,7 +606,7 @@ FString UArcweaveSubsystem::GetProjectLocalesAsString() const
 void UArcweaveSubsystem::ReportUnavailableConfiguredLocale() const
 {
     const UArcweaveSettings* ArcweaveSettings = GetDefault<UArcweaveSettings>();
-    if (!HasLocales() || !IsValid(ArcweaveSettings) || !ArcweaveSettings->GetUseLocale())
+    if (!HasLocalizedContents() || !IsValid(ArcweaveSettings) || !ArcweaveSettings->GetUseLocale())
     {
         return;
     }
