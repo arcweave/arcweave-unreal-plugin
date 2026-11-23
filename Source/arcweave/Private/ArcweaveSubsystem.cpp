@@ -212,6 +212,19 @@ bool IsOptionalContentField(const FString& FieldName)
 {
     return FieldName == TEXT("label") || FieldName == TEXT("name");
 }
+
+// Arcweave's own fallback (JsonFilterService::getContent) skips an empty paragraph in the rich text
+// fields of elements and connections, so such a translation counts as missing and the fallback runs
+bool IsEmptyTranslation(const FString& FieldName, const FString& Translation)
+{
+    const bool bRichTextField = FieldName == TEXT("title") || FieldName == TEXT("content") || FieldName == TEXT("label");
+    return bRichTextField && Translation.TrimStartAndEnd() == TEXT("<p></p>");
+}
+
+bool TryGetUsableTranslation(FString& OutTranslation, const FArcweaveContent& Content, const FString& Locale, const FString& FieldName)
+{
+    return Content.GetTranslationForKey(OutTranslation, Locale, FieldName) && !IsEmptyTranslation(FieldName, OutTranslation);
+}
 }
 
 void UArcweaveSubsystem::FetchDataFromAPI(FString APIToken, FString ProjectHash)
@@ -1974,7 +1987,7 @@ FString UArcweaveSubsystem::GetTranslatedContent(const FString& ContentKey, cons
     const FArcweaveContent& Content = *ContentPtr;
 
     // Try direct translation first
-    if (Content.GetTranslationForKey(OutTranslation, CurrentLocale, FieldName))
+    if (TryGetUsableTranslation(OutTranslation, Content, CurrentLocale, FieldName))
     {
         return OutTranslation;
     }
@@ -2018,7 +2031,7 @@ bool UArcweaveSubsystem::TryToFindFallbackTranslation(FString& OutTranslation, c
             break;
         }
 
-        if (Content.GetTranslationForKey(OutTranslation, FallbackLocale, FieldName))
+        if (TryGetUsableTranslation(OutTranslation, Content, FallbackLocale, FieldName))
         {
             return true;
         }

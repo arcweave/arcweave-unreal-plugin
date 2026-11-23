@@ -14,10 +14,7 @@ namespace
             UArcweaveSettings* Settings = GetMutableDefault<UArcweaveSettings>();
             bUseLocale = Settings->GetUseLocale();
             bFallback = Settings->GetFallbackToDefaultLocale();
-            // GetLocale() returns "en" while the locale is not used, so read it with the setting enabled
-            Settings->SetUseLocale(true);
             Locale = Settings->GetLocale();
-            Settings->SetUseLocale(bUseLocale);
         }
 
         ~FScopedLanguageSettings()
@@ -38,7 +35,7 @@ namespace
         FString Locale;
     };
 
-    // Locales: en (default), fr and it (base en), dt and xx (base each other: a loop)
+    // Locales: en (default), fr and it (base en), fr-CA (base fr: a chain of two steps), dt and xx (base each other: a loop)
     const TCHAR* GLocalesFixture = TEXT(R"JSON({
         "name": "Locales test",
         "startingElement": "start",
@@ -46,27 +43,32 @@ namespace
             {"iso": "en", "name": "English", "base": null},
             {"iso": "fr", "name": "French", "base": "en"},
             {"iso": "it", "name": "Italian", "base": "en"},
+            {"iso": "fr-CA", "name": "French Canadian", "base": "fr"},
             {"iso": "dt", "name": "Loop A", "base": "xx"},
             {"iso": "xx", "name": "Loop B", "base": "dt"}
         ],
         "boards": {
             "board-1": {
                 "name": "Main",
-                "elements": ["start", "target", "partial", "nulltext"],
-                "connections": ["c-plain", "c-code"],
+                "elements": ["start", "target", "partial", "nulltext", "chain", "emptyp"],
+                "connections": ["c-plain", "c-code", "c-target", "c-empty"],
                 "jumpers": ["j1"]
             }
         },
         "jumpers": {"j1": {"elementId": "target"}},
         "elements": {
             "start": {"outputs": ["c-plain", "c-code"], "components": ["comp-1"]},
-            "target": {"outputs": []},
+            "target": {"outputs": ["c-target"]},
             "partial": {"outputs": []},
-            "nulltext": {"outputs": []}
+            "nulltext": {"outputs": []},
+            "chain": {"outputs": []},
+            "emptyp": {"outputs": ["c-empty"]}
         },
         "connections": {
             "c-plain": {"type": "Bezier", "sourceid": "start", "targetid": "target", "sourceType": "elements", "targetType": "elements"},
-            "c-code": {"type": "Bezier", "sourceid": "start", "targetid": "target", "sourceType": "elements", "targetType": "elements"}
+            "c-code": {"type": "Bezier", "sourceid": "start", "targetid": "target", "sourceType": "elements", "targetType": "elements"},
+            "c-target": {"type": "Bezier", "sourceid": "target", "targetid": "start", "sourceType": "elements", "targetType": "elements"},
+            "c-empty": {"type": "Bezier", "sourceid": "emptyp", "targetid": "start", "sourceType": "elements", "targetType": "elements"}
         },
         "components": {"comp-1": {"children": []}},
         "variables": {},
@@ -85,6 +87,19 @@ namespace
             },
             "nulltext": {
                 "title": {"en": {"text": "Null en"}, "fr": {"text": null}}
+            },
+            "chain": {
+                "title": {"en": {"text": "Chain en"}, "fr": {"text": "Chaine fr"}},
+                "content": {"en": {"text": "Only in en"}}
+            },
+            "emptyp": {
+                "title": {"en": {"text": "<p>Filled</p>"}, "fr": {"text": "<p></p>"}}
+            },
+            "c-target": {
+                "label": {"en": {"text": "<p>Back</p>"}, "fr": {"text": "<p>Retour</p>"}, "it": {"text": "<p>Indietro</p>"}}
+            },
+            "c-empty": {
+                "label": {"en": {"text": "<p>Go on</p>"}, "fr": {"text": "<p></p>"}}
             },
             "c-plain": {
                 "label": {"en": {"text": "<p>Go</p>"}, "fr": {"text": "<p>Aller</p>"}, "it": {"text": "<p>Vai</p>"}}
@@ -148,7 +163,10 @@ bool FArcweaveLocalesTest::RunTest(const FString& Parameters)
         const FArcweaveElementData* Start = FindElement(Project.Boards[0].Elements, TEXT("start"));
         TestEqual(TEXT("The locale of the settings is used on import, HTML stripped from the title"), Start->Title, FString(TEXT("Debut")));
         TestEqual(TEXT("The content is translated on import"), Start->Content, FString(TEXT("<p>Bonjour</p>")));
-        TestEqual(TEXT("Labels are translated on import"), Start->Outputs[0].Label, FString(TEXT("Aller")));
+        if (TestEqual(TEXT("The start element has its outputs"), Start->Outputs.Num(), 2))
+        {
+            TestEqual(TEXT("Labels are translated on import"), Start->Outputs[0].Label, FString(TEXT("Aller")));
+        }
         TestEqual(TEXT("Component names are translated on import"), Project.ComponentsMap.FindChecked(TEXT("comp-1")).Name, FString(TEXT("Heros")));
     }
 
@@ -169,9 +187,12 @@ bool FArcweaveLocalesTest::RunTest(const FString& Parameters)
         const FArcweaveElementData* Start = FindElement(Board.Elements, TEXT("start"));
         TestEqual(TEXT("Element titles are switched and stripped of HTML"), Start->Title, FString(TEXT("Inizio")));
         TestEqual(TEXT("Element contents are switched"), Start->Content, FString(TEXT("<p>Ciao</p>")));
-        TestEqual(TEXT("Element outputs are switched and stripped of HTML"), Start->Outputs[0].Label, FString(TEXT("Vai")));
-        TestTrue(TEXT("Outputs with arcscript code keep it for the transpiler"), Start->Outputs[1].Label.StartsWith(TEXT("<pre")));
-        TestTrue(TEXT("Outputs with arcscript code are switched"), Start->Outputs[1].Label.Contains(TEXT("Corri")));
+        if (TestEqual(TEXT("The start element has its outputs"), Start->Outputs.Num(), 2))
+        {
+            TestEqual(TEXT("Element outputs are switched and stripped of HTML"), Start->Outputs[0].Label, FString(TEXT("Vai")));
+            TestTrue(TEXT("Outputs with arcscript code keep it for the transpiler"), Start->Outputs[1].Label.StartsWith(TEXT("<pre")));
+            TestTrue(TEXT("Outputs with arcscript code are switched"), Start->Outputs[1].Label.Contains(TEXT("Corri")));
+        }
 
         const FArcweaveConnectionsData* BoardConnection = FindConnection(Board.Connections, TEXT("c-plain"));
         if (TestNotNull(TEXT("The board connection exists"), BoardConnection))
@@ -188,6 +209,10 @@ bool FArcweaveLocalesTest::RunTest(const FString& Parameters)
         {
             TestEqual(TEXT("The element copy of a jumper is switched (title)"), Board.Jumpers[0].ElementData.Title, FString(TEXT("Bersaglio")));
             TestEqual(TEXT("The element copy of a jumper is switched (content)"), Board.Jumpers[0].ElementData.Content, FString(TEXT("<p>Testo bersaglio</p>")));
+            if (TestEqual(TEXT("The element copy of a jumper has its outputs"), Board.Jumpers[0].ElementData.Outputs.Num(), 1))
+            {
+                TestEqual(TEXT("The outputs of the element copy of a jumper are switched"), Board.Jumpers[0].ElementData.Outputs[0].Label, FString(TEXT("Indietro")));
+            }
         }
         TestEqual(TEXT("Component names are switched"), Project.ComponentsMap.FindChecked(TEXT("comp-1")).Name, FString(TEXT("Eroe")));
     }
@@ -236,6 +261,25 @@ bool FArcweaveLocalesTest::RunTest(const FString& Parameters)
             FindElement(Elements, TEXT("nulltext"))->Title, FString(TEXT("Null en")));
     }
 
+    // An empty paragraph is a missing translation for elements and connections, like in the Arcweave export
+    {
+        const FArcweaveProjectData Project = Subsystem->GetArcweaveProjectData();
+        const FArcweaveElementData* EmptyParagraph = FindElement(Project.Boards[0].Elements, TEXT("emptyp"));
+        TestEqual(TEXT("An empty paragraph in an element falls back to the base locale"), EmptyParagraph->Title, FString(TEXT("Filled")));
+        if (TestEqual(TEXT("The element has its output"), EmptyParagraph->Outputs.Num(), 1))
+        {
+            TestEqual(TEXT("An empty paragraph in a connection falls back to the base locale"), EmptyParagraph->Outputs[0].Label, FString(TEXT("Go on")));
+        }
+    }
+
+    // Chain of two steps: fr-CA -> fr -> en
+    TestTrue(TEXT("A locale with a base that has a base can be selected"), Subsystem->UpdateContentsWithLocale(TEXT("fr-CA")));
+    {
+        const FArcweaveElementData* Chain = FindElement(Subsystem->GetArcweaveProjectData().Boards[0].Elements, TEXT("chain"));
+        TestEqual(TEXT("The first step of the chain is used (fr-CA -> fr)"), Chain->Title, FString(TEXT("Chaine fr")));
+        TestEqual(TEXT("The second step of the chain is used (fr-CA -> fr -> en)"), Chain->Content, FString(TEXT("Only in en")));
+    }
+
     TestTrue(TEXT("The locale that has the translation can be selected"), Subsystem->UpdateContentsWithLocale(TEXT("it")));
     TestEqual(TEXT("The locale with the translation shows it"),
         FindElement(Subsystem->GetArcweaveProjectData().Boards[0].Elements, TEXT("partial"))->Content, FString(TEXT("Solo italiano")));
@@ -244,6 +288,8 @@ bool FArcweaveLocalesTest::RunTest(const FString& Parameters)
     Subsystem->ParseResponse(Json);
     TestEqual(TEXT("Without fallback a missing translation stays empty"),
         FindElement(Subsystem->GetArcweaveProjectData().Boards[0].Elements, TEXT("partial"))->Title, FString());
+    TestEqual(TEXT("Without fallback an empty paragraph stays empty"),
+        FindElement(Subsystem->GetArcweaveProjectData().Boards[0].Elements, TEXT("emptyp"))->Title, FString());
 
     // Loop of base locales (dt -> xx -> dt): it must end and the field stays empty
     FScopedLanguageSettings::Set(true, TEXT("fr"), true);
