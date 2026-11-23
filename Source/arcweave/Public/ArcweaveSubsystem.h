@@ -24,6 +24,8 @@
 #include "Serialization/JsonSerializer.h"
 #include "Subsystems/EngineSubsystem.h"
 
+
+// Generated include
 #include "ArcweaveSubsystem.generated.h"
 
 struct FArcweaveAPISettings;
@@ -34,8 +36,10 @@ class UArcscriptTranspilerWrapper;
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnArcweaveResponseReceived, const FArcweaveProjectData&, ArcweaveProjectData);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnArcweaveVariableChanged, const TArray<FArcweaveVariable>&, ArcweaveVariables);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnArcweaveArcscriptEventReceived, const FString&, EventName);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnArcweaveLanguageChanged, const FString&, DesiredLocale);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnArcweaveFetchCompleted, bool, bSuccess, const FString&, Message);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnArcweaveStateRestored);
+
 UCLASS()
 class ARCWEAVE_API UArcweaveSubsystem : public UEngineSubsystem
 {
@@ -115,7 +119,11 @@ public:
      */
     UFUNCTION(BlueprintCallable, Category = "Arcweave")
     FArcscriptTranspilerOutput TranspileCondition(const FString& ConditionId, const FString& OriginElementId, bool& Success);
+    /* Given an element id, get it's board */
     bool GetBoardForObject(FString ObjectId, FArcweaveElementData& OutElement, FArcweaveBoardData*& OutBoardObj);
+    /* Given a board id it will get the board object*/
+    UFUNCTION(BlueprintCallable, Category = "Arcweave")
+    bool GetBoard(FArcweaveBoardData& OutBoardObj, const FString& BoardId) const;
     /* Given a condition Id (e.g. if visit()) gets the corresponding branch id */
     bool GetBranchForObject(FArcweaveBranchData& OutBranch, const FString& ObjectId, const FArcweaveBoardData& InBoardObj) const;
 
@@ -130,6 +138,11 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Arcweave")
     void UpdateVariablesFromConnection(const FArcweaveConnectionsData& Connection);
 
+    /* Update the language of the boards with the specified desired locale (e.g. "en", "fr"..).
+     * The language is kept by the subsystem until the project is imported again: the language saved in the settings is not changed (see SaveArcweaveLanguageSettings).
+     * Returns false, without changing anything, if the project has no other locale or the desired one is not available in the project */
+    UFUNCTION(BlueprintCallable, Category = "Arcweave| Languages")
+    bool UpdateContentsWithLocale(const FString& DesiredLocale);
     /*
      * Check if the target is the branch
      */    
@@ -162,6 +175,8 @@ public:
     UPROPERTY(BlueprintAssignable, Category = "Arcweave")
     FOnArcweaveArcscriptEventReceived OnArcscriptEventReceived;
 
+    UPROPERTY(BlueprintAssignable, Category = "Arcweave| Languages")
+    FOnArcweaveLanguageChanged OnArcweaveLanguageChanged;
     /** API import result, including transport, HTTP and invalid-JSON failures. */
     UPROPERTY(BlueprintAssignable, Category = "Arcweave")
     FOnArcweaveFetchCompleted OnArcweaveFetchCompleted;
@@ -210,6 +225,9 @@ private:
     TArray<FArcweaveConditionData> ParseAllConditions(const TSharedPtr<FJsonObject>& MainJsonObject);
     TArray<FArcweaveConnectionsData> ParseAllConnections(const TSharedPtr<FJsonObject>& MainJsonObject);
     FArcweaveCoverData ParseCoverData(const TSharedPtr<FJsonObject>& CoverValueObject);
+    /** Looks for the locales configuration in the project and try to parse it */
+    TArray<FArcweaveLocaleData> ParseProjectLocales(const TSharedPtr<FJsonObject>& MainJsonObject);
+    FArcweaveContents ParseAllContents(const TSharedPtr<FJsonObject>& MainJsonObject);
     bool ParseResponse(const FString& ResponseString);
     void OnEventCallback(const char* EventName);
     FArcscriptTranspilerOutput RunTranspiler(const FString& NodeCode, const FString& OriginElementId,
@@ -220,6 +238,42 @@ private:
     FArcweaveConnectionsData TryGetNExtConnectionData(const FArcweaveBoardData& BoardData, const FArcweaveBranchData& Branch, const FArcweaveConditionData* FiredConditionData);
     void LogTranspilerOutput(const FArcscriptTranspilerOutput& TranspilerOutput);
     bool GetBoardObjectForElement(FString ConditionId, FArcweaveConditionData& OutConditionData, FArcweaveBoardData*& OutBoardObj);
+    /* Keeps the label raw if it contains arcscript code (transpiled later), otherwise strips the html tags */
+    FString ProcessConnectionLabel(const FString& RawLabel);
+    
+#pragma region Locale Management
+public:
+    /** Return true if the project has more than one language/locale and their translated contents, so the language can be changed at runtime */
+    UFUNCTION(BlueprintPure, Category = "Arcweave")
+    bool HasLocales() const;
+
+    private:
+    /** True when the texts are stored in "contents" (an export with its locales) and not on the objects. It can be true even if there is only a single locale */
+    bool HasLocalizedContents() const;
+    /* Sets title, content and output labels of the element (or of the copy of it kept by a jumper) in the given locale.
+     * Used for both elements and jumpers so they can't drift apart */
+    void ApplyLocaleToElement(FArcweaveElementData& Element, const FString& Locale, bool bFallbackToDefaultLanguage);
+    /* Finds the project locale matching the given one (ignoring the case, e.g. "FR" resolves to the project locale "fr").
+     * Returns false if the project has no such locale */
+    bool TryResolveProjectLocale(FString& OutProjectLocale, const FString& Locale) const;
+    /* The locale of the project that has no base (e.g. "en"): the one used when no other locale is requested or available */
+    FString GetDefaultProjectLocale() const;
+    /* Comma separated list of the project locales, for the log messages */
+    FString GetProjectLocalesAsString() const;
+    /* Logs once per import if the locale set in the Arcweave settings is not available in the project */
+    void ReportUnavailableConfiguredLocale() const;
+    /* Given a locale iso, will look for the corresponding fallback locale*/
+    FString GetFallbackLanguageForLocale(const FString& Locale) const;
+    /* Returns the translation of the field (e.g. "title", "label") of the content for the locale, or an empty string if none is found.
+     * Missing labels and names are not logged since they are empty in many projects */
+    FString GetTranslatedContent(const FString& ContentKey, const FString& FieldName, const FString& CurrentLocale, bool ShouldFallback /*= true*/) const;
+    /* Tries to find a fallback translation for the specified content and locale, walking the locale bases (e.g. it -> fr -> en).
+     * Returns false if no locale has the field */
+    bool TryToFindFallbackTranslation(FString& OutTranslation, const struct FArcweaveContent& Content, const FString& FieldName, const FString& CurrentLocale) const;
+    // Helper function to get desired locale and fallback flag from ArcweaveSettings
+    void GetLanguageSettings(FString& OutDesiredLocale, bool& OutFallbackToDefaultLanguage);
+#pragma endregion
+
     /* Increment visit counter for the given element id*/
     void IncrementVisits(const FString& ElementId);
     void ResetVisits();
@@ -234,6 +288,7 @@ private:
     friend class FArcweaveComponentBoardVariablesTest;
     friend class FArcweaveConnectionLabelTest;
     friend class FArcweaveImportFailuresTest;
+    friend class FArcweaveLocalesTest;
     friend class FArcweaveRuntimeStateTest;
     friend class FArcweaveStartingElementTest;
 
