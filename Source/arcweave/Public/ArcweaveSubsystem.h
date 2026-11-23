@@ -82,9 +82,6 @@ public:
     UFUNCTION(BlueprintPure, Category = "Arcweave")
     FArcweaveProjectData GetArcweaveProjectData() const {return ProjectData;};
 
-    /** Return true if the project has more than one language/locale and their translated contents, so the language can be changed at runtime */
-    UFUNCTION(BlueprintPure, Category = "Arcweave")
-    bool HasLocales() const;
     /** Try to get the component data with the Id given for the current project data, returns true if success false otherwise */
     UFUNCTION(BlueprintCallable, Category = "Arcweave")
     bool TryGetArcweaveComponentById(FArcweaveComponentData& AWComponent, const FString& AWComponentId) const;
@@ -245,6 +242,14 @@ private:
     FString ProcessConnectionLabel(const FString& RawLabel);
     
 #pragma region Locale Management
+public:
+    /** Return true if the project has more than one language/locale and their translated contents, so the language can be changed at runtime */
+    UFUNCTION(BlueprintPure, Category = "Arcweave")
+    bool HasLocales() const;
+
+    private:
+    /** True when the texts are stored in "contents" (an export with its locales) and not on the objects. It can be true even if there is only a single locale */
+    bool HasLocalizedContents() const;
     /* Sets title, content and output labels of the element (or of the copy of it kept by a jumper) in the given locale.
      * Used for both elements and jumpers so they can't drift apart */
     void ApplyLocaleToElement(FArcweaveElementData& Element, const FString& Locale, bool bFallbackToDefaultLanguage);
