@@ -248,6 +248,75 @@ bool FArcweaveLocalesTest::RunTest(const FString& Parameters)
         TestEqual(TEXT("Its texts still come from the elements"), FindElement(Plain->GetArcweaveProjectData().Boards[0].Elements, TEXT("e"))->Title, FString(TEXT("Only")));
     }
 
+    // --- A single locale project that exports its texts in "contents" (export with all the languages) ---
+    // The export has no title/content/label/name on the objects and its locales have no "name".
+    // It also has null values, they must be skipped without logging errors (that would fail the test)
+    {
+        const FString SingleLocaleContents = TEXT(R"JSON({
+            "name": "Single with contents",
+            "locales": [{"iso": "ISO", "base": null}],
+            "boards": {"b": {"name": "Main", "elements": ["e"], "connections": ["c"]}},
+            "elements": {"e": {"outputs": ["c"], "components": ["comp"]}},
+            "connections": {"c": {"type": "Bezier", "sourceid": "e", "targetid": "e", "sourceType": "elements", "targetType": "elements"}},
+            "components": {"comp": {"children": []}},
+            "variables": {},
+            "contents": {
+                "ghost": null,
+                "e": {
+                    "title": {"ISO": {"text": "<p>Only</p>"}, "zz": null},
+                    "content": {"ISO": {"text": "<p>Text</p>"}},
+                    "note": null
+                },
+                "c": {"label": {"ISO": {"text": "<p>Go</p>"}}},
+                "comp": {"name": {"ISO": {"text": "Hero"}}}
+            }
+        })JSON");
+
+        struct FSingleLocaleCase
+        {
+            const TCHAR* Description;
+            bool bUseLocale;
+            const TCHAR* SettingsLocale;
+            const TCHAR* ProjectLocale;
+        };
+        const FSingleLocaleCase Cases[] = {
+            {TEXT("the locale of the settings is not one of the project"), true, TEXT("fr"), TEXT("en")},
+            {TEXT("'use locale' is off"), false, TEXT("fr"), TEXT("en")},
+            {TEXT("the locale of the settings is the one of the project"), true, TEXT("en"), TEXT("en")},
+            {TEXT("the only locale is not english"), true, TEXT("en"), TEXT("it")},
+        };
+
+        for (const FSingleLocaleCase& Case : Cases)
+        {
+            FScopedLanguageSettings::Set(Case.bUseLocale, Case.SettingsLocale, true);
+            UArcweaveSubsystem* OneLocale = NewObject<UArcweaveSubsystem>();
+
+            TestTrue(FString::Printf(TEXT("Single locale with contents imports: %s"), Case.Description),
+                OneLocale->ParseResponse(SingleLocaleContents.Replace(TEXT("ISO"), Case.ProjectLocale, ESearchCase::CaseSensitive)));
+            TestFalse(FString::Printf(TEXT("A single locale has nothing to switch to: %s"), Case.Description), OneLocale->HasLocales());
+            TestFalse(FString::Printf(TEXT("Switching language fails with a single locale: %s"), Case.Description),
+                OneLocale->UpdateContentsWithLocale(Case.ProjectLocale));
+
+            const FArcweaveProjectData Project = OneLocale->GetArcweaveProjectData();
+            const FArcweaveElementData* Only = Project.Boards.Num() == 1 ? FindElement(Project.Boards[0].Elements, TEXT("e")) : nullptr;
+            if (!TestNotNull(FString::Printf(TEXT("The element imports: %s"), Case.Description), Only))
+            {
+                continue;
+            }
+            TestEqual(FString::Printf(TEXT("The title is read from the contents: %s"), Case.Description), Only->Title, FString(TEXT("Only")));
+            TestEqual(FString::Printf(TEXT("The content is read from the contents: %s"), Case.Description), Only->Content, FString(TEXT("<p>Text</p>")));
+            if (TestEqual(FString::Printf(TEXT("The element has its output: %s"), Case.Description), Only->Outputs.Num(), 1))
+            {
+                TestEqual(FString::Printf(TEXT("The output label is read from the contents: %s"), Case.Description), Only->Outputs[0].Label, FString(TEXT("Go")));
+            }
+            const FArcweaveComponentData* Hero = Project.ComponentsMap.Find(TEXT("comp"));
+            if (TestNotNull(FString::Printf(TEXT("The component imports: %s"), Case.Description), Hero))
+            {
+                TestEqual(FString::Printf(TEXT("The component name is read from the contents: %s"), Case.Description), Hero->Name, FString(TEXT("Hero")));
+            }
+        }
+    }
+
     // --- Fallback: only the chain of base locales is walked (fr -> en) ---
     FScopedLanguageSettings::Set(true, TEXT("fr"), true);
     Subsystem->ParseResponse(Json);
@@ -275,7 +344,9 @@ bool FArcweaveLocalesTest::RunTest(const FString& Parameters)
     // Chain of two steps: fr-CA -> fr -> en
     TestTrue(TEXT("A locale with a base that has a base can be selected"), Subsystem->UpdateContentsWithLocale(TEXT("fr-CA")));
     {
-        const FArcweaveElementData* Chain = FindElement(Subsystem->GetArcweaveProjectData().Boards[0].Elements, TEXT("chain"));
+        // A copy of the project: the pointer must not outlive it
+        const FArcweaveProjectData Project = Subsystem->GetArcweaveProjectData();
+        const FArcweaveElementData* Chain = FindElement(Project.Boards[0].Elements, TEXT("chain"));
         TestEqual(TEXT("The first step of the chain is used (fr-CA -> fr)"), Chain->Title, FString(TEXT("Chaine fr")));
         TestEqual(TEXT("The second step of the chain is used (fr-CA -> fr -> en)"), Chain->Content, FString(TEXT("Only in en")));
     }

@@ -975,7 +975,13 @@ FString UArcweaveSubsystem::TranspileConnectionLabel(const FArcweaveConnectionsD
 
 bool UArcweaveSubsystem::HasLocales() const
 {
-    return ProjectData.Locales.Num() > 1 && !ProjectData.Contents.IsEmpty();
+    return ProjectData.Locales.Num() > 1 && HasLocalizedContents();
+}
+
+bool UArcweaveSubsystem::HasLocalizedContents() const
+{
+    // An export done with option "all languages" stores the texts in "contents" even when it has a single locale
+    return !ProjectData.Locales.IsEmpty() && !ProjectData.Contents.IsEmpty();
 }
 
 bool UArcweaveSubsystem::TryGetArcweaveComponentById(FArcweaveComponentData& AWComponent, const FString& AWComponentId) const
@@ -1480,7 +1486,7 @@ TArray<FArcweaveConnectionsData> UArcweaveSubsystem::ParseConnections(const FStr
                         {
                             FString RawLabel = FString("");
 
-                            if (HasLocales())
+                            if (HasLocalizedContents())
                             {
                                 RawLabel = GetTranslatedContent(ConnectionId, TEXT("label"), DesiredLocale, bFallbackToDefaultLanguage);
                             }
@@ -1680,7 +1686,7 @@ FArcweaveElementData UArcweaveSubsystem::ExtractElementData(
                     
                     FString DirtyTitle = FString("");
 
-                    if (HasLocales()) 
+                    if (HasLocalizedContents()) 
                     {
                         DirtyTitle = GetTranslatedContent(Element.Id, TEXT("title"), DesiredLocale, bFallbackToDefaultLanguage);
                         Element.Content = GetTranslatedContent(Element.Id, TEXT("content"), DesiredLocale, bFallbackToDefaultLanguage);
@@ -1834,7 +1840,7 @@ TMap<FString, FArcweaveComponentData> UArcweaveSubsystem::ParseAllComponents(con
             if (ComponentValueObject.IsValid())
             {
                 // With multiple locales the name is stored in "contents", not on the component
-                if (HasLocales())
+                if (HasLocalizedContents())
                 {
                     AWComponent.Name = GetTranslatedContent(AWComponent.Id, TEXT("name"), DesiredLocale, bFallbackToDefaultLanguage);
                 }
@@ -1899,7 +1905,7 @@ TArray<FArcweaveConnectionsData> UArcweaveSubsystem::ParseAllConnections(const T
             if (ComponentValueObject.IsValid())
             {
                 
-                if (HasLocales())
+                if (HasLocalizedContents())
                 {
                     ConditionData.Label = GetTranslatedContent(ConditionData.Id, TEXT("label"), DesiredLocale, bFallbackToDefaultLanguage);
                 }
@@ -2055,7 +2061,7 @@ void UArcweaveSubsystem::GetLanguageSettings(FString& OutDesiredLocale, bool& Ou
         OutFallbackToDefaultLanguage = ArcweaveSettings->GetFallbackToDefaultLocale();
     }
 
-    if (HasLocales())
+    if (HasLocalizedContents())
     {
         // The translations are indexed by project locale: use the matching one
         // or the default project locale if it is not available (reported once in ReportUnavailableConfiguredLocale)
