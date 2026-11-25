@@ -719,6 +719,11 @@ void UArcweaveSubsystem::ReportUnavailableConfiguredLocale() const
     }
 
     const FString ConfiguredLocale = ArcweaveSettings->GetLocale();
+    // The API's "*" (all languages) and "__default__" (main language) import the main language on purpose
+    if (ConfiguredLocale == TEXT("*") || ConfiguredLocale == TEXT("__default__"))
+    {
+        return;
+    }
     FString ProjectLocale;
     if (!TryResolveProjectLocale(ProjectLocale, ConfiguredLocale))
     {
@@ -1318,6 +1323,13 @@ FArcweaveElementData UArcweaveSubsystem::TranspileObject(FString ObjectId, bool&
 {
     Success = false;
     FArcweaveElementData Element;
+    if (ObjectId.IsEmpty())
+    {
+        // Usually an empty StartingElementId: the import warned about the reason
+        UE_LOG(LogArcwarePlugin, Error, TEXT("TranspileObject: no element id was given. If it is the project's StartingElementId, the project has no valid starting element: set one in Arcweave and import the project again."));
+        return Element;
+    }
+
     //get the element
     FArcweaveBoardData* NewBoardObj = nullptr;
     if (GetBoardForObject(ObjectId, Element, NewBoardObj) == false)
@@ -2478,8 +2490,9 @@ bool UArcweaveSubsystem::ParseResponse(const FString& ResponseString)
             if (!RootObject->TryGetObjectField(Field, Object)) return false;
         }
         ProjectData.Name = ProjectName;
-        ProjectData.StartingElementId.Empty();
-        RootObject->TryGetStringField(TEXT("startingElement"), ProjectData.StartingElementId);
+        // Validated against the imported boards below, once they are parsed
+        FString StartingElementId;
+        RootObject->TryGetStringField(TEXT("startingElement"), StartingElementId);
         // Locales and contents are used by the parsers below, so they need to be first
         ProjectData.Locales = ParseProjectLocales(RootObject);
         ProjectData.Contents = ParseAllContents(RootObject);
@@ -2490,6 +2503,7 @@ bool UArcweaveSubsystem::ParseResponse(const FString& ResponseString)
         ProjectData.Conditions = ParseAllConditions(RootObject);
         ProjectData.Connections = ParseAllConnections(RootObject);
         ProjectData.Boards = ParseBoard(RootObject);
+        ProjectData.StartingElementId = ValidateStartingElement(RootObject, StartingElementId);
         ProjectData.CurrentVars = ParseVariables(RootObject);
         ProjectData.Visits = InitVisits(RootObject);
         ProjectFingerprint = GetProjectFingerprint(RootObject);
@@ -2503,6 +2517,39 @@ bool UArcweaveSubsystem::ParseResponse(const FString& ResponseString)
     return false;
 }
 
+FString UArcweaveSubsystem::ValidateStartingElement(const TSharedPtr<FJsonObject>& MainJsonObject, const FString& StartingElementId) const
+{
+    // A project can have no starting element, or one that was deleted or left out of the export:
+    // the import still succeeds, like in the Unity plugin, but the story can't be started from it
+    if (StartingElementId.IsEmpty())
+    {
+        UE_LOG(LogArcwarePlugin, Warning, TEXT("Arcweave import: the project has no starting element. Set one in Arcweave to play it."));
+        return FString();
+    }
+
+    const TSharedPtr<FJsonObject>* ElementsObject = nullptr;
+    if (!MainJsonObject->TryGetObjectField(TEXT("elements"), ElementsObject) || !(*ElementsObject)->HasTypedField<EJson::Object>(StartingElementId))
+    {
+        UE_LOG(LogArcwarePlugin, Warning, TEXT("Arcweave import: the project's starting element '%s' was not found in the project. Set one in Arcweave to play it."), *StartingElementId);
+        return FString();
+    }
+
+    // Only the elements of the imported boards can be run, e.g. an export of some boards can leave out the starting element's board
+    for (const FArcweaveBoardData& Board : ProjectData.Boards)
+    {
+        for (const FArcweaveElementData& Element : Board.Elements)
+        {
+            if (Element.Id == StartingElementId)
+            {
+                return StartingElementId;
+            }
+        }
+    }
+
+    UE_LOG(LogArcwarePlugin, Warning, TEXT("Arcweave import: the project's starting element '%s' is not on any imported board. Set one in Arcweave to play it."), *StartingElementId);
+    return FString();
+}
+
 FArcweaveContents UArcweaveSubsystem::ParseAllContents(const TSharedPtr<FJsonObject>& MainJsonObject)
 {
     FArcweaveContents ParsedContents;
@@ -2513,7 +2560,7 @@ FArcweaveContents UArcweaveSubsystem::ParseAllContents(const TSharedPtr<FJsonObj
         // Iterate through all entries in the "contents" object
         for (const auto& ContentPair : ContentsObject->Get()->Values)
         {
-            FString ContentId = ContentPair.Key;
+            const FString ContentId(ContentPair.Key);
             const TSharedPtr<FJsonObject> ContentData = TryGetJsonObject(ContentPair.Value);
 
             if (!ContentData.IsValid())
@@ -2527,7 +2574,7 @@ FArcweaveContents UArcweaveSubsystem::ParseAllContents(const TSharedPtr<FJsonObj
             // Parse localized string fields (e.g., label, title, content)
             for (const auto& FieldPair : ContentData->Values)
             {
-                FString FieldKey = FieldPair.Key;
+                const FString FieldKey(FieldPair.Key);
 
                 /* For the moment we will ignore status*/
                 if (FieldKey.Compare(TEXT("_status")) == 0)
@@ -2541,7 +2588,7 @@ FArcweaveContents UArcweaveSubsystem::ParseAllContents(const TSharedPtr<FJsonObj
                     // Parse translations for each locale
                     for (const auto& LocalePair : LocalizedObject->Values)
                     {
-                        FString Locale = LocalePair.Key;
+                        const FString Locale(LocalePair.Key);
                         const TSharedPtr<FJsonObject> LocaleData = TryGetJsonObject(LocalePair.Value);
 
                         if (LocaleData.IsValid())

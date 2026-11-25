@@ -169,7 +169,7 @@ FArcscriptTranspilerOutput UArcscriptTranspilerWrapper::RunScript(const FString&
         }
 
         if (change.Type == "string") {
-            change.Value = MakeShareable(new FJsonValueString(FString(dllResult->changes[i].string_result)));
+            change.Value = MakeShareable(new FJsonValueString(FString(UTF8_TO_TCHAR(dllResult->changes[i].string_result))));
         }
         else if (change.Type == "integer") {
             change.Value = MakeShareable(new FJsonValueNumber(dllResult->changes[i].int_result));

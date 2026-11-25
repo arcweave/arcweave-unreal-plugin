@@ -100,7 +100,8 @@ bool FArcweaveConnectionLabelTest::RunTest(const FString& Parameters)
         },
         "components": {},
         "variables": {
-            "money-variable": {"name": "money", "type": "integer", "value": 0, "cType": "global"}
+            "money-variable": {"name": "money", "type": "integer", "value": 0, "cType": "global"},
+            "name-variable": {"name": "hero_name", "type": "string", "value": "", "cType": "global"}
         }
     })JSON");
 
@@ -195,6 +196,12 @@ bool FArcweaveConnectionLabelTest::RunTest(const FString& Parameters)
     TestEqual(TEXT("Rendering a label does not apply its resetVisits event"), HealerVisits(), 1);
     Subsystem->UpdateVariablesFromConnection(Reset);
     TestEqual(TEXT("Selecting the label applies its resetVisits event"), HealerVisits(), 0);
+
+    // String results are UTF-8, like the displayed output
+    Subsystem->RunTranspiler(TEXT("<pre><code>hero_name = \"Caf\u00e9\"</code></pre>"), TEXT("healer"),
+        Subsystem->ProjectData.CurrentVars, Subsystem->ProjectData.Visits);
+    TestEqual(TEXT("A non-ASCII string assignment keeps its characters"),
+        Subsystem->GetArcweaveProjectData().CurrentVars.FindChecked(TEXT("name-variable")).Value, FString(TEXT("Caf\u00e9")));
 #else
     AddWarning(TEXT("Label script checks require Windows or macOS, the plugin's supported interpreter platforms."));
 #endif
