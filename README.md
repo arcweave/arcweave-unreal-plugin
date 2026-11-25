@@ -187,9 +187,11 @@ starts from.
 When the player picks an option, call `SelectOption(Connection, BoardData, OutTarget)`. Like play mode, it applies the
 option as it was shown: the variable changes and events of every label on its path, without running them again, so a
 label that uses `random()` grants what it showed. It sets `OutTarget` to the element to run next with `TranspileObject`.
-If the variables or visits changed since the option was shown, the path is resolved again first. When the path leads
-nowhere it returns false and changes nothing. `UpdateVariablesFromConnection` still applies the label of a single
-connection.
+If the variables or visits changed since the option was shown, or a checkpoint was restored, the path is resolved again
+first. When the path leads nowhere it returns false and changes nothing. While it reports the changes, listeners can't
+capture or restore state or select another option. Options always use the board and connection as currently imported,
+whichever copy of them you pass. Use `SelectOption` or `UpdateVariablesFromConnection` (which applies the label of a
+single connection) for a choice, not both.
 
 Run `Arcweave.Project.ConnectionLabelFallback` in Unreal Automation to verify the option texts.
 

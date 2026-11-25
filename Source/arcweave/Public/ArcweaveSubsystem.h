@@ -40,7 +40,7 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnArcweaveLanguageChanged, const FS
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnArcweaveFetchCompleted, bool, bSuccess, const FString&, Message);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnArcweaveStateRestored);
 
-/* An option resolved along its connection's path, on copies of the variables and visits */
+/* An option resolved along its connection's path; only what selecting it needs is kept */
 struct FArcweaveResolvedOption
 {
     /* False when no branch condition on the path holds, a script fails, or the path leads to no imported element */
@@ -49,14 +49,19 @@ struct FArcweaveResolvedOption
     FString Label;
     /* The element the path leads to */
     FArcweaveElementData Target;
-    /* Variables and visits after the labels on the path, and the ids of the variables they assigned */
-    TMap<FString, FArcweaveVariable> Variables;
-    TMap<FString, int> Visits;
-    TSet<FString> ChangedVariableIds;
+    /* The values the labels on the path assigned, by variable id */
+    TMap<FString, FString> AssignedValues;
+    /* Whether a label or condition on the path reset the visits */
+    bool bResetsVisits = false;
     /* The Arcscript events of the labels, in order */
     TArray<FString> Events;
-    /* The project's variables and visits when the option was resolved */
-    FString StateFingerprint;
+};
+
+/* Variables and visits while an option's path is followed: copies, so the project doesn't change */
+struct FArcweaveOptionPathState
+{
+    TMap<FString, FArcweaveVariable> Variables;
+    TMap<FString, int> Visits;
 };
 
 UCLASS()
@@ -275,16 +280,19 @@ private:
     FArcscriptTranspilerOutput RunTranspiler(const FString& NodeCode, const FString& OriginElementId,
         const TMap<FString, FArcweaveVariable>& InitialVars, const TMap<FString, int>& Visits, bool bShouldUpdateVariables = true,
         TMap<FString, int>* PreviewVisits = nullptr, TArray<FString>* PreviewEvents = nullptr);
+    /* Forget the resolved options: the project's state or texts changed */
+    void ClearResolvedOptions();
     void UpdateVariables(const FArcscriptTranspilerOutput& Output);
     /** Applies the variable changes of a script to Variables, adding the changed variables to OutChangedVariables if given */
     void ApplyVariableChanges(const FArcscriptTranspilerOutput& Output, TMap<FString, FArcweaveVariable>& Variables,
         TArray<FArcweaveVariable>* OutChangedVariables);
     FArcweaveElementData ExtractElementData(const TSharedPtr<FJsonObject>& MainJsonObject, const FString& ElementId, FArcweaveBoardData& BoardObjRef);
     void EvaluateCondition(const FArcweaveConditionData& Condition, const FString& OriginElementId,
-        FArcscriptTranspilerOutput& TranspilerOutput, const TMap<FString, FArcweaveVariable>& Variables, const TMap<FString, int>& Visits);
+        FArcscriptTranspilerOutput& TranspilerOutput, const TMap<FString, FArcweaveVariable>& Variables, const TMap<FString, int>& Visits,
+        TMap<FString, int>* PreviewVisits = nullptr);
     FArcscriptTranspilerOutput RunConditionScript(const FString& ConditionId, const FString& OriginElementId,
-        bool& Success, const TMap<FString, FArcweaveVariable>& Variables, const TMap<FString, int>& Visits);
-    FArcweaveConnectionsData TryGetNExtConnectionData(const FArcweaveBoardData& BoardData, const FArcweaveBranchData& Branch, const FArcweaveConditionData* FiredConditionData);
+        bool& Success, const TMap<FString, FArcweaveVariable>& Variables, const TMap<FString, int>& Visits,
+        TMap<FString, int>* PreviewVisits = nullptr);
     void LogTranspilerOutput(const FArcscriptTranspilerOutput& TranspilerOutput);
     bool GetBoardObjectForElement(FString ConditionId, FArcweaveConditionData& OutConditionData, FArcweaveBoardData*& OutBoardObj);
     /* Keeps the label raw if it contains arcscript code (transpiled later), otherwise strips the html tags */
@@ -328,24 +336,23 @@ public:
     void ResetVisits();
     /** Check if ContentToTest contains code that needs transpiling */
     bool ContainsCodePattern(const FString& ContentToTest) const;
-    /** The option of the connection, resolved again only when the project's variables or visits changed since the last time */
-    FArcweaveResolvedOption GetResolvedOption(const FArcweaveConnectionsData& Connection, const FArcweaveBoardData& BoardData,
-        const FString& OriginElementId);
+    /** The option of the connection as currently imported, resolved again only when the project's variables or visits changed */
+    FArcweaveResolvedOption GetResolvedOption(const FArcweaveConnectionsData& Connection, const FArcweaveBoardData& BoardData);
     /** Follows the connection through branches and jumpers, running its labels and conditions on copies of the variables and visits */
-    FArcweaveResolvedOption ResolveOption(const FArcweaveConnectionsData& Connection, const FArcweaveBoardData& BoardData,
-        const FString& OriginElementId);
+    FArcweaveResolvedOption ResolveOption(const FArcweaveConnectionsData& Connection, const FArcweaveBoardData& BoardData);
     /** Evaluate the branch's conditions with the given variables and visits, for the element the path started from.
      * Blank conditions are never satisfied. A condition that fails to run stops the branch without an output,
-     * and sets bOutConditionFailed if given */
+     * and sets bOutConditionFailed if given. PreviewVisits, if given, gets the conditions' resetVisits() */
     FGetIsTargetBranchOutput EvaluateBranch(const FArcweaveBoardData& BoardData, const FString& BranchId,
         const FString& OriginElementId, const TMap<FString, FArcweaveVariable>& Variables, const TMap<FString, int>& Visits,
-        bool* bOutConditionFailed);
+        bool* bOutConditionFailed, TMap<FString, int>* PreviewVisits = nullptr);
     /** A connection of the board, or of another board */
     FArcweaveConnectionsData FindConnection(const FArcweaveBoardData& BoardData, const FString& ConnectionId) const;
     /** An element of the board, or of another imported board. False when no imported board has it */
     bool FindBoardElement(const FArcweaveBoardData& BoardData, const FString& ElementId, FArcweaveElementData& OutElement) const;
-    /** Runs a label on the option's copies of the variables and visits: OutText is its visible text. False when its script fails */
-    bool RunLabel(const FString& Label, const FString& OriginElementId, FArcweaveResolvedOption& Option, FString& OutText);
+    /** Runs a label on the path's copies of the variables and visits: OutText is its visible text. False when its script fails */
+    bool RunLabel(const FString& Label, const FString& OriginElementId, FArcweaveOptionPathState& PathState,
+        FArcweaveResolvedOption& Option, FString& OutText);
     /** Text as a browser shows the HTML: without tags, line breaks as spaces, entities decoded */
     FString GetVisibleText(const FString& Html);
     /** Option text for an element when its connection has no label, as in play mode */
@@ -356,8 +363,10 @@ public:
 
 private:
     friend class FArcweaveAttributeTypesTest;
-    /* Options as last shown, by board, origin and connection */
-    TMap<FString, FArcweaveResolvedOption> ResolvedOptions;
+    /* Options as last shown, by board and connection id (compared case-sensitively), for ResolvedOptionsState */
+    TArray<TPair<FString, FArcweaveResolvedOption>> ResolvedOptions;
+    /* The project's variables and visits when the options above were resolved */
+    FString ResolvedOptionsState;
 
     friend class FArcweaveComponentBoardVariablesTest;
     friend class FArcweaveConnectionLabelFallbackTest;
