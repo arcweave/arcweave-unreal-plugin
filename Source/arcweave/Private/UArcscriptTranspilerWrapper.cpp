@@ -3,6 +3,8 @@
 // File header
 #include "UArcscriptTranspilerWrapper.h"
 
+#include "Misc/ScopeExit.h"
+
 #include <string>
 
 THIRD_PARTY_INCLUDES_START
@@ -24,8 +26,34 @@ FArcscriptTranspilerOutput UArcscriptTranspilerWrapper::RunScript(const FString&
 	const char* dllElId = strdup(TCHAR_TO_UTF8(*elementId));
 
     // Transform Unreal variable objects to DLL accepted objects
-	UVariable* dllVars = new UVariable[varLength];
-	UVisit* dllVisits = new UVisit[visitsLength];
+	// Value-initialized, so the optional strings are null unless set below
+	UVariable* dllVars = new UVariable[varLength]();
+	UVisit* dllVisits = new UVisit[visitsLength]();
+	UTranspilerOutput* dllResult = nullptr;
+
+	// Free everything on every return, including when the script fails
+	ON_SCOPE_EXIT
+	{
+		free((char*)dllCode);
+		free((char*)dllElId);
+		for (size_t j = 0; j < varLength; j++) {
+			free((char*)dllVars[j].id);
+			free((char*)dllVars[j].name);
+			free((char*)dllVars[j].scope);
+			if (dllVars[j].type == VariableType::AW_STRING) {
+				free((char*)dllVars[j].string_val);
+				free((char*)dllVars[j].default_string_val);
+			}
+		}
+		delete[] dllVars;
+		for (size_t j = 0; j < visitsLength; j++) {
+			free((char*)dllVisits[j].elId);
+		}
+		delete[] dllVisits;
+		if (dllResult != nullptr) {
+			deallocateOutput(dllResult);
+		}
+	};
 
 	size_t i = 0;
 	for (auto& var : initialVars) {
@@ -85,21 +113,26 @@ FArcscriptTranspilerOutput UArcscriptTranspilerWrapper::RunScript(const FString&
         i++;
     }
 
-    UTranspilerOutput* dllResult = nullptr;
     try {
         dllResult = runScriptExport(dllCode, dllElId, dllVars, varLength, dllVisits, visitsLength, onEvent);
     }
     catch (Arcweave::ParseErrorException& e) {
         UE_LOG(LogArcweavePlugin, Error, TEXT("ParseErrorException %s"), *FString(e.what()));
-        return FArcscriptTranspilerOutput();
+        FArcscriptTranspilerOutput Failed;
+        Failed.bScriptFailed = true;
+        return Failed;
     }
     catch (Arcweave::RuntimeErrorException& e) {
         UE_LOG(LogArcweavePlugin, Error, TEXT("RuntimeErrorException %s"), *FString(e.what()));
-        return FArcscriptTranspilerOutput();
+        FArcscriptTranspilerOutput Failed;
+        Failed.bScriptFailed = true;
+        return Failed;
     }
     catch (std::exception& e) {
         UE_LOG(LogArcweavePlugin, Error, TEXT("%s"), *FString(e.what()));
-        return FArcscriptTranspilerOutput();
+        FArcscriptTranspilerOutput Failed;
+        Failed.bScriptFailed = true;
+        return Failed;
     }
 
     FArcscriptTranspilerOutput result;
@@ -149,32 +182,6 @@ FArcscriptTranspilerOutput UArcscriptTranspilerWrapper::RunScript(const FString&
         }
         result.Changes.Add(change);
     }
-
-    // Clean up allocated memory before returning
-    free((char*)dllCode);
-    free((char*)dllElId);
-    for (i = 0; i < varLength; i++) {
-        free((char*)dllVars[i].id);
-        free((char*)dllVars[i].name);
-        if ((char*) dllVars[i].scope != nullptr)
-        {
-            free((char*)dllVars[i].scope);
-        }
-
-		if (dllVars[i].type == VariableType::AW_STRING) {
-			free((char*)dllVars[i].string_val);
-			if (dllVars[i].default_string_val != nullptr) {
-				free((char*)dllVars[i].default_string_val);
-			}
-		}
-    }
-    delete[] dllVars;
-    for (i = 0; i < visitsLength; i++) {
-        free((char*)dllVisits[i].elId);
-    }
-    delete[] dllVisits;
-
-    deallocateOutput(dllResult);
 
 	return result;
 }
