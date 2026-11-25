@@ -117,8 +117,9 @@ The settings apply to the next import, and how they apply depends on the import 
   can't switch language at runtime.
 - **Web API:** the plugin requests a single language. With `bUseLocale` on, it sends `Locale` as the export's `locale`,
   and `fallbackContents=true` when `bFallbackToDefaultLocale` is on; otherwise it gets the main language. The API
-  matches the code exactly: a code in a different case (`FR` for `fr`), or one the project doesn't have, returns empty
-  texts without a warning from the plugin. API imports can't switch language at runtime.
+  matches the code exactly: a code in a different case (`FR` for `fr`), or one the project doesn't have, is rejected
+  with HTTP 400. The import then fails: `OnArcweaveFetchCompleted` reports it and the previously loaded project is kept.
+  API imports can't switch language at runtime.
 
 ### Switching language at runtime
 
