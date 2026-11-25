@@ -55,7 +55,7 @@ struct FArcweaveAPISettings
             ToolTip = "Default language used for the application if available (e.g. en, it, fr ...)"
             )
     )
-    FString Locale = FString("");
+    FString Locale = FString("en");
 
     UPROPERTY(BlueprintReadWrite,
         Category = "Arcweave| Settings",
@@ -73,7 +73,7 @@ struct FArcweaveAPISettings
         , APIToken(FString(""))
         , Hash(FString(""))
         , bUseLocale(false)
-        , Locale(FString(""))
+        , Locale(FString("en"))
         , bFallbackToDefaultLocale(true)
     {}
 };

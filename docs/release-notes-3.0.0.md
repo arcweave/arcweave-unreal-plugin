@@ -88,12 +88,13 @@ Projects with several languages can be imported and switched at runtime
 - The plugin no longer writes the API token to its log. Importing used to log it at Warning level. The settings read on import
   are now logged at `Verbose` under `LogArcwarePlugin`, and the token only as `set` or `empty`
   ([#46](https://github.com/arcweave/arcweave-unreal-plugin/pull/46)).
-- **The token is saved per user.** It is stored in `Saved/Arcweave/APIToken.txt` instead of `Config/DefaultGame.ini`, so
+- **The token is saved per user.** It is stored in `Saved/Arcweave/APIToken.txt` (owner-only on macOS) instead of `Config/DefaultGame.ini`, so
   it is no longer committed with the project or packaged with the game. The `ARCWEAVE_API_KEY` environment variable
   overrides it. The first time you open the project in the editor, a token that an earlier version saved is copied to
-  your user file. The plugin doesn't edit `DefaultGame.ini`: while it contains a token, the editor warns and cooking
-  fails with an error. **Remove the `APIToken` lines from it, and if it was committed, revoke that token in your Arcweave
-  workspace and create a new one.** Unreal's HTTP module can log request headers, including the token, at `Verbose` or
+  your user file. The plugin doesn't edit `DefaultGame.ini`: while it contains a token, the editor warns and a cook
+  commandlet fails with an error (cooking in the editor, such as Quick Launch, only gets the warning). **Remove the
+  `APIToken` lines from it, and if it was committed or a build made with it was shared, revoke that token in your
+  Arcweave workspace and create a new one.** The token is entered on its own settings page, **Arcweave API Token**. Unreal's HTTP module can log request headers, including the token, at `Verbose` or
   `VeryVerbose`. See
   [Where the token is saved](https://github.com/arcweave/arcweave-unreal-plugin/blob/v3.0.0/README.md#where-the-token-is-saved).
 - A packaged game no longer gets the token from the project config: a game that fetches from the API at runtime must

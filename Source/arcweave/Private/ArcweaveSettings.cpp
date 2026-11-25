@@ -4,6 +4,9 @@
 #include "ArcweaveSettings.h"
 
 #include "arcweave.h"
+#include "ArcweaveUserSettings.h"
+#include "HAL/PlatformProperties.h"
+#include "Misc/App.h"
 #include "HAL/FileManager.h"
 #include "HAL/PlatformMisc.h"
 #include "Misc/CommandLine.h"
@@ -18,8 +21,13 @@
 #include "UObject/UnrealType.h"
 #endif
 
-#if PLATFORM_MAC
+#if PLATFORM_WINDOWS
+#include "Windows/WindowsHWrapper.h"
+#else
+#include <fcntl.h>
+#include <stdio.h>
 #include <sys/stat.h>
+#include <unistd.h>
 #endif
 
 namespace
@@ -28,9 +36,6 @@ const TCHAR* ApiTokenKey = TEXT("APIToken");
 
 // Editor only: a token an older version saved in the project config, used when none is saved for the user
 FString LegacyAPIToken;
-
-// Set by PostEditChangeProperty, so the settings editor doesn't rewrite the project config for a token edit
-bool bLastEditWasAPIToken = false;
 
 // Tests point the user file elsewhere, so they never touch a real token
 FString UserAPITokenPathOverride;
@@ -43,6 +48,46 @@ FString GetMigratedMarkerPath()
 bool CanWriteUserFiles()
 {
     return !FParse::Param(FCommandLine::Get(), TEXT("nowrite"));
+}
+
+bool WriteMigratedMarker()
+{
+    return FFileHelper::SaveStringToFile(FString(), *GetMigratedMarkerPath());
+}
+
+// Create an empty file only the current user can read, so the token is never readable by others, even briefly
+bool CreatePrivateFile(const FString& Path)
+{
+#if PLATFORM_WINDOWS
+    return FFileHelper::SaveStringToFile(FString(), *Path);
+#else
+    const int Handle = open(TCHAR_TO_UTF8(*Path), O_CREAT | O_WRONLY | O_TRUNC, S_IRUSR | S_IWUSR);
+    if (Handle < 0)
+    {
+        return false;
+    }
+    close(Handle);
+    return chmod(TCHAR_TO_UTF8(*Path), S_IRUSR | S_IWUSR) == 0;
+#endif
+}
+
+// Replace Destination with Source in one step, keeping Destination when it fails
+bool ReplaceFile(const FString& Source, const FString& Destination)
+{
+#if PLATFORM_WINDOWS
+    return ::MoveFileExW(*FPaths::ConvertRelativePathToFull(Source), *FPaths::ConvertRelativePathToFull(Destination),
+        MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH) != 0;
+#else
+    return rename(TCHAR_TO_UTF8(*Source), TCHAR_TO_UTF8(*Destination)) == 0;
+#endif
+}
+
+void ShowSavedToken(const FString& Token)
+{
+    if (UArcweaveUserSettings* UserSettings = GetMutableDefault<UArcweaveUserSettings>())
+    {
+        UserSettings->APIToken = Token;
+    }
 }
 }
 
@@ -62,25 +107,6 @@ void UArcweaveSettings::PostInitProperties()
     }
 }
 
-#if WITH_EDITOR
-void UArcweaveSettings::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
-{
-    UObject::PostEditChangeProperty(PropertyChangedEvent);
-    bLastEditWasAPIToken = PropertyChangedEvent.GetMemberPropertyName() == GET_MEMBER_NAME_CHECKED(UArcweaveSettings, APIToken);
-    if (bLastEditWasAPIToken && !SetUserAPIToken(APIToken))
-    {
-        // Show what is actually saved
-        APIToken = GetUserAPIToken();
-    }
-}
-
-bool UArcweaveSettings::ConsumeAPITokenEdit()
-{
-    const bool bWasTokenEdit = bLastEditWasAPIToken;
-    bLastEditWasAPIToken = false;
-    return bWasTokenEdit;
-}
-#endif
 
 FString UArcweaveSettings::GetLocale() const
 {
@@ -150,6 +176,7 @@ bool UArcweaveSettings::SetUserAPIToken(const FString& Token)
         return false;
     }
 
+    FileManager.MakeDirectory(*FPaths::GetPath(Path), true);
     if (TrimmedToken.IsEmpty())
     {
         if (FPaths::FileExists(Path) && !FileManager.Delete(*Path, false, true, true))
@@ -157,29 +184,26 @@ bool UArcweaveSettings::SetUserAPIToken(const FString& Token)
             UE_LOG(LogArcwarePlugin, Warning, TEXT("Arcweave: couldn't remove the saved API token (%s)."), *Path);
             return false;
         }
+        // A cleared token stays cleared: don't copy one saved by an earlier version again
+        LegacyAPIToken.Reset();
+        if (!WriteMigratedMarker())
+        {
+            UE_LOG(LogArcwarePlugin, Warning, TEXT("Arcweave: couldn't write %s, so a token saved by an earlier version may be copied again on the next start."), *GetMigratedMarkerPath());
+        }
         APIToken.Reset();
+        ShowSavedToken(FString());
         return true;
     }
 
-    // Write and check a copy first, so a failed write can't damage the saved token
-    FileManager.MakeDirectory(*FPaths::GetPath(Path), true);
+    // Write and check a private copy, then replace the saved token with it in one step
     const FString TempPath = FString::Printf(TEXT("%s.%s.tmp"), *Path, *FGuid::NewGuid().ToString(EGuidFormats::Digits));
     FString Written;
-    bool bSaved = FFileHelper::SaveStringToFile(TrimmedToken, *TempPath, FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM)
-        && FFileHelper::LoadFileToString(Written, *TempPath) && Written.Equals(TrimmedToken, ESearchCase::CaseSensitive);
-#if PLATFORM_MAC
-    if (bSaved)
-    {
-        chmod(TCHAR_TO_UTF8(*TempPath), S_IRUSR | S_IWUSR);
-    }
-#endif
-    if (bSaved && !FileManager.Move(*Path, *TempPath, true, true))
-    {
-        // Move can remove the old file before failing, so write the checked token directly
-        bSaved = FFileHelper::SaveStringToFile(TrimmedToken, *Path, FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);
-    }
+    const bool bSaved = CreatePrivateFile(TempPath)
+        && FFileHelper::SaveStringToFile(TrimmedToken, *TempPath, FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM)
+        && FFileHelper::LoadFileToString(Written, *TempPath) && Written.Equals(TrimmedToken, ESearchCase::CaseSensitive)
+        && ReplaceFile(TempPath, Path)
+        && GetUserAPIToken().Equals(TrimmedToken, ESearchCase::CaseSensitive);
     FileManager.Delete(*TempPath, false, true, true);
-    bSaved = bSaved && GetUserAPIToken().Equals(TrimmedToken, ESearchCase::CaseSensitive);
 
     if (!bSaved)
     {
@@ -187,6 +211,7 @@ bool UArcweaveSettings::SetUserAPIToken(const FString& Token)
         return false;
     }
     APIToken = TrimmedToken;
+    ShowSavedToken(TrimmedToken);
     return true;
 }
 
@@ -212,9 +237,20 @@ bool UArcweaveSettings::FindIniValue(const FString& IniText, const FString& Sect
                 continue;
             }
         }
-        if (!bInSection || Trimmed.IsEmpty() || Trimmed[0] == TEXT(';'))
+        if (!bInSection || Trimmed.IsEmpty())
         {
             continue;
+        }
+
+        // A commented-out assignment isn't used, but the file still contains its value
+        const bool bCommented = Trimmed[0] == TEXT(';');
+        if (bCommented)
+        {
+            while (Trimmed.StartsWith(TEXT(";")))
+            {
+                Trimmed.RightChopInline(1);
+            }
+            Trimmed.TrimStartInline();
         }
 
         int32 EqualsIndex = INDEX_NONE;
@@ -235,7 +271,6 @@ bool UArcweaveSettings::FindIniValue(const FString& IniText, const FString& Sect
             continue;
         }
 
-        bFound = true;
         FString Value = Trimmed.RightChop(EqualsIndex + 1).TrimStartAndEnd();
         if (Value.StartsWith(TEXT("\"")))
         {
@@ -255,11 +290,17 @@ bool UArcweaveSettings::FindIniValue(const FString& IniText, const FString& Sect
             }
         }
 
-        // Any written value counts, even one a later line clears: the file would still contain it
-        if (Command != TEXT('!') && Command != TEXT('-') && !Value.IsEmpty())
+        // Any value written in the file counts, even one that is removed, cleared or commented out
+        if (Command != TEXT('!') && !Value.IsEmpty())
         {
             bOutHasNonEmptyValue = true;
         }
+        if (bCommented)
+        {
+            continue;
+        }
+
+        bFound = true;
         if (Command == TEXT('!'))
         {
             OutValue.Reset();
@@ -276,50 +317,64 @@ void UArcweaveSettings::CheckProjectAPIToken()
 {
 #if WITH_EDITOR
     LegacyAPIToken.Reset();
+
+    // Read the files themselves: reading the token through the config system could record it, for example in a cook
     const FString DefaultIni = FPaths::ConvertRelativePathToFull(GetDefaultConfigFilename());
     FString IniText;
     FString ProjectToken;
-    bool bProjectHasToken = false;
+    bool bProjectDisclosesToken = false;
     if (FPaths::FileExists(DefaultIni) && FFileHelper::LoadFileToString(IniText, *DefaultIni))
     {
-        FindIniValue(IniText, ARCWEAVE_SETTINGS_SECTION, ApiTokenKey, ProjectToken, bProjectHasToken);
+        FindIniValue(IniText, ARCWEAVE_SETTINGS_SECTION, ApiTokenKey, ProjectToken, bProjectDisclosesToken);
     }
 
-    // What earlier versions used: the project config with the user's saved settings (Saved/Config/<Platform>/Game.ini) on top
-    FString LegacyToken;
-    if (GConfig != nullptr)
+    if (!IsRunningCommandlet())
     {
-        GConfig->GetString(ARCWEAVE_SETTINGS_SECTION, ApiTokenKey, LegacyToken, GGameIni);
+        // What earlier versions used: the project config, overridden by the user's Saved/Config/<Platform>/Game.ini
+        FString LegacyToken = ProjectToken;
+        const FString SavedIni = FPaths::ConvertRelativePathToFull(
+            FPaths::Combine(FPaths::GeneratedConfigDir(), ANSI_TO_TCHAR(FPlatformProperties::PlatformName()), TEXT("Game.ini")));
+        FString SavedToken;
+        bool bSavedDisclosesToken = false;
+        if (FPaths::FileExists(SavedIni) && FFileHelper::LoadFileToString(IniText, *SavedIni)
+            && FindIniValue(IniText, ARCWEAVE_SETTINGS_SECTION, ApiTokenKey, SavedToken, bSavedDisclosesToken))
+        {
+            LegacyToken = SavedToken;
+        }
         LegacyToken.TrimStartAndEndInline();
+
+        // Only when nothing is saved for the user and the token was never cleared or copied before
+        if (!LegacyToken.IsEmpty() && !FPaths::FileExists(GetUserAPITokenPath()) && !FPaths::FileExists(GetMigratedMarkerPath()))
+        {
+            // Copy it once, in an editor someone is using; unattended runs such as automation only use it in memory
+            const bool bInteractiveEditor = GIsEditor && !FApp::IsUnattended();
+            if (bInteractiveEditor && SetUserAPIToken(LegacyToken))
+            {
+                if (!WriteMigratedMarker())
+                {
+                    UE_LOG(LogArcwarePlugin, Warning, TEXT("Arcweave: couldn't write %s."), *GetMigratedMarkerPath());
+                }
+                UE_LOG(LogArcwarePlugin, Log, TEXT("Arcweave: copied the API token saved by an earlier version to %s"), *GetUserAPITokenPath());
+            }
+            else
+            {
+                LegacyAPIToken = LegacyToken;
+            }
+        }
     }
 
-    const bool bInteractiveEditor = GIsEditor && !IsRunningCommandlet();
-    if (bInteractiveEditor && !LegacyToken.IsEmpty() && GetUserAPIToken().IsEmpty() && !FPaths::FileExists(GetMigratedMarkerPath()))
-    {
-        // Copy it once, so clearing the token later doesn't bring it back
-        if (SetUserAPIToken(LegacyToken))
-        {
-            FFileHelper::SaveStringToFile(FString(), *GetMigratedMarkerPath());
-            UE_LOG(LogArcwarePlugin, Log, TEXT("Arcweave: copied the API token saved by an earlier version to %s"), *GetUserAPITokenPath());
-        }
-        else
-        {
-            LegacyAPIToken = LegacyToken;
-        }
-    }
-
-    if (!bProjectHasToken)
+    if (!bProjectDisclosesToken)
     {
         return;
     }
 
     if (IsRunningCommandlet())
     {
-        UE_LOG(LogArcwarePlugin, Error, TEXT("Arcweave: %s contains an API token in the [%s] section, so a packaged game would contain it. Remove the APIToken lines from that section; the token is saved per user now. If the file was committed, revoke the token in your Arcweave workspace."), *DefaultIni, ARCWEAVE_SETTINGS_SECTION);
+        UE_LOG(LogArcwarePlugin, Error, TEXT("Arcweave: %s contains an API token in the [%s] section, so a packaged game would contain it. Remove the APIToken lines from that section, including commented-out ones; the token is saved per user now. If the file was committed or a build with it was shared, revoke the token in your Arcweave workspace."), *DefaultIni, ARCWEAVE_SETTINGS_SECTION);
     }
     else
     {
-        UE_LOG(LogArcwarePlugin, Warning, TEXT("Arcweave: %s contains an API token in the [%s] section. The token is saved per user now (%s), and that file is usually committed to version control and packaged with the game: remove the APIToken lines from that section, and if the file was committed, revoke the token in your Arcweave workspace and create a new one. Cooking fails while it is there."), *DefaultIni, ARCWEAVE_SETTINGS_SECTION, *GetUserAPITokenPath());
+        UE_LOG(LogArcwarePlugin, Warning, TEXT("Arcweave: %s contains an API token in the [%s] section. The token is saved per user now (%s), and that file is usually committed to version control and packaged with the game: remove the APIToken lines from that section, including commented-out ones. If the file was committed or a build with it was shared, revoke the token in your Arcweave workspace and create a new one. Cooking with a cook commandlet fails while it is there."), *DefaultIni, ARCWEAVE_SETTINGS_SECTION, *GetUserAPITokenPath());
     }
 #endif
 }

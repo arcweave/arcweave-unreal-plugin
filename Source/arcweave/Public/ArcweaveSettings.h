@@ -38,19 +38,11 @@ public:
     FString JsonDirectoryPath = FString("Content/ArcweaveExport/");
 
     /*
-     * API key of your Arcweave workspace. It is saved for your user only, in Saved/Arcweave/APIToken.txt, and never in
-     * Config/DefaultGame.ini. The ARCWEAVE_API_KEY environment variable overrides it.
+     * The API token saved for this user (Saved/Arcweave/APIToken.txt), kept here for code that reads it. It is edited in
+     * Project Settings > Plugins > Arcweave API Token (UArcweaveUserSettings) and never saved in Config/DefaultGame.ini.
+     * Use UArcweaveSettings::ResolveAPIToken() for the token to send, which also considers ARCWEAVE_API_KEY.
      */
-    UPROPERTY(
-        Transient,
-        EditAnywhere,
-        meta = (
-            EditCondition = "!EnableReceiveMethodFromLocalJSON",
-            PasswordField = true,
-            ToolTip = "API key of your Arcweave workspace. Saved for your user only, in Saved/Arcweave/APIToken.txt, never in Config/DefaultGame.ini. The ARCWEAVE_API_KEY environment variable overrides it."
-            ),
-        Category = "ArcweaveSettings"
-    )
+    UPROPERTY(Transient)
     FString APIToken = FString("");
 
     /*
@@ -61,13 +53,6 @@ public:
 
     //override post init properties to check if the settings are valid
     virtual void PostInitProperties() override;
-
-#if WITH_EDITOR
-    virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
-
-    /** True once after the API token was edited in the settings, which then don't need saving to the project config. */
-    static bool ConsumeAPITokenEdit();
-#endif
 
 #pragma region API token
 
@@ -82,8 +67,9 @@ public:
     static FString ResolveAPIToken();
 
     /**
-     * Save the token for this user only, in Saved/Arcweave/APIToken.txt. An empty token removes the file.
-     * Returns false, keeping the saved token, when the file couldn't be written and read back with the same token.
+     * Save the token for this user only, in Saved/Arcweave/APIToken.txt. An empty token removes the file, and stops a token
+     * saved by an earlier version from being copied again. Returns false, keeping the saved token, when the file couldn't
+     * be written and read back with the same token.
      */
     bool SetUserAPIToken(const FString& Token);
 
@@ -98,7 +84,8 @@ public:
 
     /**
      * Find Key in Section of an ini file's text, following Unreal's syntax. OutValue is its value after all assignments,
-     * unquoted. bOutHasNonEmptyValue is true when any line assigns a non-empty value, even one a later line clears.
+     * unquoted. bOutHasNonEmptyValue is true when any line, including a removal (-Key=) or a commented-out assignment,
+     * contains a non-empty value: the file discloses it even when Unreal doesn't use it.
      */
     static bool FindIniValue(const FString& IniText, const FString& Section, const FString& Key, FString& OutValue, bool& bOutHasNonEmptyValue);
 

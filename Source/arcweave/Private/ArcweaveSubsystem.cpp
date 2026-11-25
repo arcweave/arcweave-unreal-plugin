@@ -477,17 +477,9 @@ FArcweaveAPISettings UArcweaveSubsystem::LoadArcweaveSettings() const
     {
         ArcweaveSettings->ReloadConfig();
 
-        // Start from the settings object, so the class defaults apply to values the config doesn't set
-        OutSetttings.EnableReceiveMethodFromLocalJSON = ArcweaveSettings->EnableReceiveMethodFromLocalJSON;
-        OutSetttings.Hash = ArcweaveSettings->Hash;
-        OutSetttings.JsonDirectoryPath = ArcweaveSettings->JsonDirectoryPath;
-        OutSetttings.bUseLocale = ArcweaveSettings->GetUseLocale();
-        OutSetttings.Locale = ArcweaveSettings->GetLocale();
-        OutSetttings.bFallbackToDefaultLocale = ArcweaveSettings->GetFallbackToDefaultLocale();
-
         if (GConfig)
         {
-            // Typed config reads, as before, accept every boolean spelling the config system does
+            // As before: the struct's defaults, which match the settings class, then typed config reads
             GConfig->GetBool(ARCWEAVE_SETTINGS_SECTION, TEXT("EnableReceiveMethodFromLocalJSON"), OutSetttings.EnableReceiveMethodFromLocalJSON, GGameIni);
             GConfig->GetString(ARCWEAVE_SETTINGS_SECTION, TEXT("Hash"), OutSetttings.Hash, GGameIni);
             GConfig->GetString(ARCWEAVE_SETTINGS_SECTION, TEXT("JsonDirectoryPath"), OutSetttings.JsonDirectoryPath, GGameIni);
@@ -520,7 +512,11 @@ void UArcweaveSubsystem::SaveArcweaveSettings(const FString& APIToken, const FSt
     UArcweaveSettings* ArcweaveSettings = GetMutableDefault<UArcweaveSettings>();
     if (ArcweaveSettings)
     {
-        ArcweaveSettings->SetUserAPIToken(APIToken);
+        if (!ArcweaveSettings->SetUserAPIToken(APIToken))
+        {
+            // Nothing is saved, so the token and the hash stay a matching pair
+            return;
+        }
         ArcweaveSettings->Hash = ProjectHash;
         ArcweaveSettings->SaveConfig();
     }

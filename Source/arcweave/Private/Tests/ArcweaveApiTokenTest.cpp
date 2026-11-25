@@ -1,6 +1,7 @@
 #if WITH_DEV_AUTOMATION_TESTS
 
 #include "ArcweaveSettings.h"
+#include "ArcweaveUserSettings.h"
 #include "arcweave.h"
 #include "HAL/FileManager.h"
 #include "HAL/PlatformMisc.h"
@@ -47,6 +48,15 @@ bool FArcweaveApiTokenIniTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("An empty token is found"), UArcweaveSettings::FindIniValue(Empty, Section, TEXT("APIToken"), Value, bHasValue));
     TestFalse(TEXT("An empty token has no value"), bHasValue);
 
+    // Removed or commented-out values aren't used, but the file still contains them
+    const FString Removed = FString::Printf(TEXT("[%s]\n-APIToken=old-key\n"), *Section);
+    UArcweaveSettings::FindIniValue(Removed, Section, TEXT("APIToken"), Value, bHasValue);
+    TestTrue(TEXT("A removal with a value is reported"), bHasValue);
+    TestTrue(TEXT("A removal sets no value"), Value.IsEmpty());
+    const FString CommentedOut = FString::Printf(TEXT("[%s]\n;; APIToken=old-key\n"), *Section);
+    TestFalse(TEXT("A commented-out token isn't used"), UArcweaveSettings::FindIniValue(CommentedOut, Section, TEXT("APIToken"), Value, bHasValue));
+    TestTrue(TEXT("A commented-out token is reported"), bHasValue);
+
     // A header with a ; comment isn't a section header for Unreal, so the previous section continues
     const FString NotHeader = TEXT("[Other]\n[/Script/arcweave.ArcweaveSettings] ; comment\nAPIToken=x\n");
     TestFalse(TEXT("A ; comment makes the line no header"), UArcweaveSettings::FindIniValue(NotHeader, Section, TEXT("APIToken"), Value, bHasValue));
@@ -70,6 +80,8 @@ bool FArcweaveApiTokenResolveTest::RunTest(const FString& Parameters)
     const TCHAR* EnvironmentVariable = UArcweaveSettings::ApiTokenEnvironmentVariable;
     const FString PreviousEnvironment = FPlatformMisc::GetEnvironmentVariable(EnvironmentVariable);
     const FString PreviousShownToken = Settings->APIToken;
+    UArcweaveUserSettings* UserSettings = GetMutableDefault<UArcweaveUserSettings>();
+    const FString PreviousUserSettingsToken = UserSettings->APIToken;
     const FString TestDirectory = FPaths::Combine(FPaths::AutomationTransientDir(), TEXT("ArcweaveToken"), FGuid::NewGuid().ToString());
     UArcweaveSettings::SetUserAPITokenPathForTests(FPaths::Combine(TestDirectory, TEXT("APIToken.txt")));
     ON_SCOPE_EXIT
@@ -77,6 +89,7 @@ bool FArcweaveApiTokenResolveTest::RunTest(const FString& Parameters)
         UArcweaveSettings::SetUserAPITokenPathForTests(FString());
         FPlatformMisc::SetEnvironmentVar(EnvironmentVariable, *PreviousEnvironment);
         Settings->APIToken = PreviousShownToken;
+        UserSettings->APIToken = PreviousUserSettingsToken;
         IFileManager::Get().DeleteDirectory(*TestDirectory, false, true);
     };
 
@@ -87,6 +100,7 @@ bool FArcweaveApiTokenResolveTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("The user token is used when the environment variable is blank"), UArcweaveSettings::ResolveAPIToken().Equals(TEXT("User-Token"), ESearchCase::CaseSensitive));
     TestTrue(TEXT("A new token replaces it"), Settings->SetUserAPIToken(TEXT("user-token")));
     TestTrue(TEXT("Only the new token is saved"), UArcweaveSettings::GetUserAPIToken().Equals(TEXT("user-token"), ESearchCase::CaseSensitive));
+    TestTrue(TEXT("The settings page shows it"), UserSettings->APIToken.Equals(TEXT("user-token"), ESearchCase::CaseSensitive));
 
     TArray<FString> Files;
     IFileManager::Get().FindFiles(Files, *FPaths::Combine(TestDirectory, TEXT("*")), true, false);
