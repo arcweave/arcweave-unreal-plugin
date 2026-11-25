@@ -52,19 +52,21 @@ Projects with several languages can be imported and switched at runtime
   the locale code exactly, so use the project's own spelling (e.g. `fr`, not `FR`).
 - The prebuilt Arcscript libraries support Windows (Win64) and macOS on Apple Silicon (arm64).
 
-## Option texts
+## Option texts and selection
 
-Options without label text now show what Arcweave's play mode shows
-([#43](https://github.com/arcweave/arcweave-unreal-plugin/pull/43)):
+Options show and follow what Arcweave's play mode does ([#43](https://github.com/arcweave/arcweave-unreal-plugin/pull/43)):
 
 - `TranspileConnectionLabel` follows the connection through branches and jumpers and returns the last label with text on
   the path, else the title of the element it leads to, else the first paragraph of its content without code, cut to 70
-  characters, else `[ Empty element ]`. It returns an empty string when no branch condition on the path holds, so that
-  option isn't shown. A label's Arcscript changes are seen by the labels and branch conditions after it on the same path,
-  without changing the project.
+  characters, else `[ Empty element ]`. It returns an empty string when no branch condition on the path holds or a script
+  on the path fails, so that option isn't shown. A label's Arcscript changes, including `resetVisits()`, are seen by the
+  labels and branch conditions after it on the same path, without changing the project.
+- New `SelectOption(Connection, BoardData, OutTarget)`: call it when the player picks an option. It follows the same path,
+  applies every label's Arcscript to the project, and returns the element to run next.
 - New `HasOptions(Element, BoardData)`: false when the element has no option, or a single one without label text, so the
   game can continue without showing a choice.
-- Previously a connection without a label showed nothing, and a labelled option was shown even when its branch led nowhere.
+- Previously a connection without a label showed nothing, and a labelled option was shown even when its branch led
+  nowhere. Branch conditions that are blank are now skipped instead of being run as a script.
 
 ## Starting element
 
