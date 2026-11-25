@@ -102,7 +102,8 @@ public:
     FArcweaveElementData TranspileObject(FString ObjectId, bool& Success, bool bStripHtmlTags = true);
 
     /*
-     * Run transpiler for the connection, labels only for now
+     * Run transpiler for the connection, labels only for now.
+     * Does not change variables or visits: use UpdateVariablesFromConnection when the player picks the connection
      */
     UFUNCTION(BlueprintCallable, Category = "Arcweave")
     FArcscriptTranspilerOutput TranspileConnection(
@@ -115,7 +116,7 @@ public:
     bool GetBoardForConnection(FString ConnectionId, FArcweaveConnectionsData& OutConnection, FArcweaveBoardData*& OutBoardObj);
 
     /*
-     * Run transpiler for the condition
+     * Run transpiler for the condition. Does not change variables or visits
      */
     UFUNCTION(BlueprintCallable, Category = "Arcweave")
     FArcscriptTranspilerOutput TranspileCondition(const FString& ConditionId, const FString& OriginElementId, bool& Success);
@@ -230,6 +231,7 @@ private:
     FArcweaveContents ParseAllContents(const TSharedPtr<FJsonObject>& MainJsonObject);
     bool ParseResponse(const FString& ResponseString);
     void OnEventCallback(const char* EventName);
+    /* Without bShouldUpdateVariables the script's variable changes and events (e.g. resetVisits) are not applied */
     FArcscriptTranspilerOutput RunTranspiler(const FString& NodeCode, const FString& OriginElementId,
         const TMap<FString, FArcweaveVariable>& InitialVars, const TMap<FString, int>& Visits, bool bShouldUpdateVariables = true);
     void UpdateVariables(const FArcscriptTranspilerOutput& Output);

@@ -59,6 +59,12 @@ This involves fetching data directly from the Arcweave Web API within Unreal Eng
 - Your **Arcweave API key** and your **project's hash** (Refer to the [Arcweave Documentation](https://arcweave.com/docs/1.0/api) for more info on how to find these).
 - Navigate to Project Settings -> Plugins -> Arcweave. Here, you can input your APIToken and the project hash obtained in the previous step.
 
+> **Keep your API token private.** The plugin never writes the token to the log, but the settings above are saved in
+> `Config/DefaultGame.ini`, which is usually committed to version control and packaged with your game. Don't commit or
+> ship a real token: remove the `APIToken` line from `DefaultGame.ini` before committing or packaging, or leave the setting empty
+> and pass the token at runtime with `FetchData(APIToken, ProjectHash)`, or export the project to JSON and enable
+> `EnableReceiveMethodFromLocalJSON`.
+
 ## Important Classes and Functions
 
 ### Runtime import results

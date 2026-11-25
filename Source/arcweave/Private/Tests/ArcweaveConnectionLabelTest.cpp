@@ -20,14 +20,14 @@ bool FArcweaveConnectionLabelTest::RunTest(const FString& Parameters)
             "board-1": {
                 "name": "Main",
                 "elements": ["healer", "help", "pay"],
-                "connections": ["plain-connection", "code-connection", "attributed-connection"]
+                "connections": ["plain-connection", "code-connection", "attributed-connection", "reset-connection"]
             }
         },
         "elements": {
             "healer": {
                 "title": "Healer",
                 "content": "<p>Greetings traveller, may I help you?</p>",
-                "outputs": ["plain-connection", "code-connection", "attributed-connection"]
+                "outputs": ["plain-connection", "code-connection", "attributed-connection", "reset-connection"]
             },
             "help": {"title": "Help", "content": "<p>Of course.</p>", "outputs": []},
             "pay": {"title": "Pay", "content": "<p>Thank you.</p>", "outputs": []}
@@ -56,6 +56,14 @@ bool FArcweaveConnectionLabelTest::RunTest(const FString& Parameters)
                 "targetid": "pay",
                 "sourceType": "elements",
                 "targetType": "elements"
+            },
+            "reset-connection": {
+                "type": "Bezier",
+                "label": "<pre><code>resetVisits()</code></pre><p>Start over</p>",
+                "sourceid": "healer",
+                "targetid": "help",
+                "sourceType": "elements",
+                "targetType": "elements"
             }
         },
         "components": {},
@@ -79,6 +87,7 @@ bool FArcweaveConnectionLabelTest::RunTest(const FString& Parameters)
     const FArcweaveConnectionsData Plain = Subsystem->GetConnectionsData(Board, TEXT("plain-connection"));
     const FArcweaveConnectionsData Code = Subsystem->GetConnectionsData(Board, TEXT("code-connection"));
     const FArcweaveConnectionsData Attributed = Subsystem->GetConnectionsData(Board, TEXT("attributed-connection"));
+    const FArcweaveConnectionsData Reset = Subsystem->GetConnectionsData(Board, TEXT("reset-connection"));
     TestEqual(TEXT("A label without code is stored as plain text"), Plain.Label, FString(TEXT("Ask for help")));
     TestTrue(TEXT("A code block with tag attributes is kept for the transpiler"), Attributed.Label.StartsWith(TEXT("<pre attr=")));
 
@@ -107,15 +116,29 @@ bool FArcweaveConnectionLabelTest::RunTest(const FString& Parameters)
 
 #if PLATFORM_WINDOWS || PLATFORM_MAC
     TestEqual(TEXT("A label with code still runs through the transpiler"), Subsystem->TranspileConnectionLabel(Code, Board), FString(TEXT("Pay the healer")));
+    TestEqual(TEXT("Rendering a label does not apply its assignments"), Money(), FString(TEXT("0")));
 
     Subsystem->SetVariable(TEXT("money-variable"), TEXT("0"));
     Subsystem->UpdateVariablesFromConnection(Code);
     TestEqual(TEXT("A label with code still updates variables"), Money(), FString(TEXT("5")));
 
+    Subsystem->SetVariable(TEXT("money-variable"), TEXT("5"));
     TestEqual(TEXT("A code block with tag attributes runs through the transpiler"), Subsystem->TranspileConnectionLabel(Attributed, Board), FString(TEXT("Tip the healer")));
+    TestEqual(TEXT("Rendering a label keeps the current value"), Money(), FString(TEXT("5")));
     Subsystem->SetVariable(TEXT("money-variable"), TEXT("0"));
     Subsystem->UpdateVariablesFromConnection(Attributed);
     TestEqual(TEXT("A code block with tag attributes updates variables"), Money(), FString(TEXT("7")));
+
+    const auto HealerVisits = [Subsystem]()
+    {
+        const int* Visits = Subsystem->GetArcweaveProjectData().Visits.Find(TEXT("healer"));
+        return Visits ? *Visits : 0;
+    };
+    Subsystem->IncrementVisits(TEXT("healer"));
+    TestEqual(TEXT("A label with an event still renders its text"), Subsystem->TranspileConnectionLabel(Reset, Board), FString(TEXT("Start over")));
+    TestEqual(TEXT("Rendering a label does not apply its resetVisits event"), HealerVisits(), 1);
+    Subsystem->UpdateVariablesFromConnection(Reset);
+    TestEqual(TEXT("Selecting the label applies its resetVisits event"), HealerVisits(), 0);
 #endif
 
     return true;

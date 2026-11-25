@@ -373,37 +373,38 @@ FArcweaveAPISettings UArcweaveSubsystem::LoadArcweaveSettings() const
         {
             if (GConfig->GetBool(ARCWEAVE_SETTINGS_SECTION, TEXT("EnableReceiveMethodFromLocalJSON"), OutSetttings.EnableReceiveMethodFromLocalJSON, GGameIni))
             {
-                UE_LOG(LogTemp, Warning, TEXT("Read EnableReceiveMethodFromLocalJSON: %d"), OutSetttings.EnableReceiveMethodFromLocalJSON);
+                UE_LOG(LogArcwarePlugin, Verbose, TEXT("Read EnableReceiveMethodFromLocalJSON: %d"), OutSetttings.EnableReceiveMethodFromLocalJSON);
             }
 
             if (GConfig->GetString(ARCWEAVE_SETTINGS_SECTION, TEXT("APIToken"), OutSetttings.APIToken, GGameIni))
             {
-                UE_LOG(LogTemp, Warning, TEXT("Read APIToken: %s"), *OutSetttings.APIToken);
+                // Never log the token itself
+                UE_LOG(LogArcwarePlugin, Verbose, TEXT("Read APIToken (%s)"), OutSetttings.APIToken.IsEmpty() ? TEXT("empty") : TEXT("set"));
             }
 
             if (GConfig->GetString(ARCWEAVE_SETTINGS_SECTION, TEXT("Hash"), OutSetttings.Hash, GGameIni))
             {
-                UE_LOG(LogTemp, Warning, TEXT("Read Hash: %s"), *OutSetttings.Hash);
+                UE_LOG(LogArcwarePlugin, Verbose, TEXT("Read Hash: %s"), *OutSetttings.Hash);
             }
 
             if (GConfig->GetString(ARCWEAVE_SETTINGS_SECTION, TEXT("JsonDirectoryPath"), OutSetttings.JsonDirectoryPath, GGameIni))
             {
-                UE_LOG(LogTemp, Warning, TEXT("Read JsonDirectoryPath: %s"), *OutSetttings.JsonDirectoryPath);
+                UE_LOG(LogArcwarePlugin, Verbose, TEXT("Read JsonDirectoryPath: %s"), *OutSetttings.JsonDirectoryPath);
             }
 
             if (GConfig->GetBool(ARCWEAVE_SETTINGS_SECTION, TEXT("bUseLocale"), OutSetttings.bUseLocale, GGameIni))
             {
-                UE_LOG(LogTemp, Warning, TEXT("Read bUseLocale: %d"), OutSetttings.bUseLocale);
+                UE_LOG(LogArcwarePlugin, Verbose, TEXT("Read bUseLocale: %d"), OutSetttings.bUseLocale);
             }
 
             if (GConfig->GetString(ARCWEAVE_SETTINGS_SECTION, TEXT("Locale"), OutSetttings.Locale, GGameIni))
             {
-                UE_LOG(LogTemp, Warning, TEXT("Read Locale: %s"), *OutSetttings.Locale);
+                UE_LOG(LogArcwarePlugin, Verbose, TEXT("Read Locale: %s"), *OutSetttings.Locale);
             }
 
             if (GConfig->GetBool(ARCWEAVE_SETTINGS_SECTION, TEXT("bFallbackToDefaultLocale"), OutSetttings.bFallbackToDefaultLocale, GGameIni))
             {
-                UE_LOG(LogTemp, Warning, TEXT("Read bFallbackToDefaultLocale: %d"), OutSetttings.bFallbackToDefaultLocale);
+                UE_LOG(LogArcwarePlugin, Verbose, TEXT("Read bFallbackToDefaultLocale: %d"), OutSetttings.bFallbackToDefaultLocale);
             }
         }
     }
@@ -647,7 +648,8 @@ FArcscriptTranspilerOutput UArcweaveSubsystem::TranspileCondition(const FString&
 
         //run the transpiler
         FString ScriptModified = FString("<pre><code>") + ConditionData.Script + FString("</code></pre>");
-        Output = RunTranspiler(ScriptModified, OriginElementId, ProjectData.CurrentVars, ProjectData.Visits);
+        // Checking a condition must not change variables or visits
+        Output = RunTranspiler(ScriptModified, OriginElementId, ProjectData.CurrentVars, ProjectData.Visits, false);
 
         Success = true;
     }
@@ -1103,7 +1105,8 @@ FArcscriptTranspilerOutput UArcweaveSubsystem::TranspileConnection(
     //run the transpiler
     try
     {
-        Output = RunTranspiler(ScriptData, OriginElementId, ProjectData.CurrentVars, ProjectData.Visits, true);
+        // Rendering a label must not change state: its effects apply on selection, see UpdateVariablesFromConnection
+        Output = RunTranspiler(ScriptData, OriginElementId, ProjectData.CurrentVars, ProjectData.Visits, false);
         if (bStripHtmlTags)
         {
             Output.Output = RemoveHtmlTags(Output.Output);
@@ -2315,7 +2318,13 @@ FArcscriptTranspilerOutput UArcweaveSubsystem::RunTranspiler(const FString& Node
     {
         UE_LOG(LogArcwarePlugin, Display, TEXT("Code=%s"), *NodeCode);
         UE_LOG(LogArcwarePlugin, Display, TEXT("ElementId=%s"), *OriginElementId);
-        Output = ArcscriptWrapper->RunScript(NodeCode, OriginElementId, InitialVars, Visits, std::bind(&UArcweaveSubsystem::OnEventCallback, this, std::placeholders::_1));
+        // A run that doesn't update variables must not change state through events either, e.g. resetVisits()
+        std::function<void(const char*)> OnEvent = [](const char*) {};
+        if (bShouldUpdateVariables)
+        {
+            OnEvent = std::bind(&UArcweaveSubsystem::OnEventCallback, this, std::placeholders::_1);
+        }
+        Output = ArcscriptWrapper->RunScript(NodeCode, OriginElementId, InitialVars, Visits, OnEvent);
 
         LogTranspilerOutput(Output);
 

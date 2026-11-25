@@ -73,7 +73,7 @@ these guidelines will help maintainers and the community to understand your sugg
 #### Before Submitting an Enhancement
 
 - Make sure that you are using the latest version.
-- Read the [documentation](ttps://github.com/arcweave/arcweave-unreal-plugin/) carefully and find out if the functionality is already covered, perhaps via configuration options.
+- Read the [documentation](https://github.com/arcweave/arcweave-unreal-plugin/) carefully and find out if the functionality is already covered, perhaps via configuration options.
 - Search [GitHub issues](https://github.com/arcweave/arcweave-unreal-plugin/issues) or [the Discord server](https://discord.gg/kb4FxBxw); you can check both the channel "aw-whishlist" and "unreal-plugin" to see if the enhancement has already been suggested. If it has, add a comment to the existing issue instead of opening a new one.
 - Find out whether your idea fits with the scope and aims of the project. It's up to you to make a strong case to convince the project's developers of the merits of this feature. Keep in mind that we want features that will be useful to the majority of our users and not just a small subset. *If you're just targeting a minority of users, consider writing an add-on/plugin library*.
 
@@ -89,12 +89,12 @@ these guidelines will help maintainers and the community to understand your sugg
 
 #### Good First Issues
   Start with issues labeled:
-  - [good first issue](hhttps://github.com/arcweave/arcweave-unreal-plugin/issues?q=label%3A%22good%20first%20issue%22)
+  - [good first issue](https://github.com/arcweave/arcweave-unreal-plugin/issues?q=label%3A%22good%20first%20issue%22)
   - [documentation](https://github.com/arcweave/arcweave-unreal-plugin/issues?q=label%3Adocumentation)
 
 #### Environment Setup
 1. **Prerequisites:**
-  - [IDE: VS Code, Visual Studio or Rider](https://visualstudio.microsoft.com/it/vs/older-downloads/) - version 2022 or newer
+  - [IDE: VS Code, Visual Studio or Rider](https://visualstudio.microsoft.com/vs/older-downloads/) - version 2022 or newer
   - [Unreal Engine 5.](https://www.unrealengine.com/en-US/download) - version 5.5.4
   - [Git](https://git-scm.com/book/en/v2/Getting-Started-Installing-Git) - to clone the repository and manage the version control
 
@@ -122,7 +122,7 @@ git init
 then go to the fork of the arcweave plugin and copy the URL that you find by clicking "Code" and then under "HTTPS" (for example: https://github.com/salvolannister/arcweave-unreal-plugin.git). Then run:
 
 ```sh
-git remote add YOUR_URL
+git remote add origin YOUR_URL
 ```
 
 #### Making Changes
@@ -143,7 +143,7 @@ If you incur conflicts or your local fork is not up-to-date, you can run:
 Go to your pull request branch, open a Bash console and add the original repository as an `upstream` remote:
 
 ```sh
-git remote add upstream https://github.com/arcweave/arcweave-unreal-example.git
+git remote add upstream https://github.com/arcweave/arcweave-unreal-plugin.git
 ```
 
 You now have two remotes: one for your fork, and one for the original repository. If you run `git remote -v`, you will see something like:
@@ -152,8 +152,8 @@ You now have two remotes: one for your fork, and one for the original repository
 git remote -v
 origin  https://github.com/myusername/myfork.git (fetch)
 origin  https://github.com/myusername/myfork.git (push)
-upstream        https://github.com/arcweave/arcweave-unreal-example.git (fetch)
-upstream        https://github.com/arcweave/arcweave-unreal-example.git(push)
+upstream        https://github.com/arcweave/arcweave-unreal-plugin.git (fetch)
+upstream        https://github.com/arcweave/arcweave-unreal-plugin.git (push)
 ```
 
 Then, track and update the remote branches by fetching them from `upstream`:
@@ -175,15 +175,15 @@ To fully sync your fork on GitHub, push the rebased branch to your remote:
 git push origin +main
 ```
 
-Now rebase your current feature branch on top of your fork's latest `origin`:
+Now rebase your current feature branch on top of your fork's latest `main`:
 
 ```sh
-git rebase origin
+git rebase origin/main
 ```
 
 #### Submitting PR
 
-  **Open PR against plantuml:master**
+  **Open a PR against [`arcweave/arcweave-unreal-plugin:main`](https://github.com/arcweave/arcweave-unreal-plugin/compare)**
   > PR should contain: 
   > 1) A title that briefly describes the essence of the changes; 
   > 2) A description that can explain in detail the essence of the changes: 
