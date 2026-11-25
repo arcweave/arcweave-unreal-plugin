@@ -57,7 +57,7 @@ the x86_64 part of a universal build are not supported.
   `JsonDirectoryPath`, keep the folder under `Content` and stage it by its path relative to `Content`: for example
   `JsonDirectoryPath` `Content/Narrative/` and the packaging entry `Narrative`. A folder outside `Content`, or an absolute
   path, works in the editor but is not packaged.
-- **API token:** clear the token from the Arcweave settings before you package; see [Web API](#web-api).
+- **API token:** the token is saved per user and isn't packaged. See [Web API](#web-api).
 - **Libraries and notices:** the Arcscript libraries and the license notices of the bundled Arcscript and ANTLR runtimes
   are staged with the game automatically.
 
@@ -78,12 +78,25 @@ This involves fetching data directly from the Arcweave Web API within Unreal Eng
 - Your **Arcweave API key** and your **project's hash** (Refer to the [Arcweave Documentation](https://docs.arcweave.com/rest-api/overview) for more info on how to find these).
 - Navigate to Project Settings -> Plugins -> Arcweave. Here, you can input your APIToken and the project hash obtained in the previous step.
 
-> **Keep your API token private.** The plugin never writes the token to the log, but the token entered above is saved in
-> `Config/DefaultGame.ini`, which is usually committed to version control and packaged with your game. Clear any saved
-> `APIToken` before you commit or package, whichever import method you use. Switching to a local JSON import does not remove
-> a token that is already saved. For shipped builds, prefer a JSON export (`EnableReceiveMethodFromLocalJSON`). If you
-> need to fetch at runtime, pass the token to `FetchData(APIToken, ProjectHash)` from a source you don't commit or ship,
-> such as an environment variable on your development machine.
+#### Where the token is saved
+
+The token is saved for your user only, in `Saved/Config/<Platform>/GameUserSettings.ini` (for example
+`Saved/Config/WindowsEditor/GameUserSettings.ini` in the editor). It is never saved in `Config/DefaultGame.ini`, so it isn't
+committed with the project or packaged with the game. The project hash stays in the project settings. The plugin never
+writes the token to the log.
+
+- **Environment variable:** when `ARCWEAVE_API_KEY` is set, it is used instead of the saved token, for example on a build
+  machine. Restart the editor after you change it.
+- **Upgrading from an earlier version:** earlier versions saved the token in `Config/DefaultGame.ini`. When the editor
+  starts, the plugin moves it to your user settings and removes it from `DefaultGame.ini`, and logs a warning. If that
+  file was committed, the token is still in your version control history: revoke it in your Arcweave workspace and create a
+  new one. If `DefaultGame.ini` is read-only (for example, not checked out), the plugin warns instead and keeps using the
+  token from it; remove the `APIToken` line yourself.
+- **Blueprints and C++:** `LoadArcweaveSettings()` returns the token to use, and `SaveArcweaveSettings(APIToken, Hash)` saves
+  it per user. `FetchData` with an empty `APIToken` uses the saved one.
+- **Shipped games:** a packaged game has no saved token. Prefer a JSON export (`EnableReceiveMethodFromLocalJSON`). A game
+  that fetches at runtime must pass its own token to `FetchData(APIToken, ProjectHash)`. A workspace API key in a shipped
+  game can be extracted by players, so don't ship one.
 
 ## Localization
 
@@ -595,8 +608,13 @@ These don't break the build, but a game that relied on the old behaviour acts di
   (`TranspileCondition`, `GetIsTargetBranch`) doesn't change variables or visits either.
 - **The starting element is validated on import.** `StartingElementId` is empty, with a warning, when the exported ID is
   not an element on an imported board. See [Starting element](#starting-element).
+- **Connections without label text now have an option text.** `TranspileConnectionLabel` falls back like play mode
+  instead of returning an empty string, so a game that hid options with an empty text now shows them. It is still empty
+  when no branch condition on the path holds. See [Option texts](#option-texts).
 - **The API token is no longer logged.** The settings read on import are logged at `Verbose` under `LogArcwarePlugin`,
   and the token only as `set` or `empty`.
+- **The API token is saved per user, not in `Config/DefaultGame.ini`.** The editor moves an existing token on startup.
+  A packaged game no longer gets the token from the project config. See [Where the token is saved](#where-the-token-is-saved).
 
 ## Using the Demo Project
 

@@ -18,7 +18,8 @@ struct FArcweaveAPISettings
     bool EnableReceiveMethodFromLocalJSON = false;
 
 	/*
-	 * API token that you can find in your Arcweave account settings.
+	 * API key of your Arcweave workspace: ARCWEAVE_API_KEY when it is set, else the token saved for this user in
+	 * GameUserSettings.ini. It is never saved in Config/DefaultGame.ini.
 	 */
 	UPROPERTY(BlueprintReadWrite, Category = "Arcweave| Settings")
 	FString APIToken = FString("");

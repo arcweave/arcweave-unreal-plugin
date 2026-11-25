@@ -31,6 +31,7 @@ Behaviour changes that a game may rely on:
   options whose `TranspileConnectionLabel` was empty now shows them; it still gets an empty text for an option whose
   conditions don't hold.
 - **The starting element is validated on import.** See [Starting element](#starting-element).
+- **The API token is saved per user**, not in `Config/DefaultGame.ini`. See [API token](#api-token).
 - **The default `Locale` setting is now `en`** (it was `fr`), and the language settings are now saved with the project
   settings. Check them after upgrading if you use `Use Locale`.
 - **Unreal Engine 5.5 or later is supported.** Earlier READMEs said 5.0, but the plugin already needed 5.4 to build.
@@ -87,9 +88,14 @@ Projects with several languages can be imported and switched at runtime
 - The API token is no longer written to the log. Importing used to log it at Warning level. The settings read on import
   are now logged at `Verbose` under `LogArcwarePlugin`, and the token only as `set` or `empty`
   ([#46](https://github.com/arcweave/arcweave-unreal-plugin/pull/46)).
-- **Check your `Config/DefaultGame.ini`.** A token entered in the Arcweave settings is saved there, and that file is
-  usually committed to version control and packaged with the game. Clear it before you commit or package. See
-  [Web API](https://github.com/arcweave/arcweave-unreal-plugin/blob/v3.0.0/README.md#web-api).
+- **The token is saved per user.** It is stored in `Saved/Config/<Platform>/GameUserSettings.ini` instead of
+  `Config/DefaultGame.ini`, so it is no longer committed with the project or packaged with the game. The
+  `ARCWEAVE_API_KEY` environment variable overrides it. When the editor starts, a token that an earlier version saved in
+  `DefaultGame.ini` is moved to your user settings and removed from that file, with a warning. **If `DefaultGame.ini` was
+  committed, revoke that token in your Arcweave workspace and create a new one.** See
+  [Where the token is saved](https://github.com/arcweave/arcweave-unreal-plugin/blob/v3.0.0/README.md#where-the-token-is-saved).
+- A packaged game no longer gets the token from the project config: a game that fetches from the API at runtime must
+  pass its own token to `FetchData`. `FetchData` with an empty token uses the saved one.
 
 ## Other changes
 

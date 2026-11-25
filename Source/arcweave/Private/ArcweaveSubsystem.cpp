@@ -415,7 +415,7 @@ void UArcweaveSubsystem::FetchData(FString APIToken, FString ProjectHash)
     }
     else
     {
-        FetchDataFromAPI(APIToken, ProjectHash);
+        FetchDataFromAPI(APIToken.IsEmpty() ? NewArcweaveAPISettings.APIToken : APIToken, ProjectHash);
     }
 }
 
@@ -483,11 +483,9 @@ FArcweaveAPISettings UArcweaveSubsystem::LoadArcweaveSettings() const
                 UE_LOG(LogArcwarePlugin, Verbose, TEXT("Read EnableReceiveMethodFromLocalJSON: %d"), OutSetttings.EnableReceiveMethodFromLocalJSON);
             }
 
-            if (GConfig->GetString(ARCWEAVE_SETTINGS_SECTION, TEXT("APIToken"), OutSetttings.APIToken, GGameIni))
-            {
-                // Never log the token itself
-                UE_LOG(LogArcwarePlugin, Verbose, TEXT("Read APIToken (%s)"), OutSetttings.APIToken.IsEmpty() ? TEXT("empty") : TEXT("set"));
-            }
+            // The token is never stored in the project config. Never log the token itself
+            OutSetttings.APIToken = UArcweaveSettings::ResolveAPIToken();
+            UE_LOG(LogArcwarePlugin, Verbose, TEXT("Read APIToken (%s)"), OutSetttings.APIToken.IsEmpty() ? TEXT("empty") : TEXT("set"));
 
             if (GConfig->GetString(ARCWEAVE_SETTINGS_SECTION, TEXT("Hash"), OutSetttings.Hash, GGameIni))
             {
@@ -528,7 +526,7 @@ void UArcweaveSubsystem::SaveArcweaveSettings(const FString& APIToken, const FSt
     UArcweaveSettings* ArcweaveSettings = GetMutableDefault<UArcweaveSettings>();
     if (ArcweaveSettings)
     {
-        ArcweaveSettings->APIToken = APIToken;
+        ArcweaveSettings->SetUserAPIToken(APIToken);
         ArcweaveSettings->Hash = ProjectHash;
         ArcweaveSettings->SaveConfig();
     }
