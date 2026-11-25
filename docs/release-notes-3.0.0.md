@@ -52,7 +52,7 @@ Projects with several languages can be imported and switched at runtime
   detected.
 - API imports request a single language, with `fallbackContents=true` when the fallback setting is on. The API matches
   the locale code exactly and rejects any other spelling (e.g. `FR` for `fr`) with HTTP 400, so the import fails and the
-  previous project is kept. Set `Locale` to `*` to import all languages through the API.
+  previous project is kept. Set `Locale` to `*` to import all languages through the API, or to `__default__` for the main language.
 
 ## Option texts and selection
 
