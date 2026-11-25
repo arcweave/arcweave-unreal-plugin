@@ -25,7 +25,7 @@ bool FArcweaveConnectionLabelFallbackTest::RunTest(const FString& Parameters)
                 "jumpers": ["jumper-1", "jumper-orphan"],
                 "branches": ["branch-1", "branch-none", "branch-a", "branch-b", "branch-loop", "branch-reset", "branch-show", "branch-visits", "branch-until-done", "branch-bad",
                     "branch-blank", "branch-ptag", "branch-emptyvar", "branch-chance", "branch-fail-later",
-                    "branch-coin", "branch-multi", "branch-reset2", "branch-noout"],
+                    "branch-coin", "branch-multi", "branch-reset2", "branch-noout", "branch-rv"],
                 "connections": [
                     "c-empty", "c-labelled", "c-code-only", "c-untitled", "c-long", "c-empty-element", "c-jumper", "c-branch",
                     "c-branch-yes", "c-branch-no", "c-single", "c-single-labelled", "c-single-code", "c-dead", "c-dead-out", "c-alive",
@@ -36,7 +36,7 @@ bool FArcweaveConnectionLabelFallbackTest::RunTest(const FString& Parameters)
                     "c-salt", "c-jumper-orphan", "c-blank", "c-blank-out", "c-blank-else", "c-ptag", "c-ptag-out", "c-ptag-else",
                     "c-emptyvar", "c-emptyvar-out", "c-set-chance", "c-chance-pos", "c-chance-zero", "c-spend", "c-spent", "c-lucky",
                     "c-coin", "c-coin-heads", "c-coin-again", "c-multi", "c-multi-out", "c-reset2", "c-reset2-out", "c-noout",
-                    "c-plain-br", "c-fish"
+                    "c-plain-br", "c-fish", "c-entities", "c-escaped-code", "c-rv", "c-rv-yes", "c-rv-no"
                 ]
             },
             "board-2": {
@@ -100,6 +100,7 @@ bool FArcweaveConnectionLabelFallbackTest::RunTest(const FString& Parameters)
             "branch-multi": {"conditions": {"ifCondition": "cond-multi", "elseIfConditions": []}},
             "branch-reset2": {"conditions": {"ifCondition": "cond-reset2", "elseIfConditions": []}},
             "branch-noout": {"conditions": {"ifCondition": "cond-noout", "elseIfConditions": []}},
+            "branch-rv": {"conditions": {"ifCondition": "cond-rv1", "elseIfConditions": ["cond-rv2"], "elseCondition": "cond-rv-else"}},
             "branch-ptag": {"conditions": {"ifCondition": "cond-ptag", "elseIfConditions": [], "elseCondition": "cond-ptag-else"}},
             "branch-emptyvar": {"conditions": {"ifCondition": "cond-emptyvar", "elseIfConditions": []}},
             "branch-chance": {"conditions": {"ifCondition": "cond-chance", "elseIfConditions": [], "elseCondition": "cond-chance-else"}},
@@ -134,6 +135,9 @@ bool FArcweaveConnectionLabelFallbackTest::RunTest(const FString& Parameters)
             "cond-multi": {"output": "c-multi-out", "script": "<p>true</p><p></p>"},
             "cond-reset2": {"output": "c-reset2-out", "script": "resetVisits() or true"},
             "cond-noout": {"output": "", "script": "true"},
+            "cond-rv1": {"output": "c-rv-no", "script": "resetVisits() or false"},
+            "cond-rv2": {"output": "c-rv-yes", "script": "visits() == 0"},
+            "cond-rv-else": {"output": "c-rv-no"},
             "cond-ptag": {"output": "c-ptag-out", "script": "<p>money == 0</p>"},
             "cond-ptag-else": {"output": "c-ptag-else"},
             "cond-emptyvar": {"output": "c-emptyvar-out", "script": "empty"},
@@ -216,7 +220,12 @@ bool FArcweaveConnectionLabelFallbackTest::RunTest(const FString& Parameters)
             "c-reset2-out": {"label": "<pre><code>if visits() == 0</code></pre><p>Zero</p><pre><code>else</code></pre><p>Some</p><pre><code>endif</code></pre>", "sourceid": "cond-reset2", "targetid": "help", "sourceType": "conditions", "targetType": "elements"},
             "c-noout": {"label": "<p>No output</p>", "sourceid": "healer", "targetid": "branch-noout", "sourceType": "elements", "targetType": "branches"},
             "c-plain-br": {"label": "<p>Salt &amp; pepper<br>and more</p>", "sourceid": "healer", "targetid": "help", "sourceType": "elements", "targetType": "elements"},
-            "c-fish": {"label": null, "sourceid": "healer", "targetid": "fish", "sourceType": "elements", "targetType": "elements"}
+            "c-fish": {"label": null, "sourceid": "healer", "targetid": "fish", "sourceType": "elements", "targetType": "elements"},
+            "c-entities": {"label": "<p>Take &lt;key&gt;</p>", "sourceid": "healer", "targetid": "help", "sourceType": "elements", "targetType": "elements"},
+            "c-escaped-code": {"label": "<p>&lt;pre&gt;&lt;code&gt;money = 99&lt;/code&gt;&lt;/pre&gt;</p>", "sourceid": "healer", "targetid": "help", "sourceType": "elements", "targetType": "elements"},
+            "c-rv": {"label": null, "sourceid": "healer", "targetid": "branch-rv", "sourceType": "elements", "targetType": "branches"},
+            "c-rv-yes": {"label": "<p>Reset seen</p>", "sourceid": "cond-rv2", "targetid": "help", "sourceType": "conditions", "targetType": "elements"},
+            "c-rv-no": {"label": "<p>Reset lost</p>", "sourceid": "cond-rv-else", "targetid": "help", "sourceType": "conditions", "targetType": "elements"}
         },
         "components": {},
         "variables": {
@@ -269,6 +278,20 @@ bool FArcweaveConnectionLabelFallbackTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("A jumper to an element on no imported board is not an option"), Label(TEXT("c-jumper-orphan")).IsEmpty());
     TestEqual(TEXT("A plain label shows entities as characters and line breaks as spaces"), Label(TEXT("c-plain-br")), FString(TEXT("Salt & pepper and more")));
     TestEqual(TEXT("A title shows entities as characters"), Label(TEXT("c-fish")), FString(TEXT("Fish & chips")));
+    TestEqual(TEXT("A plain label's entities are decoded once"), Label(TEXT("c-entities")), FString(TEXT("Take <key>")));
+    TestEqual(TEXT("Escaped code in a plain label is shown as text"), Label(TEXT("c-escaped-code")), FString(TEXT("<pre><code>money = 99</code></pre>")));
+
+    // A copy of a board the current import doesn't have, with a connection it doesn't have either
+    FArcweaveBoardData Obsolete = Board;
+    Obsolete.BoardId = TEXT("obsolete-board");
+    FArcweaveConnectionsData Ghost = Subsystem->GetConnectionsData(Board, TEXT("c-labelled"));
+    Ghost.Id = TEXT("c-ghost");
+    Obsolete.Connections.Add(Ghost);
+    TestTrue(TEXT("A connection the import doesn't have is no option"), Subsystem->TranspileConnectionLabel(Ghost, Obsolete).IsEmpty());
+    FArcweaveElementData GhostTarget;
+    TestFalse(TEXT("A connection the import doesn't have can't be selected"), Subsystem->SelectOption(Ghost, Obsolete, GhostTarget));
+    TestEqual(TEXT("An imported connection passed with an obsolete board copy uses the imported board"),
+        Subsystem->TranspileConnectionLabel(Subsystem->GetConnectionsData(Board, TEXT("c-labelled")), Obsolete), FString(TEXT("Ask for help")));
     TestEqual(TEXT("Long content is cut to 70 characters"), Label(TEXT("c-long")),
         FString(TEXT("The healer tells a long story about the old war, the lost city and the...")));
     TestEqual(TEXT("An element without title or content is marked empty"), Label(TEXT("c-empty-element")), FString(TEXT("[ Empty element ]")));
@@ -371,6 +394,14 @@ bool FArcweaveConnectionLabelFallbackTest::RunTest(const FString& Parameters)
     TestEqual(TEXT("A condition's resetVisits() reaches the labels after it"), Label(TEXT("c-reset2")), FString(TEXT("Zero")));
     TestEqual(TEXT("Showing it doesn't reset the project's visits either"),
         Subsystem->GetArcweaveProjectData().Visits.FindChecked(TEXT("healer")), 1);
+    TestEqual(TEXT("A condition's resetVisits() reaches the conditions after it"), Label(TEXT("c-rv")), FString(TEXT("Reset seen")));
+    const FGetIsTargetBranchOutput ResetBranch = Subsystem->GetIsTargetBranch(Board, Subsystem->GetConnectionsData(Board, TEXT("c-rv")));
+    if (TestEqual(TEXT("GetIsTargetBranch finds an arm"), ResetBranch.BranchConnections.Num(), 1))
+    {
+        TestEqual(TEXT("GetIsTargetBranch takes the same arm as the option"), ResetBranch.BranchConnections[0].Id, FString(TEXT("c-rv-yes")));
+    }
+    TestEqual(TEXT("GetIsTargetBranch doesn't reset the project's visits"),
+        Subsystem->GetArcweaveProjectData().Visits.FindChecked(TEXT("healer")), 1);
     TestEqual(TEXT("Previews with resetVisits() don't broadcast events"), Listener->ArcscriptEvents, 0);
 
     // Selecting an option follows the same path as its text, now applying the labels
@@ -439,6 +470,28 @@ bool FArcweaveConnectionLabelFallbackTest::RunTest(const FString& Parameters)
         }
         TestEqual(TEXT("The random option is shown and selected every time"), Invalid, 0);
         TestEqual(TEXT("A random label grants what it showed, whichever copy of the connection is used"), Mismatches, 0);
+    }
+
+    // Escaped code is text: selecting it runs nothing
+    Subsystem->SetVariable(TEXT("money-variable"), TEXT("0"));
+    TestTrue(TEXT("An option with escaped code can be selected"), Select(TEXT("c-escaped-code"), TargetId));
+    TestEqual(TEXT("Selecting escaped code doesn't run it"), Money(), FString(TEXT("0")));
+
+    // A restore that fails keeps the options as shown
+    if (ProjectLucky != nullptr)
+    {
+        int32 Mismatches = 0;
+        for (int32 Attempt = 0; Attempt < 20; ++Attempt)
+        {
+            Subsystem->SetVariable(TEXT("lucky-variable"), TEXT("false"));
+            const FString Shown = Label(TEXT("c-lucky"));
+            FString RestoreError;
+            TestFalse(TEXT("An incompatible checkpoint is rejected"), Subsystem->RestoreState(FArcweaveRuntimeState(), RestoreError));
+            FArcweaveElementData Target;
+            Subsystem->SelectOption(*ProjectLucky, Board, Target);
+            Mismatches += (Shown == TEXT("Lucky")) != (Subsystem->GetArcweaveProjectData().CurrentVars.FindChecked(TEXT("lucky-variable")).Value == TEXT("true")) ? 1 : 0;
+        }
+        TestEqual(TEXT("A rejected restore keeps the options as shown"), Mismatches, 0);
     }
 
     // A runner can pass an output of the element it overwrites

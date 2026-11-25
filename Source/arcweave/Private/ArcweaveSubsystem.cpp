@@ -24,7 +24,6 @@
 #include "HttpModule.h"
 #include "Interfaces/IHttpResponse.h"
 #include "Interfaces/IPluginManager.h"
-#include "Algo/Accumulate.h"
 #include "Internationalization/Regex.h"
 #include "Misc/ConfigCacheIni.h"
 #include "Misc/FileHelper.h"
@@ -95,11 +94,25 @@ bool IsBlankConditionScript(const FString& Script)
     return Text.Replace(TEXT("&nbsp;"), TEXT(" ")).TrimStartAndEnd().IsEmpty();
 }
 
-// Enough for any real path; a longer one is a loop that keeps changing state
+// Enough for any real path; a longer one is a loop that keeps changing state, or keeps rolling without leaving
 constexpr int32 MaxBranchesOnPath = 1000;
-// A branch reached this many times in the same state is a loop: a condition with random() would
-// have taken another arm by then, almost surely
-constexpr int32 MaxRepeatsOfState = 20;
+
+// Whether a script can give another result in the same state
+bool UsesRandom(const FString& Script)
+{
+    return Script.Contains(TEXT("random(")) || Script.Contains(TEXT("roll("));
+}
+
+// The total of the visit counters, without overflowing
+int64 GetTotalVisits(const TMap<FString, int>& Visits)
+{
+    int64 Total = 0;
+    for (const TPair<FString, int>& Pair : Visits)
+    {
+        Total += Pair.Value;
+    }
+    return Total;
+}
 
 // Variables and visits, written so that different states never give the same text
 FString GetPathState(const TMap<FString, FArcweaveVariable>& Variables, const TMap<FString, int>& Visits)
@@ -882,8 +895,6 @@ bool UArcweaveSubsystem::RestoreState(const FArcweaveRuntimeState& State, FStrin
     {
         return false;
     }
-    // Options shown before the restore must be resolved again, even when the state is the same
-    ClearResolvedOptions();
     if (State.FormatVersion != 1)
     {
         Error = TEXT("Unsupported Arcweave state format version.");
@@ -919,6 +930,8 @@ bool UArcweaveSubsystem::RestoreState(const FArcweaveRuntimeState& State, FStrin
         }
     }
 
+    // The checkpoint is valid: options shown before it must be resolved again, even when the state is the same
+    ClearResolvedOptions();
     for (const auto& Pair : State.Variables)
     {
         // Keep imported type, scope and authored defaults so reset()/resetAll() still work.
@@ -966,7 +979,9 @@ FGetIsTargetBranchOutput UArcweaveSubsystem::GetIsTargetBranch(
     const FArcweaveBoardData& BoardData,
     const FArcweaveConnectionsData& TargetConnection)
 {
-    return EvaluateBranch(BoardData, TargetConnection.Targetid, TargetConnection.Sourceid, ProjectData.CurrentVars, ProjectData.Visits, nullptr, nullptr);
+    // A condition's resetVisits() reaches the conditions after it, as when an option is resolved, but only on a copy
+    TMap<FString, int> Visits = ProjectData.Visits;
+    return EvaluateBranch(BoardData, TargetConnection.Targetid, TargetConnection.Sourceid, ProjectData.CurrentVars, Visits, nullptr, &Visits);
 }
 
 FGetIsTargetBranchOutput UArcweaveSubsystem::EvaluateBranch(
@@ -1165,16 +1180,27 @@ bool UArcweaveSubsystem::HasOptions(const FArcweaveElementData& Element, const F
 
 FArcweaveResolvedOption UArcweaveSubsystem::GetResolvedOption(const FArcweaveConnectionsData& Connection, const FArcweaveBoardData& BoardData)
 {
-    // Always the board and connection as currently imported, so that every copy of a connection
-    // (an element's output, a board's or the project's list, an older copy) is the same option
-    const FArcweaveBoardData* ImportedBoard = ProjectData.Boards.FindByPredicate(
-        [&BoardData](const FArcweaveBoardData& Data) { return Data.BoardId == BoardData.BoardId; });
-    const FArcweaveBoardData& Board = ImportedBoard != nullptr ? *ImportedBoard : BoardData;
-    const FArcweaveConnectionsData Imported = FindConnection(Board, Connection.Id);
-    if (Imported.Id.IsEmpty())
+    // Always the connection as currently imported, with the board that has it, so that every copy of a connection
+    // (an element's output, a board's or the project's list, an older copy) is the same option.
+    // A connection that the current import doesn't have is no option
+    const FArcweaveBoardData* ImportedBoard = nullptr;
+    const FArcweaveConnectionsData* ImportedConnection = nullptr;
+    for (const FArcweaveBoardData& Candidate : ProjectData.Boards)
+    {
+        ImportedConnection = Candidate.Connections.FindByPredicate(
+            [&Connection](const FArcweaveConnectionsData& Data) { return Data.Id == Connection.Id; });
+        if (ImportedConnection != nullptr)
+        {
+            ImportedBoard = &Candidate;
+            break;
+        }
+    }
+    if (ImportedConnection == nullptr || Connection.Id.IsEmpty())
     {
         return FArcweaveResolvedOption();
     }
+    const FArcweaveBoardData& Board = *ImportedBoard;
+    const FArcweaveConnectionsData Imported = *ImportedConnection;
 
     // Only the options of the current state are kept
     const FString State = GetPathState(ProjectData.CurrentVars, ProjectData.Visits);
@@ -1210,8 +1236,9 @@ FArcweaveResolvedOption UArcweaveSubsystem::ResolveOption(const FArcweaveConnect
     PathState.Visits = ProjectData.Visits;
 
     FArcweaveConnectionsData Current = Connection;
-    TArray<TPair<FString, int32>> VisitedStates;
+    TArray<FString> VisitedStates;
     int32 BranchesOnPath = 0;
+    bool bPathUsesRandom = false;
     while (true)
     {
         FString Label;
@@ -1225,35 +1252,40 @@ FArcweaveResolvedOption UArcweaveSubsystem::ResolveOption(const FArcweaveConnect
         {
             Option.Label = Label;
         }
+        bPathUsesRandom = bPathUsesRandom || UsesRandom(Current.Label);
 
         if (Current.TargetType != TEXT("branches"))
         {
             break;
         }
 
-        // A branch reached again and again with the same variables and visits leads the same way forever
+        // A branch reached again with the same variables and visits leads the same way forever, unless the path
+        // rolls dice: then only the length of the path is limited
         const FString State = Current.Targetid + TEXT("|") + GetPathState(PathState.Variables, PathState.Visits);
-        TPair<FString, int32>* Visited = VisitedStates.FindByPredicate(
-            [&State](const TPair<FString, int32>& Pair) { return Pair.Key.Equals(State, ESearchCase::CaseSensitive); });
-        if (Visited == nullptr)
-        {
-            Visited = &VisitedStates.Emplace_GetRef(State, 0);
-        }
-        if (++Visited->Value > MaxRepeatsOfState || ++BranchesOnPath > MaxBranchesOnPath)
+        const bool bRepeated = VisitedStates.ContainsByPredicate(
+            [&State](const FString& Visited) { return Visited.Equals(State, ESearchCase::CaseSensitive); });
+        if ((bRepeated && !bPathUsesRandom) || ++BranchesOnPath > MaxBranchesOnPath)
         {
             UE_LOG(LogArcwarePlugin, Warning, TEXT("Connection %s leads to a loop of branches"), *Connection.Id);
             return FArcweaveResolvedOption();
         }
+        if (!bRepeated)
+        {
+            VisitedStates.Add(State);
+        }
 
         // Conditions never change the project; their resetVisits() only applies to this path
         bool bConditionFailed = false;
-        const int32 VisitsBefore = Algo::Accumulate(PathState.Visits, 0, [](int32 Sum, const TPair<FString, int>& Pair) { return Sum + Pair.Value; });
+        const int64 VisitsBefore = GetTotalVisits(PathState.Visits);
         const FGetIsTargetBranchOutput Branch = EvaluateBranch(BoardData, Current.Targetid, OriginElementId,
             PathState.Variables, PathState.Visits, &bConditionFailed, &PathState.Visits);
-        if (VisitsBefore > 0 && Algo::Accumulate(PathState.Visits, 0, [](int32 Sum, const TPair<FString, int>& Pair) { return Sum + Pair.Value; }) == 0)
+        if (VisitsBefore > 0 && GetTotalVisits(PathState.Visits) == 0)
         {
             Option.bResetsVisits = true;
         }
+        bPathUsesRandom = bPathUsesRandom || UsesRandom(Branch.BranchData.IfCondition.Script)
+            || Branch.BranchData.ElseIfConditions.ContainsByPredicate(
+                [](const FArcweaveConditionData& Condition) { return UsesRandom(Condition.Script); });
         if (bConditionFailed || Branch.BranchConnections.IsEmpty())
         {
             return FArcweaveResolvedOption();
@@ -1427,7 +1459,8 @@ FString UArcweaveSubsystem::ProcessConnectionLabel(const FString& RawLabel)
     }
 
     // Keep raw code so it can be analysed later, otherwise html tags can be removed
-    return ContainsCodePattern(RawLabel) ? RawLabel : GetVisibleText(RawLabel);
+    // Plain text keeps its entities, so it is never read as HTML or code again; they are decoded when it is shown
+    return ContainsCodePattern(RawLabel) ? RawLabel : RemoveHtmlTags(ReplacePattern(RawLabel, BreakRegex, TEXT(" "))).TrimStartAndEnd();
 }
 
 FArcweaveElementData UArcweaveSubsystem::TranspileObject(FString ObjectId, bool& Success, bool bStripHtmlTags /*true*/)
