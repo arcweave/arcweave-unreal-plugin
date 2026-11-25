@@ -31,8 +31,12 @@ struct FArcweaveElementData
     UPROPERTY(BlueprintReadWrite, Category = "Arcweave")
     TArray<FArcweaveConnectionsData> Outputs = TArray<FArcweaveConnectionsData>();
 
-    UPROPERTY(BlueprintReadWrite, Category = "Arcweave")
-    TArray<FArcweaveComponentData> Components = TArray<FArcweaveComponentData>();
+    UPROPERTY(
+        BlueprintReadWrite,
+        Category = "Arcweave",
+        meta = (ToolTip = "Components ids for the given element, use them with the arcweave subsystem to get the component data")
+    )
+    TArray<FString> ComponentIds;
 
     UPROPERTY(BlueprintReadWrite, Category = "Arcweave")
     TMap<FString, FArcweaveAssetData> Assets;
@@ -46,7 +50,7 @@ struct FArcweaveElementData
         , Title(FString(""))
         , Content(FString(""))
         , Outputs(TArray<FArcweaveConnectionsData>())
-        , Components(TArray<FArcweaveComponentData>())
+        , ComponentIds(TArray<FString>())
         , Assets(TMap<FString, FArcweaveAssetData>())
         , Attributes(TArray<FArcweaveAttributeData>())
     {}

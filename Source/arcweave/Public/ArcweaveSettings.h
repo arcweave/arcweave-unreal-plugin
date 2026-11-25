@@ -23,7 +23,7 @@ public:
      * Enable to receive the data from local JSON file instead of API.
      * The JSON file and resource files should be located in the JsonDirectoryPath folder.
      */
-    UPROPERTY(Config, EditAnywhere, Category = ArcweaveSettings)
+    UPROPERTY(Config, EditAnywhere, Category = "ArcweaveSettings")
     bool EnableReceiveMethodFromLocalJSON = false;
 
     UPROPERTY(
@@ -40,13 +40,13 @@ public:
     /*
      * API token that you can find in your Arcweave account settings.
      */
-    UPROPERTY(Config, EditAnywhere, meta = (EditCondition = "!EnableReceiveMethodFromLocalJSON"), Category = ArcweaveSettings)
+    UPROPERTY(Config, EditAnywhere, meta = (EditCondition = "!EnableReceiveMethodFromLocalJSON"), Category = "ArcweaveSettings")
     FString APIToken = FString("");
 
     /*
      * Project hash that we want to retrieve the information for. You can find it by looking at the URL of your project.
      */
-    UPROPERTY(Config, EditAnywhere, meta = (EditCondition = "!EnableReceiveMethodFromLocalJSON"), Category = ArcweaveSettings)
+    UPROPERTY(Config, EditAnywhere, meta = (EditCondition = "!EnableReceiveMethodFromLocalJSON"), Category = "ArcweaveSettings")
     FString Hash = FString("");
 
     //override post init properties to check if the settings are valid
@@ -59,7 +59,7 @@ public:
 
     void SetUseLocale(bool bValue) { bUseLocale = bValue; }
 
-    FString GetLocale() const { return Locale; }
+    FString GetLocale() const;
 
     void SetLocale(const FString& CustomLocale) { Locale = CustomLocale; }
 
@@ -85,14 +85,14 @@ private:
             ),
         Category = ArcweaveSettings
     )
-    FString Locale = FString("fr");
+    FString Locale = FString("en");
 
     UPROPERTY(
         Config,
         EditAnywhere,
         meta = (
-            EditCondition = "!EnableReceiveMethodFromLocalJSON && bUseLocale",
-            ToolTip = "If the specified language is not available, fallback to the standard language (usually en-us). This option is available only from web api"
+            EditCondition = "bUseLocale",
+            ToolTip = "If the specified language is not available, fallback to the standard language (the one defined for the current locale as base in the app)"
             ),
         Category = ArcweaveSettings
     )
