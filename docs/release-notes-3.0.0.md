@@ -50,6 +50,20 @@ Projects with several languages can be imported and switched at runtime
   detected.
 - API imports request a single language, with `fallbackContents=true` when the fallback setting is on.
 
+<!-- Keep this section only if #43 is merged before the release. -->
+## Option texts
+
+Options without label text now show what Arcweave's play mode shows
+([#43](https://github.com/arcweave/arcweave-unreal-plugin/pull/43)):
+
+- `TranspileConnectionLabel` follows the connection through branches and jumpers and returns the last label with text on
+  the path, else the title of the element it leads to, else the first 70 characters of its content, else
+  `[ Empty element ]`. It returns an empty string when no branch condition on the path holds, so that option isn't shown.
+  A label's Arcscript changes are seen by the branch conditions after it on the same path, without changing the project.
+- New `HasOptions(Element, BoardData)`: false when the element has no option, or a single one without label text, so the
+  game can continue without showing a choice.
+- Previously a connection without a label showed nothing, and a labelled option was shown even when its branch led nowhere.
+
 ## Starting element
 
 - An export whose starting element is missing, unknown or not on an imported board (for example an export of selected
