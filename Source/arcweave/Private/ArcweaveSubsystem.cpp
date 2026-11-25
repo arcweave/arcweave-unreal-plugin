@@ -626,11 +626,11 @@ void UArcweaveSubsystem::ReportUnavailableConfiguredLocale() const
 
 FArcscriptTranspilerOutput UArcweaveSubsystem::TranspileCondition(const FString& ConditionId, const FString& OriginElementId, bool& Success)
 {
-    return RunConditionScript(ConditionId, OriginElementId, Success, false, ProjectData.CurrentVars);
+    return RunConditionScript(ConditionId, OriginElementId, Success, ProjectData.CurrentVars);
 }
 
 FArcscriptTranspilerOutput UArcweaveSubsystem::RunConditionScript(const FString& ConditionId, const FString& OriginElementId,
-    bool& Success, bool bShouldUpdateVariables, const TMap<FString, FArcweaveVariable>& Variables)
+    bool& Success, const TMap<FString, FArcweaveVariable>& Variables)
 {
     UE_LOG(LogArcwarePlugin, Log, TEXT("----- TranspileCondition for id: %s -----"), *ConditionId);
     Success = false;
@@ -657,7 +657,7 @@ FArcscriptTranspilerOutput UArcweaveSubsystem::RunConditionScript(const FString&
         //run the transpiler
         FString ScriptModified = FString("<pre><code>") + ConditionData.Script + FString("</code></pre>");
         // Checking a condition must not change variables or visits
-        Output = RunTranspiler(ScriptModified, OriginElementId, Variables, ProjectData.Visits, bShouldUpdateVariables);
+        Output = RunTranspiler(ScriptModified, OriginElementId, Variables, ProjectData.Visits, false);
 
         Success = true;
     }
@@ -840,13 +840,13 @@ bool UArcweaveSubsystem::RestoreState(const FArcweaveRuntimeState& State, FStrin
 }
 
 void UArcweaveSubsystem::EvaluateCondition(const FArcweaveConditionData& Condition, const FString& OriginElementId,
-    FArcscriptTranspilerOutput& TranspilerOutput, bool bShouldUpdateVariables, const TMap<FString, FArcweaveVariable>& Variables)
+    FArcscriptTranspilerOutput& TranspilerOutput, const TMap<FString, FArcweaveVariable>& Variables)
 {
     UE_LOG(LogArcwarePlugin, Log,
         TEXT("Transpiling condition %s..."), *Condition.Id);
 
     bool bTranspileSucceeded = false;
-    TranspilerOutput = RunConditionScript(Condition.Id, OriginElementId, bTranspileSucceeded, bShouldUpdateVariables, Variables);
+    TranspilerOutput = RunConditionScript(Condition.Id, OriginElementId, bTranspileSucceeded, Variables);
 
     if (!bTranspileSucceeded)
     {
@@ -884,14 +884,13 @@ FGetIsTargetBranchOutput UArcweaveSubsystem::GetIsTargetBranch(
     const FArcweaveBoardData& BoardData,
     const FArcweaveConnectionsData& TargetConnection)
 {
-    return EvaluateBranch(BoardData, TargetConnection.Targetid, TargetConnection.Sourceid, false, ProjectData.CurrentVars);
+    return EvaluateBranch(BoardData, TargetConnection.Targetid, TargetConnection.Sourceid, ProjectData.CurrentVars);
 }
 
 FGetIsTargetBranchOutput UArcweaveSubsystem::EvaluateBranch(
     const FArcweaveBoardData& BoardData,
     const FString& BranchId,
     const FString& OriginElementId,
-    bool bShouldUpdateVariables,
     const TMap<FString, FArcweaveVariable>& Variables)
 {
     FGetIsTargetBranchOutput Result;
@@ -907,7 +906,7 @@ FGetIsTargetBranchOutput UArcweaveSubsystem::EvaluateBranch(
         Result.BranchData = Branch;
         const FArcweaveConditionData* FiredConditionData = nullptr;
         FArcscriptTranspilerOutput TranspilerOutput = FArcscriptTranspilerOutput();
-        EvaluateCondition(Branch.IfCondition, OriginElementId, TranspilerOutput, bShouldUpdateVariables, Variables);
+        EvaluateCondition(Branch.IfCondition, OriginElementId, TranspilerOutput, Variables);
         Result.BranchConditionResult = TranspilerOutput.ConditionResult;
 
         if (Result.BranchConditionResult)
@@ -924,7 +923,7 @@ FGetIsTargetBranchOutput UArcweaveSubsystem::EvaluateBranch(
         {
             for (const auto& ElseIf : Branch.ElseIfConditions)
             {
-                EvaluateCondition(ElseIf, OriginElementId, TranspilerOutput, bShouldUpdateVariables, Variables);
+                EvaluateCondition(ElseIf, OriginElementId, TranspilerOutput, Variables);
                 if (TranspilerOutput.ConditionResult)
                 {
                     FiredConditionData = &ElseIf;
@@ -1036,7 +1035,7 @@ bool UArcweaveSubsystem::ResolveConnectionPath(const FArcweaveConnectionsData& C
 
         // Conditions refer to the element the option starts from, as in play mode.
         // Like labels here, they're only checked, so they must not change state
-        const FGetIsTargetBranchOutput Branch = EvaluateBranch(BoardData, Current.Targetid, OriginElementId, false, PathVariables);
+        const FGetIsTargetBranchOutput Branch = EvaluateBranch(BoardData, Current.Targetid, OriginElementId, PathVariables);
         if (Branch.BranchConnections.IsEmpty())
         {
             return false;

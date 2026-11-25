@@ -250,9 +250,9 @@ private:
         TArray<FArcweaveVariable>* OutChangedVariables);
     FArcweaveElementData ExtractElementData(const TSharedPtr<FJsonObject>& MainJsonObject, const FString& ElementId, FArcweaveBoardData& BoardObjRef);
     void EvaluateCondition(const FArcweaveConditionData& Condition, const FString& OriginElementId,
-        FArcscriptTranspilerOutput& TranspilerOutput, bool bShouldUpdateVariables, const TMap<FString, FArcweaveVariable>& Variables);
+        FArcscriptTranspilerOutput& TranspilerOutput, const TMap<FString, FArcweaveVariable>& Variables);
     FArcscriptTranspilerOutput RunConditionScript(const FString& ConditionId, const FString& OriginElementId,
-        bool& Success, bool bShouldUpdateVariables, const TMap<FString, FArcweaveVariable>& Variables);
+        bool& Success, const TMap<FString, FArcweaveVariable>& Variables);
     FArcweaveConnectionsData TryGetNExtConnectionData(const FArcweaveBoardData& BoardData, const FArcweaveBranchData& Branch, const FArcweaveConditionData* FiredConditionData);
     void LogTranspilerOutput(const FArcscriptTranspilerOutput& TranspilerOutput);
     bool GetBoardObjectForElement(FString ConditionId, FArcweaveConditionData& OutConditionData, FArcweaveBoardData*& OutBoardObj);
@@ -306,7 +306,7 @@ public:
         const FString& OriginElementId, FString& OutLabel, FArcweaveElementData& OutTarget);
     /** Evaluate the branch's conditions with the given variables, for the element the path started from */
     FGetIsTargetBranchOutput EvaluateBranch(const FArcweaveBoardData& BoardData, const FString& BranchId,
-        const FString& OriginElementId, bool bShouldUpdateVariables, const TMap<FString, FArcweaveVariable>& Variables);
+        const FString& OriginElementId, const TMap<FString, FArcweaveVariable>& Variables);
     /** Label text without HTML. Its code runs with Variables and its changes apply to them, not to the project */
     FString GetLabelText(const FString& Label, const FString& OriginElementId, TMap<FString, FArcweaveVariable>& Variables);
     /** Option text for an element when its connection has no label, as in play mode */
