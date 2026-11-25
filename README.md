@@ -23,6 +23,7 @@ The plugin can import data from an exported Arcweave JSON file (available to all
 - [Important Classes and Functions](#important-classes-and-functions)
    - [UArcweaveSubsystem Functions](#list-of-important-functions-in-uarcweavesubsystem)
    - [Starting element](#starting-element)
+   - [Option texts](#option-texts)
    - [Scoped variables](#scoped-variables)
    - [Runtime save/load](#runtime-saveload)
    - [ArcscriptTranspilerWrapper](#arcweave-transpiler-script-wrapper-arcscripttranspilerwrapper)
@@ -161,6 +162,23 @@ if (!StartingElementId.IsEmpty())
 In Blueprints, break the `ArcweaveProjectData` struct, read **Starting Element Id**, and connect it to the transpiler node's **Object Id** input when nonempty. This is the project-wide starting element; it does not identify a separate entry for every board.
 
 Run `Arcweave.Project.StartingElement` in Unreal Automation to verify imports, reimports, and explicit execution using the imported ID.
+
+#### Option texts
+
+`TranspileConnectionLabel(Connection, BoardData)` returns the text to show for an output connection. When the connection's
+label has no text, it falls back like Arcweave's play mode:
+
+1. a label with text later on the path, after a branch;
+2. the title of the element the connection leads to, through jumpers and branches;
+3. the first paragraph of that element's content, without code, cut to 70 characters (an empty first paragraph counts as empty);
+4. `[ Empty element ]`.
+
+It returns an empty string when no branch condition on the way holds: don't show that option. A label with text is
+returned as before. `HasOptions(Element, BoardData)` is false when the element has no options, or a single one without
+label text; play mode then continues to the next element without showing a choice.
+
+Neither function changes variables or visits; apply a chosen option's label with `UpdateVariablesFromConnection`.
+Run `Arcweave.Project.ConnectionLabelFallback` in Unreal Automation to verify the fallback.
 
 #### Scoped variables
 
