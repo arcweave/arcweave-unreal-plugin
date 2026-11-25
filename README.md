@@ -43,8 +43,9 @@ To install the Arcweave Plugin for Unreal Engine, follow these steps:
 3. Open your project.
 4. If prompted to rebuild the Arcweave plugin, click **Yes**.
 
-The plugin requires Unreal Engine 5.5 or later. It runs Arcscript with prebuilt libraries for **Windows (Win64)** and **macOS**,
-so those are the platforms it supports.
+The plugin requires Unreal Engine 5.5 or later. It runs Arcscript with prebuilt libraries for **Windows (Win64)** and
+**macOS on Apple Silicon (arm64)**, so those are the platforms it supports. The macOS libraries are arm64 only: Intel Macs and
+the x86_64 part of a universal build are not supported.
 
 ## Packaging
 
@@ -52,7 +53,9 @@ so those are the platforms it supports.
   folder in **Project Settings → Packaging → Additional Non-Asset Directories to Package** (`ArcweaveExport`, relative to
   `Content`), as the [demo project](https://github.com/arcweave/arcweave-unreal-example) does. This adds
   `+DirectoriesToAlwaysStageAsUFS=(Path="ArcweaveExport")` to `Config/DefaultGame.ini`. If you changed
-  `JsonDirectoryPath`, stage that folder instead.
+  `JsonDirectoryPath`, keep the folder under `Content` and stage it by its path relative to `Content`: for example
+  `JsonDirectoryPath` `Content/Narrative/` and the packaging entry `Narrative`. A folder outside `Content`, or an absolute
+  path, works in the editor but is not packaged.
 - **API token:** clear the token from the Arcweave settings before you package; see [Web API](#web-api).
 - **Libraries and notices:** the Arcscript libraries and the license notices of the bundled Arcscript and ANTLR runtimes
   are staged with the game automatically.
@@ -95,23 +98,27 @@ Set these in **Project Settings → Plugins → Arcweave**, or from Blueprints a
 | Setting | Default | Effect |
 | ------- | ------- | ------ |
 | `bUseLocale` (**Use Locale**) | off | Off: the project is imported in its main language. On: it is imported in `Locale`. |
-| `Locale` | `en` | ISO code of the language to import. It is matched to the project's languages ignoring case (`FR` finds `fr`). If the project doesn't have it, the import logs a warning and uses the main language. |
+| `Locale` | `en` | ISO code of the language to import. |
 | `bFallbackToDefaultLocale` (**Fallback To Default Locale**) | on | On: a missing translation is taken from the fallback chain below. Off: it stays empty. |
 
 `SaveArcweaveLanguageSettings` only changes `bFallbackToDefaultLocale` and `Locale` when `bUseLocale` is true.
-The settings apply to the next import.
+The settings apply to the next import, and how they apply depends on the import method below.
 
 ### Exports with several languages
 
-How many languages you get depends on the import method:
-
-- **JSON import:** in Arcweave's [export](https://docs.arcweave.com/project-tools/export#export-languages), choose
-  **All languages** under **Languages to export**. The JSON then contains every language (`locales` and `contents`), the
-  plugin imports the one from the settings, and you can switch language at runtime. **Current language** or
-  **Select language** exports contain one language only.
-- **Web API:** the plugin requests a single language. With `bUseLocale` on, it asks for `Locale`, and for
-  `fallbackContents=true` when `bFallbackToDefaultLocale` is on. Otherwise it gets the main language. API imports can't
-  switch language at runtime.
+- **JSON import with all languages:** in Arcweave, use **Export as JSON** (not **Export for Unreal**, which exports a
+  single language) and choose **All languages** under
+  [Languages to export](https://docs.arcweave.com/project-tools/export#export-languages). The JSON then contains every
+  language (`locales` and `contents`), the plugin imports the one from the settings, and you can switch language at
+  runtime. `Locale` is matched to the project's languages ignoring case (`FR` finds `fr`); if the project doesn't have
+  it, the import logs a warning and uses the main language.
+- **JSON import with one language:** an **Export for Unreal**, or an **Export as JSON** with **Current language** or
+  **Select language**, contains a single language. The plugin imports that language whatever the settings say, and
+  can't switch language at runtime.
+- **Web API:** the plugin requests a single language. With `bUseLocale` on, it sends `Locale` as the export's `locale`,
+  and `fallbackContents=true` when `bFallbackToDefaultLocale` is on; otherwise it gets the main language. The API
+  matches the code exactly: a code in a different case (`FR` for `fr`), or one the project doesn't have, returns empty
+  texts without a warning from the plugin. API imports can't switch language at runtime.
 
 ### Switching language at runtime
 

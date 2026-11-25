@@ -2269,7 +2269,7 @@ FArcweaveContents UArcweaveSubsystem::ParseAllContents(const TSharedPtr<FJsonObj
         // Iterate through all entries in the "contents" object
         for (const auto& ContentPair : ContentsObject->Get()->Values)
         {
-            FString ContentId = ContentPair.Key;
+            const FString ContentId(ContentPair.Key);
             const TSharedPtr<FJsonObject> ContentData = TryGetJsonObject(ContentPair.Value);
 
             if (!ContentData.IsValid())
@@ -2283,7 +2283,7 @@ FArcweaveContents UArcweaveSubsystem::ParseAllContents(const TSharedPtr<FJsonObj
             // Parse localized string fields (e.g., label, title, content)
             for (const auto& FieldPair : ContentData->Values)
             {
-                FString FieldKey = FieldPair.Key;
+                const FString FieldKey(FieldPair.Key);
 
                 /* For the moment we will ignore status*/
                 if (FieldKey.Compare(TEXT("_status")) == 0)
@@ -2297,7 +2297,7 @@ FArcweaveContents UArcweaveSubsystem::ParseAllContents(const TSharedPtr<FJsonObj
                     // Parse translations for each locale
                     for (const auto& LocalePair : LocalizedObject->Values)
                     {
-                        FString Locale = LocalePair.Key;
+                        const FString Locale(LocalePair.Key);
                         const TSharedPtr<FJsonObject> LocaleData = TryGetJsonObject(LocalePair.Value);
 
                         if (LocaleData.IsValid())

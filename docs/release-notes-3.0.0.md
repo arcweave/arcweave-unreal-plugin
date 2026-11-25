@@ -39,27 +39,29 @@ Projects with several languages can be imported and switched at runtime
 [Localization](https://github.com/arcweave/arcweave-unreal-plugin/blob/v3.0.0/README.md#localization).
 
 - Choose the language to import with the **Use Locale**, **Locale** and **Fallback To Default Locale** settings, or with
-  `SaveArcweaveLanguageSettings`. The locale is matched ignoring case; an unknown one logs a warning and imports the main
-  language.
-- Import a JSON export made with **All languages** to get every language. `HasLocales()` tells you whether the imported
-  project has more than one.
+  `SaveArcweaveLanguageSettings`.
+- Import an **Export as JSON** made with **All languages** to get every language; **Export for Unreal** contains a single
+  language. With such an export the locale is matched ignoring case, and an unknown one logs a warning and imports the
+  main language. `HasLocales()` tells you whether the imported project has more than one language.
 - `UpdateContentsWithLocale` switches element titles and contents, connection labels, jumper targets and component names
   to another language without changing the settings, and broadcasts `OnArcweaveLanguageChanged`.
 - Missing translations follow each language's **Translates from** chain (the locale's `base`) down to the main language.
   Empty paragraphs count as missing, translations from unrelated languages are never used, and loops of bases are
   detected.
-- API imports request a single language, with `fallbackContents=true` when the fallback setting is on.
+- API imports request a single language, with `fallbackContents=true` when the fallback setting is on. The API matches
+  the locale code exactly, so use the project's own spelling (e.g. `fr`, not `FR`).
+- The prebuilt Arcscript libraries support Windows (Win64) and macOS on Apple Silicon (arm64).
 
-<!-- Keep this section only if #43 is merged before the release. -->
 ## Option texts
 
 Options without label text now show what Arcweave's play mode shows
 ([#43](https://github.com/arcweave/arcweave-unreal-plugin/pull/43)):
 
 - `TranspileConnectionLabel` follows the connection through branches and jumpers and returns the last label with text on
-  the path, else the title of the element it leads to, else the first 70 characters of its content, else
-  `[ Empty element ]`. It returns an empty string when no branch condition on the path holds, so that option isn't shown.
-  A label's Arcscript changes are seen by the branch conditions after it on the same path, without changing the project.
+  the path, else the title of the element it leads to, else the first paragraph of its content without code, cut to 70
+  characters, else `[ Empty element ]`. It returns an empty string when no branch condition on the path holds, so that
+  option isn't shown. A label's Arcscript changes are seen by the labels and branch conditions after it on the same path,
+  without changing the project.
 - New `HasOptions(Element, BoardData)`: false when the element has no option, or a single one without label text, so the
   game can continue without showing a choice.
 - Previously a connection without a label showed nothing, and a labelled option was shown even when its branch led nowhere.
@@ -67,8 +69,8 @@ Options without label text now show what Arcweave's play mode shows
 ## Starting element
 
 - An export whose starting element is missing, unknown or not on an imported board (for example an export of selected
-  boards) still imports, with an empty `StartingElementId` and a warning that names the id. The Unity and Godot plugins
-  behave the same way.
+  boards) still imports, with an empty `StartingElementId` and a warning that says why, naming the id when there is one.
+  Like the Unity plugin, the import doesn't fail because of the starting element.
 - Passing that empty id to `TranspileObject` fails with an error that says the project has no valid starting element,
   instead of a generic "cannot find transpile data" error.
 - Runtime save/load (`CaptureState`/`RestoreState`) is unchanged from v2.2.0. The

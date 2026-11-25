@@ -22,7 +22,8 @@ bool FArcweaveStartingElementTest::RunTest(const FString& Parameters)
                 "title": "Start",
                 "content": "<pre><code>started = true</code></pre><p>Selected start.</p>"
             },
-            "orphan": {"title": "Orphan", "content": "<p>Not on any imported board.</p>"}
+            "orphan": {"title": "Orphan", "content": "<p>Not on any imported board.</p>"},
+            "null-start": null
         },
         "components": {},
         "variables": {
@@ -31,10 +32,11 @@ bool FArcweaveStartingElementTest::RunTest(const FString& Parameters)
     })JSON");
 
     // Imports without a usable starting element warn, and starting the story from them logs an error
-    AddExpectedError(TEXT("the project has no starting element"), EAutomationExpectedErrorFlags::Contains, 6);
-    AddExpectedError(TEXT("starting element 'missing-start' was not found in the project"), EAutomationExpectedErrorFlags::Contains, 1);
-    AddExpectedError(TEXT("starting element 'orphan' is not on any imported board"), EAutomationExpectedErrorFlags::Contains, 1);
-    AddExpectedError(TEXT("TranspileObject: no element id was given"), EAutomationExpectedErrorFlags::Contains, 1);
+    AddExpectedMessagePlain(TEXT("the project has no starting element"), ELogVerbosity::Warning, EAutomationExpectedMessageFlags::Contains, 6);
+    AddExpectedMessagePlain(TEXT("starting element 'missing-start' was not found in the project"), ELogVerbosity::Warning, EAutomationExpectedMessageFlags::Contains, 1);
+    AddExpectedMessagePlain(TEXT("starting element 'null-start' was not found in the project"), ELogVerbosity::Warning, EAutomationExpectedMessageFlags::Contains, 1);
+    AddExpectedMessagePlain(TEXT("starting element 'orphan' is not on any imported board"), ELogVerbosity::Warning, EAutomationExpectedMessageFlags::Contains, 1);
+    AddExpectedMessagePlain(TEXT("the project has no valid starting element"), ELogVerbosity::Error, EAutomationExpectedMessageFlags::Contains, 1);
 
     UArcweaveSubsystem* Subsystem = NewObject<UArcweaveSubsystem>();
     TestTrue(TEXT("A new project has no starting element"), Subsystem->GetArcweaveProjectData().StartingElementId.IsEmpty());
@@ -104,6 +106,7 @@ bool FArcweaveStartingElementTest::RunTest(const FString& Parameters)
         const TCHAR* StartingElement;
     } InvalidStarts[] = {
         {TEXT("An unknown starting element"), TEXT("missing-start")},
+        {TEXT("A starting element whose record is null"), TEXT("null-start")},
         {TEXT("A starting element that is not on an imported board"), TEXT("orphan")},
     };
     for (const auto& Case : InvalidStarts)
