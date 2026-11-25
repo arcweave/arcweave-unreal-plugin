@@ -162,6 +162,26 @@ In Blueprints, break the `ArcweaveProjectData` struct, read **Starting Element I
 
 Run `Arcweave.Project.StartingElement` in Unreal Automation to verify imports, reimports, and explicit execution using the imported ID.
 
+#### Choice options
+
+`TranspileConnectionLabel(Connection, BoardData)` returns the text to show for an output connection, as in Arcweave's play mode:
+
+1. the last label with text on the connection's path, following branches and jumpers;
+2. otherwise the title of the element the path leads to;
+3. otherwise the first paragraph of that element's content, without code, cut to 70 characters;
+4. otherwise `[ Empty element ]`.
+
+It returns an empty string when no branch condition on the path holds: don't show that option.
+`HasOptions(Element, BoardData)` is false when the element has no such option, or a single one without label text. Play mode
+then continues to the next element without showing a choice.
+
+Neither function changes variables or visits. A label's Arcscript changes are only seen by the labels and branch conditions
+after it on the same path. Call `UpdateVariablesFromConnection` when the player picks an option to apply its label's effects;
+it applies the label of the connection you pass, so call it for each labelled connection when the path goes through a branch
+(`GetIsTargetBranch` returns the branch's output).
+
+Run `Arcweave.Project.ConnectionLabelFallback` in Unreal Automation to verify the option texts.
+
 #### Scoped variables
 
 Boolean, integer, float, and plain-string attributes can be used as Arcscript variables when both the attribute and its owning board or component have custom IDs. The attribute custom ID is the variable name, the owner custom ID is its scope, and the attribute ID remains the stable ID used by `SetVariable` and variable-change events.
