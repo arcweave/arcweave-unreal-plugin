@@ -43,7 +43,7 @@ Projects with several languages can be imported and switched at runtime
 - Choose the language to import with the **Use Locale**, **Locale** and **Fallback To Default Locale** settings, or with
   `SaveArcweaveLanguageSettings`.
 - Import an **Export as JSON** made with **All languages** to get every language; **Export for Unreal** contains a single
-  language. With such an export the locale is matched ignoring case, and an unknown one logs a warning and imports the
+  language. With an **All languages** JSON export the locale is matched ignoring case, and an unknown one logs a warning and imports the
   main language. `HasLocales()` tells you whether the imported project has more than one language.
 - `UpdateContentsWithLocale` switches element titles and contents, connection labels, jumper targets and component names
   to another language without changing the settings, and broadcasts `OnArcweaveLanguageChanged`.
@@ -52,7 +52,7 @@ Projects with several languages can be imported and switched at runtime
   detected.
 - API imports request a single language, with `fallbackContents=true` when the fallback setting is on. The API matches
   the locale code exactly and rejects any other spelling (e.g. `FR` for `fr`) with HTTP 400, so the import fails and the
-  previous project is kept.
+  previous project is kept. Set `Locale` to `*` to import all languages through the API.
 
 ## Option texts and selection
 

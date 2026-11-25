@@ -119,7 +119,9 @@ The settings apply to the next import, and how they apply depends on the import 
   and `fallbackContents=true` when `bFallbackToDefaultLocale` is on; otherwise it gets the main language. The API
   matches the code exactly: a code in a different case (`FR` for `fr`), or one the project doesn't have, is rejected
   with HTTP 400. The import then fails: `OnArcweaveFetchCompleted` reports it and the previously loaded project is kept.
-  API imports can't switch language at runtime.
+  Two codes are special: `__default__` requests the main language, and `*` requests all languages, so the import is
+  in the main language and can switch language at runtime like an **All languages** JSON export. Otherwise API imports
+  can't switch language at runtime.
 
 ### Switching language at runtime
 
@@ -227,7 +229,7 @@ These functions provide a comprehensive set of tools for interacting with the Ar
 
 After a successful local or API import, `FArcweaveProjectData.StartingElementId` contains the exported `startingElement` ID. Read it from `GetArcweaveProjectData()` or the project data supplied by `OnArcweaveResponseReceived`. Each successful import replaces the previous value; a rejected import preserves the loaded project.
 
-The value is empty, and the import logs a warning that names the reason, when the export has no starting element (the field is missing, `null` or empty), or when its ID is not an element of the project or not on an imported board (for example an export of selected boards). The import still succeeds, like in the Unity and Godot plugins. Set a starting element in Arcweave and import again to play the project. Passing an empty ID to `TranspileObject` fails and logs that the project has no valid starting element.
+The value is empty, and the import logs a warning that names the reason, when the export has no starting element (the field is missing, `null` or empty), or when its ID is not an element of the project or not on an imported board (for example an export of selected boards). The import still succeeds, like in the Unity plugin. Set a starting element in Arcweave and import again to play the project. Passing an empty ID to `TranspileObject` fails and logs that the project has no valid starting element.
 
 Importing does not execute the starting element. When the game is ready to run it, pass the ID to `TranspileObject`:
 

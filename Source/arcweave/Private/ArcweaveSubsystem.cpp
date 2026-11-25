@@ -613,6 +613,11 @@ void UArcweaveSubsystem::ReportUnavailableConfiguredLocale() const
     }
 
     const FString ConfiguredLocale = ArcweaveSettings->GetLocale();
+    // The API's "*" (all languages) and "__default__" (main language) import the main language on purpose
+    if (ConfiguredLocale == TEXT("*") || ConfiguredLocale == TEXT("__default__"))
+    {
+        return;
+    }
     FString ProjectLocale;
     if (!TryResolveProjectLocale(ProjectLocale, ConfiguredLocale))
     {
@@ -2229,7 +2234,7 @@ bool UArcweaveSubsystem::ParseResponse(const FString& ResponseString)
 FString UArcweaveSubsystem::ValidateStartingElement(const TSharedPtr<FJsonObject>& MainJsonObject, const FString& StartingElementId) const
 {
     // A project can have no starting element, or one that was deleted or left out of the export:
-    // the import still succeeds, like in the Unity and Godot plugins, but the story can't be started from it
+    // the import still succeeds, like in the Unity plugin, but the story can't be started from it
     if (StartingElementId.IsEmpty())
     {
         UE_LOG(LogArcwarePlugin, Warning, TEXT("Arcweave import: the project has no starting element. Set one in Arcweave to play it."));
