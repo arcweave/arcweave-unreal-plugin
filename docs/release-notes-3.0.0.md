@@ -27,6 +27,9 @@ Behaviour changes that a game may rely on:
 - **`visits()` in a label counts the visits of the element the connection starts from** when the label is applied. It
   used to count the visits of the connection itself, which were always 0
   ([#46](https://github.com/arcweave/arcweave-unreal-plugin/pull/46)).
+- **Connections without label text now have an option text** (see [Option texts](#option-texts)). A game that hid
+  options whose `TranspileConnectionLabel` was empty now shows them; it still gets an empty text for an option whose
+  conditions don't hold.
 - **The starting element is validated on import.** See [Starting element](#starting-element).
 - **The default `Locale` setting is now `en`** (it was `fr`), and the language settings are now saved with the project
   settings. Check them after upgrading if you use `Use Locale`.
