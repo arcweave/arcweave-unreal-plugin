@@ -4,7 +4,7 @@
 #include "arcweave.h"
 #include "HAL/PlatformMisc.h"
 #include "Misc/AutomationTest.h"
-#include "Misc/ConfigCacheIni.h"
+#include "Misc/Paths.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
     FArcweaveApiTokenIniTest,
@@ -19,13 +19,14 @@ bool FArcweaveApiTokenIniTest::RunTest(const FString& Parameters)
         TEXT("ProjectID=ABC\r\n")
         TEXT("APIToken=other-section\r\n")
         TEXT("\r\n")
-        TEXT("[/script/ARCWEAVE.ArcweaveSettings]\r\n")
+        TEXT("[/script/ARCWEAVE.ArcweaveSettings] ; comment\r\n")
         TEXT("EnableReceiveMethodFromLocalJSON=False\r\n")
         TEXT("  apitoken = \"secret-token\"\r\n")
         TEXT("Hash=project-hash\r\n")
         TEXT("\r\n")
-        TEXT("[/Script/UnrealEd.ProjectPackagingSettings]\r\n")
-        TEXT("+DirectoriesToAlwaysStageAsUFS=(Path=\"ArcweaveExport\")\r\n");
+        TEXT("[/Script/UnrealEd.ProjectPackagingSettings] // comment\r\n")
+        TEXT("+DirectoriesToAlwaysStageAsUFS=(Path=\"ArcweaveExport\")\r\n")
+        TEXT("APIToken=another-plugin\r\n");
 
     FString Result;
     FString Value;
@@ -39,12 +40,13 @@ bool FArcweaveApiTokenIniTest::RunTest(const FString& Parameters)
             TEXT("ProjectID=ABC\r\n")
             TEXT("APIToken=other-section\r\n")
             TEXT("\r\n")
-            TEXT("[/script/ARCWEAVE.ArcweaveSettings]\r\n")
+            TEXT("[/script/ARCWEAVE.ArcweaveSettings] ; comment\r\n")
             TEXT("EnableReceiveMethodFromLocalJSON=False\r\n")
             TEXT("Hash=project-hash\r\n")
             TEXT("\r\n")
-            TEXT("[/Script/UnrealEd.ProjectPackagingSettings]\r\n")
-            TEXT("+DirectoriesToAlwaysStageAsUFS=(Path=\"ArcweaveExport\")\r\n")));
+            TEXT("[/Script/UnrealEd.ProjectPackagingSettings] // comment\r\n")
+            TEXT("+DirectoriesToAlwaysStageAsUFS=(Path=\"ArcweaveExport\")\r\n")
+            TEXT("APIToken=another-plugin\r\n")));
 
     // Array operators and an empty value at the end of the file without a line break
     const FString ArrayIni = FString::Printf(
@@ -68,34 +70,32 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 
 bool FArcweaveApiTokenResolveTest::RunTest(const FString& Parameters)
 {
-    if (!TestNotNull(TEXT("Config"), GConfig))
+    UArcweaveSettings* Settings = GetMutableDefault<UArcweaveSettings>();
+    if (!TestNotNull(TEXT("Settings"), Settings))
     {
         return false;
     }
 
+    // Tokens are compared with booleans, so a failing test never prints a real token
     const TCHAR* EnvironmentVariable = UArcweaveSettings::ApiTokenEnvironmentVariable;
     const FString PreviousEnvironment = FPlatformMisc::GetEnvironmentVariable(EnvironmentVariable);
-    FString PreviousUserToken;
-    const bool bHadUserToken = GConfig->GetString(ARCWEAVE_SETTINGS_SECTION, TEXT("APIToken"), PreviousUserToken, GGameUserSettingsIni);
+    const FString PreviousUserToken = UArcweaveSettings::GetUserAPIToken();
 
-    // In memory only, so the test doesn't write the user's settings file
-    GConfig->SetString(ARCWEAVE_SETTINGS_SECTION, TEXT("APIToken"), TEXT("user-token"), GGameUserSettingsIni);
     FPlatformMisc::SetEnvironmentVar(EnvironmentVariable, TEXT(""));
-    TestEqual(TEXT("The user token is used"), UArcweaveSettings::ResolveAPIToken(), FString(TEXT("user-token")));
-    TestEqual(TEXT("The user token is read"), UArcweaveSettings::GetUserAPIToken(), FString(TEXT("user-token")));
+    TestTrue(TEXT("The user token is saved"), Settings->SetUserAPIToken(TEXT(" user-token ")));
+    TestTrue(TEXT("The user token is read back trimmed"), UArcweaveSettings::GetUserAPIToken() == TEXT("user-token"));
+    TestTrue(TEXT("The user token is used"), UArcweaveSettings::ResolveAPIToken() == TEXT("user-token"));
+    TestTrue(TEXT("The token file is under Saved"), UArcweaveSettings::GetUserAPITokenPath().StartsWith(FPaths::ConvertRelativePathToFull(FPaths::ProjectSavedDir())));
 
     FPlatformMisc::SetEnvironmentVar(EnvironmentVariable, TEXT(" env-token "));
-    TestEqual(TEXT("The environment variable wins"), UArcweaveSettings::ResolveAPIToken(), FString(TEXT("env-token")));
+    TestTrue(TEXT("The environment variable wins"), UArcweaveSettings::ResolveAPIToken() == TEXT("env-token"));
+
+    TestTrue(TEXT("An empty token removes the file"), Settings->SetUserAPIToken(FString()));
+    TestFalse(TEXT("The file is gone"), FPaths::FileExists(UArcweaveSettings::GetUserAPITokenPath()));
+    TestTrue(TEXT("No user token is left"), UArcweaveSettings::GetUserAPIToken().IsEmpty());
 
     FPlatformMisc::SetEnvironmentVar(EnvironmentVariable, *PreviousEnvironment);
-    if (bHadUserToken)
-    {
-        GConfig->SetString(ARCWEAVE_SETTINGS_SECTION, TEXT("APIToken"), *PreviousUserToken, GGameUserSettingsIni);
-    }
-    else
-    {
-        GConfig->RemoveKey(ARCWEAVE_SETTINGS_SECTION, TEXT("APIToken"), GGameUserSettingsIni);
-    }
+    TestTrue(TEXT("The previous token is restored"), Settings->SetUserAPIToken(PreviousUserToken));
     return true;
 }
 

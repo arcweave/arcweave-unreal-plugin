@@ -88,14 +88,14 @@ Projects with several languages can be imported and switched at runtime
 - The API token is no longer written to the log. Importing used to log it at Warning level. The settings read on import
   are now logged at `Verbose` under `LogArcwarePlugin`, and the token only as `set` or `empty`
   ([#46](https://github.com/arcweave/arcweave-unreal-plugin/pull/46)).
-- **The token is saved per user.** It is stored in `Saved/Config/<Platform>/GameUserSettings.ini` instead of
-  `Config/DefaultGame.ini`, so it is no longer committed with the project or packaged with the game. The
-  `ARCWEAVE_API_KEY` environment variable overrides it. When the editor starts, a token that an earlier version saved in
-  `DefaultGame.ini` is moved to your user settings and removed from that file, with a warning. **If `DefaultGame.ini` was
+- **The token is saved per user.** It is stored in `Saved/Arcweave/APIToken.txt` instead of `Config/DefaultGame.ini`, so
+  it is no longer committed with the project or packaged with the game. The `ARCWEAVE_API_KEY` environment variable
+  overrides it. When you open the project in the editor, a token that an earlier version saved in `DefaultGame.ini` is
+  moved to your user file and removed from that file, with a warning. If it can't be moved, cooking logs an error. **If `DefaultGame.ini` was
   committed, revoke that token in your Arcweave workspace and create a new one.** See
   [Where the token is saved](https://github.com/arcweave/arcweave-unreal-plugin/blob/v3.0.0/README.md#where-the-token-is-saved).
 - A packaged game no longer gets the token from the project config: a game that fetches from the API at runtime must
-  pass its own token to `FetchData`. `FetchData` with an empty token uses the saved one.
+  pass its own token to `FetchData` or set `ARCWEAVE_API_KEY`. `FetchData` with an empty token uses the saved one.
 
 ## Other changes
 

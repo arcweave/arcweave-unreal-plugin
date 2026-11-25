@@ -38,8 +38,8 @@ public:
     FString JsonDirectoryPath = FString("Content/ArcweaveExport/");
 
     /*
-     * API key of your Arcweave workspace. It is saved for your user only, in Saved/Config/<Platform>/GameUserSettings.ini,
-     * and never in Config/DefaultGame.ini. The ARCWEAVE_API_KEY environment variable overrides it.
+     * API key of your Arcweave workspace. It is saved for your user only, in Saved/Arcweave/APIToken.txt, and never in
+     * Config/DefaultGame.ini. The ARCWEAVE_API_KEY environment variable overrides it.
      */
     UPROPERTY(
         Transient,
@@ -47,7 +47,7 @@ public:
         meta = (
             EditCondition = "!EnableReceiveMethodFromLocalJSON",
             PasswordField = true,
-            ToolTip = "API key of your Arcweave workspace. Saved for your user only, in Saved/Config/<Platform>/GameUserSettings.ini, never in Config/DefaultGame.ini. The ARCWEAVE_API_KEY environment variable overrides it."
+            ToolTip = "API key of your Arcweave workspace. Saved for your user only, in Saved/Arcweave/APIToken.txt, never in Config/DefaultGame.ini. The ARCWEAVE_API_KEY environment variable overrides it."
             ),
         Category = "ArcweaveSettings"
     )
@@ -72,16 +72,23 @@ public:
     static const TCHAR* ApiTokenEnvironmentVariable;
 
     /**
-     * The API token to use: the ARCWEAVE_API_KEY environment variable when it is set, else the token saved for this user,
-     * else a token that an older plugin version saved in the project config (Config/DefaultGame.ini).
+     * The API token to use: the ARCWEAVE_API_KEY environment variable when it is set, else the token saved for this user.
+     * In the editor only, a token that an older plugin version saved in Config/DefaultGame.ini and that couldn't be moved
+     * is used last. Packaged games never read the token from the project config.
      */
     static FString ResolveAPIToken();
 
-    /** Save the token for this user only (GameUserSettings.ini). An empty token removes it. */
-    void SetUserAPIToken(const FString& Token);
+    /**
+     * Save the token for this user only, in Saved/Arcweave/APIToken.txt. An empty token removes the file.
+     * Returns false when the file couldn't be written, or read back with the same token.
+     */
+    bool SetUserAPIToken(const FString& Token);
 
     /** The token saved for this user, without the environment variable or the project config. */
     static FString GetUserAPIToken();
+
+    /** Full path of the file the token is saved in for this user. */
+    static FString GetUserAPITokenPath();
 
     /**
      * Remove every assignment of Key in Section from the text of an ini file, keeping the rest of the text as it is.
@@ -90,8 +97,12 @@ public:
     static bool RemoveIniKey(const FString& IniText, const FString& Section, const FString& Key, FString& OutText, FString* OutLastValue = nullptr);
 
 private:
-    /** Move a token that an older plugin version saved in Config/DefaultGame.ini to the user settings (editor only). */
-    void MigrateProjectAPIToken();
+    /**
+     * Move a token that an older plugin version saved in Config/DefaultGame.ini to the user file (interactive editor only).
+     * Commandlets such as cooking only report a token that would be packaged.
+     * Returns true when a token is left in Config/DefaultGame.ini.
+     */
+    bool MigrateProjectAPIToken();
 
 public:
 
