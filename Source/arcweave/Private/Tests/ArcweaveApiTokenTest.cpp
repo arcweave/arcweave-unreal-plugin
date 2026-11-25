@@ -57,6 +57,17 @@ bool FArcweaveApiTokenIniTest::RunTest(const FString& Parameters)
     TestFalse(TEXT("A commented-out token isn't used"), UArcweaveSettings::FindIniValue(CommentedOut, Section, TEXT("APIToken"), Value, bHasValue));
     TestTrue(TEXT("A commented-out token is reported"), bHasValue);
 
+    const FString SlashComment = FString::Printf(TEXT("[%s]\n// APIToken=old-key\n"), *Section);
+    TestFalse(TEXT("A // commented-out token isn't used"), UArcweaveSettings::FindIniValue(SlashComment, Section, TEXT("APIToken"), Value, bHasValue));
+    TestTrue(TEXT("A // commented-out token is reported"), bHasValue);
+
+    const FString Caret = FString::Printf(TEXT("[%s]\nAPIToken=key\n^APIToken=ClearArray\n"), *Section);
+    TestTrue(TEXT("A ^ clear is found"), UArcweaveSettings::FindIniValue(Caret, Section, TEXT("APIToken"), Value, bHasValue));
+    TestTrue(TEXT("A ^ clear has no value"), Value.IsEmpty());
+
+    const FString RemovalOnly = FString::Printf(TEXT("[%s]\n-APIToken=other\n"), *Section);
+    TestFalse(TEXT("A removal alone doesn't override another file's token"), UArcweaveSettings::FindIniValue(RemovalOnly, Section, TEXT("APIToken"), Value, bHasValue));
+
     // A header with a ; comment isn't a section header for Unreal, so the previous section continues
     const FString NotHeader = TEXT("[Other]\n[/Script/arcweave.ArcweaveSettings] ; comment\nAPIToken=x\n");
     TestFalse(TEXT("A ; comment makes the line no header"), UArcweaveSettings::FindIniValue(NotHeader, Section, TEXT("APIToken"), Value, bHasValue));

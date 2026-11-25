@@ -61,8 +61,8 @@ public:
     bool LoadJsonFile();
     /*
 	 * Get the Arcweave settings. APIToken is the ARCWEAVE_API_KEY environment variable when it is set, else the token saved
-	 * for this user (Saved/Arcweave/APIToken.txt). In the editor only, a token an older plugin version left in
-	 * Config/DefaultGame.ini that couldn't be moved is used last.
+	 * for this user (Saved/Arcweave/APIToken.txt). In the editor only, a token an older plugin version saved in the
+	 * project config, and that wasn't copied to the user file, is used last.
 	 */
     UFUNCTION(BlueprintPure, Category = "Arcweave")
     FArcweaveAPISettings LoadArcweaveSettings() const;

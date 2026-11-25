@@ -9,7 +9,10 @@
 void UArcweaveUserSettings::PostInitProperties()
 {
     Super::PostInitProperties();
-    APIToken = UArcweaveSettings::GetUserAPIToken();
+    if (HasAnyFlags(RF_ClassDefaultObject))
+    {
+        APIToken = UArcweaveSettings::GetUserAPIToken();
+    }
 }
 
 #if WITH_EDITOR
