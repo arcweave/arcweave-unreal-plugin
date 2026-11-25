@@ -23,6 +23,7 @@ The plugin can import data from an exported Arcweave JSON file (available to all
 - [Important Classes and Functions](#important-classes-and-functions)
    - [UArcweaveSubsystem Functions](#list-of-important-functions-in-uarcweavesubsystem)
    - [Starting element](#starting-element)
+   - [Choice options](#choice-options)
    - [Scoped variables](#scoped-variables)
    - [Runtime save/load](#runtime-saveload)
    - [ArcscriptTranspilerWrapper](#arcweave-transpiler-script-wrapper-arcscripttranspilerwrapper)
@@ -168,17 +169,24 @@ Run `Arcweave.Project.StartingElement` in Unreal Automation to verify imports, r
 
 1. the last label with text on the connection's path, following branches and jumpers;
 2. otherwise the title of the element the path leads to;
-3. otherwise the first paragraph of that element's content, without code, cut to 70 characters;
+3. otherwise the first paragraph of that element's content, without code, cut to 70 characters (an empty first
+   paragraph counts as empty, as in play mode);
 4. otherwise `[ Empty element ]`.
 
-It returns an empty string when no branch condition on the path holds: don't show that option.
+It returns an empty string when no branch condition on the path holds, or when a label or condition script on the path
+fails to run: don't show that option. A blank branch condition is skipped, as in play mode.
 `HasOptions(Element, BoardData)` is false when the element has no such option, or a single one without label text. Play mode
 then continues to the next element without showing a choice.
 
-Neither function changes variables or visits. A label's Arcscript changes are only seen by the labels and branch conditions
-after it on the same path. Call `UpdateVariablesFromConnection` when the player picks an option to apply its label's effects;
-it applies the label of the connection you pass, so call it for each labelled connection when the path goes through a branch
-(`GetIsTargetBranch` returns the branch's output).
+Neither function changes variables or visits. A label's Arcscript changes, including `resetVisits()`, are only seen by the
+labels and branch conditions after it on the same path. Branch conditions and `visits()` refer to the element the option
+starts from.
+
+When the player picks an option, call `SelectOption(Connection, BoardData, OutTarget)`. It follows the same path, applies
+the Arcscript of every label on it to the project (variables and events), and sets `OutTarget` to the element to run next
+with `TranspileObject`. It returns false when the path leads nowhere. Branch conditions are evaluated again on selection, so
+a condition that uses `random()` can choose a different arm than the one the option text showed.
+`UpdateVariablesFromConnection` still applies the label of a single connection.
 
 Run `Arcweave.Project.ConnectionLabelFallback` in Unreal Automation to verify the option texts.
 

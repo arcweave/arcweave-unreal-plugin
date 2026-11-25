@@ -160,17 +160,27 @@ public:
     /*
     * Text to show for the connection as an option, as in play mode: the last label with text on its path
     * through branches and jumpers, else the title of the element it leads to,
-    * else the start of that element's content, else "[ Empty element ]".
-    * Empty when no branch condition on the way holds.
+    * else the first paragraph of that element's content, else "[ Empty element ]".
+    * Empty when no branch condition on the way holds, or a script on the way fails: don't show that option.
     * Runs label code and branch conditions without changing variables or visits
     */
     UFUNCTION(BlueprintCallable, Category = "Arcweave")
     FString TranspileConnectionLabel(const FArcweaveConnectionsData& Connection, const FArcweaveBoardData& BoardData);
 
     /*
+    * Call when the player picks the option of this connection. Follows the same path as TranspileConnectionLabel,
+    * applying the Arcscript of every label on it (variables and events) like play mode, and sets OutTarget to the
+    * element the path leads to: run it next with TranspileObject.
+    * False when no branch condition on the way holds or a script fails; OutTarget is then not meaningful, and the
+    * labels before the failing script have already applied their effects.
+    */
+    UFUNCTION(BlueprintCallable, Category = "Arcweave")
+    bool SelectOption(const FArcweaveConnectionsData& Connection, const FArcweaveBoardData& BoardData, FArcweaveElementData& OutTarget);
+
+    /*
     * False when the element has no options, or a single one without label text.
     * Play mode continues to the next element without showing that option.
-    * Runs label code and branch conditions without changing variables
+    * Runs label code and branch conditions without changing variables or visits
     */
     UFUNCTION(BlueprintCallable, Category = "Arcweave")
     bool HasOptions(const FArcweaveElementData& Element, const FArcweaveBoardData& BoardData);
@@ -241,18 +251,20 @@ private:
     FArcweaveContents ParseAllContents(const TSharedPtr<FJsonObject>& MainJsonObject);
     bool ParseResponse(const FString& ResponseString);
     void OnEventCallback(const char* EventName);
-    /* Without bShouldUpdateVariables the script's variable changes and events (e.g. resetVisits) are not applied */
+    /* Without bShouldUpdateVariables the script's variable changes and events are not applied to the project.
+     * PreviewVisits, if given, gets the script's resetVisits() instead */
     FArcscriptTranspilerOutput RunTranspiler(const FString& NodeCode, const FString& OriginElementId,
-        const TMap<FString, FArcweaveVariable>& InitialVars, const TMap<FString, int>& Visits, bool bShouldUpdateVariables = true);
+        const TMap<FString, FArcweaveVariable>& InitialVars, const TMap<FString, int>& Visits, bool bShouldUpdateVariables = true,
+        TMap<FString, int>* PreviewVisits = nullptr);
     void UpdateVariables(const FArcscriptTranspilerOutput& Output);
     /** Applies the variable changes of a script to Variables, adding the changed variables to OutChangedVariables if given */
     void ApplyVariableChanges(const FArcscriptTranspilerOutput& Output, TMap<FString, FArcweaveVariable>& Variables,
         TArray<FArcweaveVariable>* OutChangedVariables);
     FArcweaveElementData ExtractElementData(const TSharedPtr<FJsonObject>& MainJsonObject, const FString& ElementId, FArcweaveBoardData& BoardObjRef);
     void EvaluateCondition(const FArcweaveConditionData& Condition, const FString& OriginElementId,
-        FArcscriptTranspilerOutput& TranspilerOutput, const TMap<FString, FArcweaveVariable>& Variables);
+        FArcscriptTranspilerOutput& TranspilerOutput, const TMap<FString, FArcweaveVariable>& Variables, const TMap<FString, int>& Visits);
     FArcscriptTranspilerOutput RunConditionScript(const FString& ConditionId, const FString& OriginElementId,
-        bool& Success, const TMap<FString, FArcweaveVariable>& Variables);
+        bool& Success, const TMap<FString, FArcweaveVariable>& Variables, const TMap<FString, int>& Visits);
     FArcweaveConnectionsData TryGetNExtConnectionData(const FArcweaveBoardData& BoardData, const FArcweaveBranchData& Branch, const FArcweaveConditionData* FiredConditionData);
     void LogTranspilerOutput(const FArcscriptTranspilerOutput& TranspilerOutput);
     bool GetBoardObjectForElement(FString ConditionId, FArcweaveConditionData& OutConditionData, FArcweaveBoardData*& OutBoardObj);
@@ -299,16 +311,21 @@ public:
     bool ContainsCodePattern(const FString& ContentToTest) const;
     /**
      * Follow the connection through branches and jumpers to the element it leads to.
-     * OutLabel gets the last label text on the way. False when no branch condition holds.
-     * The labels' variable changes apply to the next labels and conditions on the path, but not to the project
+     * OutLabel gets the last label text on the way. False when no branch condition holds or a script fails.
+     * The labels' changes apply to the next labels and conditions on the path. With bApplyEffects they apply to
+     * the project (variables, visits and events); otherwise only to a copy, so the project doesn't change
      */
     bool ResolveConnectionPath(const FArcweaveConnectionsData& Connection, const FArcweaveBoardData& BoardData,
-        const FString& OriginElementId, FString& OutLabel, FArcweaveElementData& OutTarget);
-    /** Evaluate the branch's conditions with the given variables, for the element the path started from */
+        const FString& OriginElementId, bool bApplyEffects, FString& OutLabel, FArcweaveElementData& OutTarget);
+    /** Evaluate the branch's conditions with the given variables and visits, for the element the path started from.
+     * Blank conditions are never satisfied; bOutConditionFailed, if given, is set when a condition fails to run */
     FGetIsTargetBranchOutput EvaluateBranch(const FArcweaveBoardData& BoardData, const FString& BranchId,
-        const FString& OriginElementId, const TMap<FString, FArcweaveVariable>& Variables);
-    /** Label text without HTML. Its code runs with Variables and its changes apply to them, not to the project */
-    FString GetLabelText(const FString& Label, const FString& OriginElementId, TMap<FString, FArcweaveVariable>& Variables);
+        const FString& OriginElementId, const TMap<FString, FArcweaveVariable>& Variables, const TMap<FString, int>& Visits,
+        bool* bOutConditionFailed);
+    /** Runs a label: OutText is its text without HTML. With bApplyEffects, Variables and Visits must be the project's and
+     * its effects apply to them; otherwise its changes apply to these copies. False when its script fails */
+    bool RunLabel(const FString& Label, const FString& OriginElementId, bool bApplyEffects,
+        TMap<FString, FArcweaveVariable>& Variables, TMap<FString, int>& Visits, FString& OutText);
     /** Option text for an element when its connection has no label, as in play mode */
     FString GetElementOptionText(const FArcweaveElementData& Element);
 

@@ -626,11 +626,13 @@ void UArcweaveSubsystem::ReportUnavailableConfiguredLocale() const
 
 FArcscriptTranspilerOutput UArcweaveSubsystem::TranspileCondition(const FString& ConditionId, const FString& OriginElementId, bool& Success)
 {
-    return RunConditionScript(ConditionId, OriginElementId, Success, ProjectData.CurrentVars);
+    const FArcscriptTranspilerOutput Output = RunConditionScript(ConditionId, OriginElementId, Success, ProjectData.CurrentVars, ProjectData.Visits);
+    Success = Success && !Output.bScriptFailed;
+    return Output;
 }
 
 FArcscriptTranspilerOutput UArcweaveSubsystem::RunConditionScript(const FString& ConditionId, const FString& OriginElementId,
-    bool& Success, const TMap<FString, FArcweaveVariable>& Variables)
+    bool& Success, const TMap<FString, FArcweaveVariable>& Variables, const TMap<FString, int>& Visits)
 {
     UE_LOG(LogArcwarePlugin, Log, TEXT("----- TranspileCondition for id: %s -----"), *ConditionId);
     Success = false;
@@ -657,7 +659,7 @@ FArcscriptTranspilerOutput UArcweaveSubsystem::RunConditionScript(const FString&
         //run the transpiler
         FString ScriptModified = FString("<pre><code>") + ConditionData.Script + FString("</code></pre>");
         // Checking a condition must not change variables or visits
-        Output = RunTranspiler(ScriptModified, OriginElementId, Variables, ProjectData.Visits, false);
+        Output = RunTranspiler(ScriptModified, OriginElementId, Variables, Visits, false);
 
         Success = true;
     }
@@ -840,15 +842,19 @@ bool UArcweaveSubsystem::RestoreState(const FArcweaveRuntimeState& State, FStrin
 }
 
 void UArcweaveSubsystem::EvaluateCondition(const FArcweaveConditionData& Condition, const FString& OriginElementId,
-    FArcscriptTranspilerOutput& TranspilerOutput, const TMap<FString, FArcweaveVariable>& Variables)
+    FArcscriptTranspilerOutput& TranspilerOutput, const TMap<FString, FArcweaveVariable>& Variables, const TMap<FString, int>& Visits)
 {
     UE_LOG(LogArcwarePlugin, Log,
         TEXT("Transpiling condition %s..."), *Condition.Id);
 
     bool bTranspileSucceeded = false;
-    TranspilerOutput = RunConditionScript(Condition.Id, OriginElementId, bTranspileSucceeded, Variables);
-
+    TranspilerOutput = RunConditionScript(Condition.Id, OriginElementId, bTranspileSucceeded, Variables, Visits);
     if (!bTranspileSucceeded)
+    {
+        TranspilerOutput.bScriptFailed = true;
+    }
+
+    if (TranspilerOutput.bScriptFailed)
     {
         UE_LOG(LogArcwarePlugin, Error,
             TEXT("Transpile failed for condition %s"), *Condition.Id);
@@ -884,16 +890,34 @@ FGetIsTargetBranchOutput UArcweaveSubsystem::GetIsTargetBranch(
     const FArcweaveBoardData& BoardData,
     const FArcweaveConnectionsData& TargetConnection)
 {
-    return EvaluateBranch(BoardData, TargetConnection.Targetid, TargetConnection.Sourceid, ProjectData.CurrentVars);
+    return EvaluateBranch(BoardData, TargetConnection.Targetid, TargetConnection.Sourceid, ProjectData.CurrentVars, ProjectData.Visits, nullptr);
 }
 
 FGetIsTargetBranchOutput UArcweaveSubsystem::EvaluateBranch(
     const FArcweaveBoardData& BoardData,
     const FString& BranchId,
     const FString& OriginElementId,
-    const TMap<FString, FArcweaveVariable>& Variables)
+    const TMap<FString, FArcweaveVariable>& Variables,
+    const TMap<FString, int>& Visits,
+    bool* bOutConditionFailed)
 {
     FGetIsTargetBranchOutput Result;
+    // Like play mode, a blank condition is never satisfied, and a condition that fails to run leaves the branch without an output
+    const auto IsSatisfied = [this, &OriginElementId, &Variables, &Visits, bOutConditionFailed](const FArcweaveConditionData& Condition)
+    {
+        const FString Script = Condition.Script.TrimStartAndEnd();
+        if (Script.IsEmpty() || Script == TEXT("empty"))
+        {
+            return false;
+        }
+        FArcscriptTranspilerOutput TranspilerOutput;
+        EvaluateCondition(Condition, OriginElementId, TranspilerOutput, Variables, Visits);
+        if (TranspilerOutput.bScriptFailed && bOutConditionFailed != nullptr)
+        {
+            *bOutConditionFailed = true;
+        }
+        return !TranspilerOutput.bScriptFailed && TranspilerOutput.ConditionResult;
+    };
 
     for (const FArcweaveBranchData& Branch : BoardData.Branches)
     {
@@ -905,9 +929,7 @@ FGetIsTargetBranchOutput UArcweaveSubsystem::EvaluateBranch(
         Result.IsBranch = true;
         Result.BranchData = Branch;
         const FArcweaveConditionData* FiredConditionData = nullptr;
-        FArcscriptTranspilerOutput TranspilerOutput = FArcscriptTranspilerOutput();
-        EvaluateCondition(Branch.IfCondition, OriginElementId, TranspilerOutput, Variables);
-        Result.BranchConditionResult = TranspilerOutput.ConditionResult;
+        Result.BranchConditionResult = IsSatisfied(Branch.IfCondition);
 
         if (Result.BranchConditionResult)
         {
@@ -923,8 +945,7 @@ FGetIsTargetBranchOutput UArcweaveSubsystem::EvaluateBranch(
         {
             for (const auto& ElseIf : Branch.ElseIfConditions)
             {
-                EvaluateCondition(ElseIf, OriginElementId, TranspilerOutput, Variables);
-                if (TranspilerOutput.ConditionResult)
+                if (IsSatisfied(ElseIf))
                 {
                     FiredConditionData = &ElseIf;
                     break;
@@ -979,11 +1000,18 @@ FString UArcweaveSubsystem::TranspileConnectionLabel(const FArcweaveConnectionsD
     // No option when no branch condition on the way holds
     FString PathLabel;
     FArcweaveElementData Target;
-    if (!ResolveConnectionPath(Connection, BoardData, Connection.Sourceid, PathLabel, Target))
+    if (!ResolveConnectionPath(Connection, BoardData, Connection.Sourceid, false, PathLabel, Target))
     {
         return FString();
     }
     return PathLabel.IsEmpty() ? GetElementOptionText(Target) : PathLabel;
+}
+
+bool UArcweaveSubsystem::SelectOption(const FArcweaveConnectionsData& Connection, const FArcweaveBoardData& BoardData, FArcweaveElementData& OutTarget)
+{
+    // The same path as TranspileConnectionLabel, applying the labels' effects on the way
+    FString PathLabel;
+    return ResolveConnectionPath(Connection, BoardData, Connection.Sourceid, true, PathLabel, OutTarget);
 }
 
 bool UArcweaveSubsystem::HasOptions(const FArcweaveElementData& Element, const FArcweaveBoardData& BoardData)
@@ -994,7 +1022,7 @@ bool UArcweaveSubsystem::HasOptions(const FArcweaveElementData& Element, const F
     {
         FString Label;
         FArcweaveElementData Target;
-        if (ResolveConnectionPath(Output, BoardData, Element.Id, Label, Target))
+        if (ResolveConnectionPath(Output, BoardData, Element.Id, false, Label, Target))
         {
             OptionCount++;
             bHasLabel = !Label.IsEmpty();
@@ -1003,17 +1031,56 @@ bool UArcweaveSubsystem::HasOptions(const FArcweaveElementData& Element, const F
     return OptionCount > 1 || (OptionCount == 1 && bHasLabel);
 }
 
-bool UArcweaveSubsystem::ResolveConnectionPath(const FArcweaveConnectionsData& Connection, const FArcweaveBoardData& BoardData,
-    const FString& OriginElementId, FString& OutLabel, FArcweaveElementData& OutTarget)
+namespace
 {
-    // As in play mode, the changes of the labels on the way apply to the next labels and branch conditions,
-    // but only to this copy: the path is only checked, so it must not change state
-    TMap<FString, FArcweaveVariable> PathVariables = ProjectData.CurrentVars;
+// Enough for any real path; a longer one is a loop that keeps changing variables
+constexpr int32 MaxBranchesOnPath = 1000;
+
+// Variables and visits on a path, to tell a loop from a branch that is reached again in another state
+FString GetPathState(const TMap<FString, FArcweaveVariable>& Variables, const TMap<FString, int>& Visits)
+{
+    FString State;
+    for (const TPair<FString, FArcweaveVariable>& Pair : Variables)
+    {
+        State += Pair.Key + TEXT("=") + Pair.Value.Value + TEXT(";");
+    }
+    int64 TotalVisits = 0;
+    for (const TPair<FString, int>& Pair : Visits)
+    {
+        TotalVisits += Pair.Value;
+    }
+    return State + FString::Printf(TEXT("visits=%lld"), TotalVisits);
+}
+}
+
+bool UArcweaveSubsystem::ResolveConnectionPath(const FArcweaveConnectionsData& Connection, const FArcweaveBoardData& BoardData,
+    const FString& OriginElementId, bool bApplyEffects, FString& OutLabel, FArcweaveElementData& OutTarget)
+{
+    OutLabel.Empty();
+
+    // As in play mode, the changes of the labels on the way apply to the next labels and branch conditions.
+    // A preview only changes these copies; a selection changes the project
+    TMap<FString, FArcweaveVariable> PreviewVariables;
+    TMap<FString, int> PreviewVisits;
+    if (!bApplyEffects)
+    {
+        PreviewVariables = ProjectData.CurrentVars;
+        PreviewVisits = ProjectData.Visits;
+    }
+    TMap<FString, FArcweaveVariable>& PathVariables = bApplyEffects ? ProjectData.CurrentVars : PreviewVariables;
+    TMap<FString, int>& PathVisits = bApplyEffects ? ProjectData.Visits : PreviewVisits;
+
     FArcweaveConnectionsData Current = Connection;
-    TSet<FString> VisitedBranches;
+    TSet<FString> VisitedStates;
     while (true)
     {
-        const FString Label = GetLabelText(Current.Label, OriginElementId, PathVariables);
+        FString Label;
+        if (!RunLabel(Current.Label, OriginElementId, bApplyEffects, PathVariables, PathVisits, Label))
+        {
+            // Like play mode, an option whose script fails is not shown
+            UE_LOG(LogArcwarePlugin, Warning, TEXT("The label of connection %s failed to run: no option for connection %s"), *Current.Id, *Connection.Id);
+            return false;
+        }
         if (!Label.IsEmpty())
         {
             OutLabel = Label;
@@ -1024,19 +1091,19 @@ bool UArcweaveSubsystem::ResolveConnectionPath(const FArcweaveConnectionsData& C
             break;
         }
 
-        // A branch reached twice on one path would lead the same way again
+        // A branch reached again with the same variables and visits would lead the same way forever
         bool bAlreadyVisited = false;
-        VisitedBranches.Add(Current.Targetid, &bAlreadyVisited);
-        if (bAlreadyVisited)
+        VisitedStates.Add(Current.Targetid + TEXT("|") + GetPathState(PathVariables, PathVisits), &bAlreadyVisited);
+        if (bAlreadyVisited || VisitedStates.Num() > MaxBranchesOnPath)
         {
             UE_LOG(LogArcwarePlugin, Warning, TEXT("Connection %s leads to a loop of branches"), *Connection.Id);
             return false;
         }
 
-        // Conditions refer to the element the option starts from, as in play mode.
-        // Like labels here, they're only checked, so they must not change state
-        const FGetIsTargetBranchOutput Branch = EvaluateBranch(BoardData, Current.Targetid, OriginElementId, PathVariables);
-        if (Branch.BranchConnections.IsEmpty())
+        // Conditions refer to the element the option starts from, as in play mode. They never change state
+        bool bConditionFailed = false;
+        const FGetIsTargetBranchOutput Branch = EvaluateBranch(BoardData, Current.Targetid, OriginElementId, PathVariables, PathVisits, &bConditionFailed);
+        if (bConditionFailed || Branch.BranchConnections.IsEmpty())
         {
             return false;
         }
@@ -1068,16 +1135,35 @@ bool UArcweaveSubsystem::ResolveConnectionPath(const FArcweaveConnectionsData& C
     return GetBoardForObject(Current.Targetid, OutTarget, TargetBoard);
 }
 
-FString UArcweaveSubsystem::GetLabelText(const FString& Label, const FString& OriginElementId, TMap<FString, FArcweaveVariable>& Variables)
+bool UArcweaveSubsystem::RunLabel(const FString& Label, const FString& OriginElementId, bool bApplyEffects,
+    TMap<FString, FArcweaveVariable>& Variables, TMap<FString, int>& Visits, FString& OutText)
 {
     FString Text = Label;
     if (ContainsCodePattern(Label))
     {
-        const FArcscriptTranspilerOutput Output = RunTranspiler(Label, OriginElementId, Variables, ProjectData.Visits, false);
-        ApplyVariableChanges(Output, Variables, nullptr);
-        Text = Output.Output;
+        if (bApplyEffects)
+        {
+            // Variables and Visits are the project's here: the effects apply to them and are broadcast
+            const FArcscriptTranspilerOutput Output = RunTranspiler(Label, OriginElementId, Variables, Visits, true);
+            if (Output.bScriptFailed)
+            {
+                return false;
+            }
+            Text = Output.Output;
+        }
+        else
+        {
+            const FArcscriptTranspilerOutput Output = RunTranspiler(Label, OriginElementId, Variables, Visits, false, &Visits);
+            if (Output.bScriptFailed)
+            {
+                return false;
+            }
+            ApplyVariableChanges(Output, Variables, nullptr);
+            Text = Output.Output;
+        }
     }
-    return RemoveHtmlTags(Text).TrimStartAndEnd();
+    OutText = RemoveHtmlTags(Text).TrimStartAndEnd();
+    return true;
 }
 
 FString UArcweaveSubsystem::GetElementOptionText(const FArcweaveElementData& Element)
@@ -1100,17 +1186,13 @@ FString UArcweaveSubsystem::GetElementOptionText(const FArcweaveElementData& Ele
     }
     Content += Element.Content.Mid(CopyStart);
 
+    // Like play mode, only the first paragraph counts, even when it is empty; content without paragraphs is used whole
     FString Text;
     const FRegexPattern ParagraphPattern(TEXT(R"(<p(\s[^>]*)?>([\s\S]*?)</p>)"));
     FRegexMatcher ParagraphMatcher(ParagraphPattern, Content);
-    while (Text.IsEmpty() && ParagraphMatcher.FindNext())
-    {
-        Text = RemoveHtmlTags(ParagraphMatcher.GetCaptureGroup(2)).TrimStartAndEnd();
-    }
-    if (Text.IsEmpty())
-    {
-        Text = RemoveHtmlTags(Content).TrimStartAndEnd();
-    }
+    Text = ParagraphMatcher.FindNext()
+        ? RemoveHtmlTags(ParagraphMatcher.GetCaptureGroup(2)).TrimStartAndEnd()
+        : RemoveHtmlTags(Content).TrimStartAndEnd();
 
     if (Text.Len() > 74)
     {
@@ -2447,7 +2529,8 @@ void UArcweaveSubsystem::ResetVisits()
 }
 
 FArcscriptTranspilerOutput UArcweaveSubsystem::RunTranspiler(const FString& NodeCode, const FString& OriginElementId,
-    const TMap<FString, FArcweaveVariable>& InitialVars, const TMap<FString, int>& Visits, bool bShouldUpdateVariables /* = true*/)
+    const TMap<FString, FArcweaveVariable>& InitialVars, const TMap<FString, int>& Visits, bool bShouldUpdateVariables /* = true*/,
+    TMap<FString, int>* PreviewVisits /* = nullptr*/)
 {
     TGuardValue<bool> RunningScript(bIsRunningScript, true);
 
@@ -2469,6 +2552,20 @@ FArcscriptTranspilerOutput UArcweaveSubsystem::RunTranspiler(const FString& Node
         {
             OnEvent = std::bind(&UArcweaveSubsystem::OnEventCallback, this, std::placeholders::_1);
         }
+        else if (PreviewVisits != nullptr)
+        {
+            // A preview keeps its own visits, e.g. for the next conditions on an option's path
+            OnEvent = [PreviewVisits](const char* EventName)
+            {
+                if (FString(EventName) == TEXT("resetVisits"))
+                {
+                    for (TPair<FString, int>& VisitPair : *PreviewVisits)
+                    {
+                        VisitPair.Value = 0;
+                    }
+                }
+            };
+        }
         Output = ArcscriptWrapper->RunScript(NodeCode, OriginElementId, InitialVars, Visits, OnEvent);
 
         LogTranspilerOutput(Output);
@@ -2482,6 +2579,7 @@ FArcscriptTranspilerOutput UArcweaveSubsystem::RunTranspiler(const FString& Node
     else
     {
         UE_LOG(LogArcwarePlugin, Error, TEXT("ArcscriptWrapper not initialized"));
+        Output.bScriptFailed = true;
     }
 
     return Output;
@@ -2531,8 +2629,12 @@ void UArcweaveSubsystem::ApplyVariableChanges(const FArcscriptTranspilerOutput& 
         if (OutChangedVariables != nullptr)
         {
             OutChangedVariables->Add(*Variable);
+            UE_LOG(LogArcwarePlugin, Display, TEXT("Update variable id %s, value %s"), *Variable->Id, *Variable->Value);
         }
-        UE_LOG(LogArcwarePlugin, Display, TEXT("Update variable id %s, value %s"), *Variable->Id, *Variable->Value);
+        else
+        {
+            UE_LOG(LogArcwarePlugin, Verbose, TEXT("Update the preview copy of variable id %s, value %s"), *Variable->Id, *Variable->Value);
+        }
     }
 }
 
