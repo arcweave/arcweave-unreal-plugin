@@ -20,7 +20,7 @@
 
 Before you ask a question, it is best to search for
 existing issues [on github](https://github.com/arcweave/arcweave-unreal-plugin/issues) 
-or on [the Discord server](https://discord.gg/kb4FxBxw)
+or on [the Discord server](https://discord.gg/atVXxAK)
 that might help you.
 
 In case you have found a suitable issue and still need clarification, you can write your question in this issue.
@@ -31,7 +31,7 @@ If you then still feel the need to ask a question and need clarification, we rec
 - Open an issue [on github](https://github.com/arcweave/arcweave-unreal-plugin/issues/new) and post in the "aw-help" channel on the Discord server.
 - Provide as much context as you can about what you're running into.
 - Provide a short example that shows the issue.
-- Specify which version you are using and whether you are using Arcweave through a plugin.
+- Specify which version you are using and which Unreal Engine version you are using.
 
 We will then take care of the issue as soon as possible.
 
@@ -55,11 +55,11 @@ We use GitHub issues to track bugs and errors. If you run into an issue with the
 
 Before you submit a report, it is best to search for
 existing issues [on github](https://github.com/arcweave/arcweave-unreal-plugin/issues) 
-or on [the Discord server](https://discord.gg/kb4FxBxw)
+or on [the Discord server](https://discord.gg/atVXxAK)
 
 
 - Open an issue [on github](https://github.com/arcweave/arcweave-unreal-plugin/issues) 
-and also on [the Discord server](https://discord.gg/kb4FxBxw).
+and also on [the Discord server](https://discord.gg/atVXxAK).
 - Explain the behavior you would expect and the actual behavior.
 - Please provide as much context as possible and describe the *reproduction steps* that someone else can follow to recreate the issue on their own. This can include your code.
 - For good bug reports you should isolate the problem and create a reduced test case.
@@ -74,15 +74,15 @@ these guidelines will help maintainers and the community to understand your sugg
 
 - Make sure that you are using the latest version.
 - Read the [documentation](https://github.com/arcweave/arcweave-unreal-plugin/) carefully and find out if the functionality is already covered, perhaps via configuration options.
-- Search [GitHub issues](https://github.com/arcweave/arcweave-unreal-plugin/issues) or [the Discord server](https://discord.gg/kb4FxBxw); you can check both the channel "aw-whishlist" and "unreal-plugin" to see if the enhancement has already been suggested. If it has, add a comment to the existing issue instead of opening a new one.
+- Search [GitHub issues](https://github.com/arcweave/arcweave-unreal-plugin/issues) or [the Discord server](https://discord.gg/atVXxAK); you can check both the channel "aw-whishlist" and "unreal-plugin" to see if the enhancement has already been suggested. If it has, add a comment to the existing issue instead of opening a new one.
 - Find out whether your idea fits with the scope and aims of the project. It's up to you to make a strong case to convince the project's developers of the merits of this feature. Keep in mind that we want features that will be useful to the majority of our users and not just a small subset. *If you're just targeting a minority of users, consider writing an add-on/plugin library*.
 
-### How Do I Submit a Good Enhancement Suggestion?
+#### How Do I Submit a Good Enhancement Suggestion?
 
 - Use a **clear and descriptive title** for the issue to identify the suggestion.
 - Provide a **step-by-step description of the suggested enhancement** in as many details as possible.
 - **Describe the current behavior** and **explain which behavior you expected to see instead** and why. At this point you can also tell which alternatives do not work for you.
-- You may want to **include some existing diagram examples** that would help to understand the suggestion.
+- You may want to **include an example Arcweave project or screenshots** that would help to understand the suggestion.
 - **Explain why this enhancement would be useful** to most Arcweave plugin users. You may also want to point out other projects that solve it better and which could serve as inspiration.
 
 ### Your First Code Contribution
@@ -94,8 +94,8 @@ these guidelines will help maintainers and the community to understand your sugg
 
 #### Environment Setup
 1. **Prerequisites:**
-  - [IDE: VS Code, Visual Studio or Rider](https://visualstudio.microsoft.com/vs/older-downloads/) - version 2022 or newer
-  - [Unreal Engine 5.](https://www.unrealengine.com/en-US/download) - version 5.5.4
+  - An IDE: [Visual Studio](https://visualstudio.microsoft.com/vs/older-downloads/) 2022 or newer, [VS Code](https://code.visualstudio.com/) or [Rider](https://www.jetbrains.com/rider/)
+  - [Unreal Engine 5](https://www.unrealengine.com/en-US/download) - version 5.5.4
   - [Git](https://git-scm.com/book/en/v2/Getting-Started-Installing-Git) - to clone the repository and manage the version control
 
 If you chose Visual Studio and you have trouble getting Unreal to start, follow this [guide](https://dev.epicgames.com/documentation/en-us/unreal-engine/setting-up-visual-studio-development-environment-for-cplusplus-projects-in-unreal-engine?application_version=5.5)
@@ -106,79 +106,66 @@ Now you have two options:
 - Fork the plugin repository and connect it to the demo Unreal project in order to create an environment where you can test your changes easily. This guide will follow the second approach
 
 3. **Clone the Unreal demo project**
-- After you forked the plugin repo, clone the project in an empty folder using this command
+- After you forked the plugin repo, clone the demo project with its submodules in an empty folder:
 
 ```sh
-git clone https://github.com/arcweave/arcweave-unreal-example.git
+git clone --recurse-submodules https://github.com/arcweave/arcweave-unreal-example.git
 ```
 
-4. **Navigate to the arcweave plugin folder**
-Once the project is cloned, navigate to the folder "ArcweaveDemo/Plugins/" (e.g D:\Progetti\arcweave-unreal-example-main\ArcweaveDemo\Plugins).
-Then open a Bash console and run:
+4. **Point the plugin folder at your fork**
+The demo includes this plugin as a git submodule in `ArcweaveDemo/Plugins/Arcweave`.
+Open a Bash console in that folder (e.g. `D:\Projects\arcweave-unreal-example\ArcweaveDemo\Plugins\Arcweave`).
+Then go to your fork of the plugin and copy the URL that you find by clicking "Code" and then under "HTTPS" (for example: https://github.com/myusername/arcweave-unreal-plugin.git), and run:
 
 ```sh
-git init
-```
-then go to the fork of the arcweave plugin and copy the URL that you find by clicking "Code" and then under "HTTPS" (for example: https://github.com/salvolannister/arcweave-unreal-plugin.git). Then run:
-
-```sh
+git remote rename origin upstream
 git remote add origin YOUR_URL
+git fetch upstream
+git checkout -B main upstream/main
 ```
+
+`upstream` is now this repository and `origin` is your fork.
 
 #### Making Changes
 
-**1. Create feature branch:**
+**1. Create a feature branch:**
 
 ```sh
-git checkout -b add/issue-description
+git checkout -b fix/issue-description
 ```
-**2. Commit and push changes**:
-```sh
-git commit -am "✨ add new feature" (It is necessary to follow the commit messages styleguide)
-git push
-```
-**3. Update local fork with latest changes**
-If you incur conflicts or your local fork is not up-to-date, you can run:
 
-Go to your pull request branch, open a Bash console and add the original repository as an `upstream` remote:
+**2. Commit and push changes**
+
+Follow the [commit message styleguide](#commit-messages):
 
 ```sh
-git remote add upstream https://github.com/arcweave/arcweave-unreal-plugin.git
+git add -A
+git commit -m "fix: describe the change"
+git push -u origin HEAD
 ```
 
-You now have two remotes: one for your fork, and one for the original repository. If you run `git remote -v`, you will see something like:
+**3. Update your branch with the latest changes**
 
-```sh
-git remote -v
-origin  https://github.com/myusername/myfork.git (fetch)
-origin  https://github.com/myusername/myfork.git (push)
-upstream        https://github.com/arcweave/arcweave-unreal-plugin.git (fetch)
-upstream        https://github.com/arcweave/arcweave-unreal-plugin.git (push)
-```
-
-Then, track and update the remote branches by fetching them from `upstream`:
+If your branch has conflicts or is behind this repository, stay on your feature branch and rebase it on top of the latest `main`:
 
 ```sh
 git fetch upstream
-```
-
-Next, go back to your fork's default branch (usually `master` or `main`) and rebase it on top of the upstream default branch:
-
-```sh
-git checkout main
 git rebase upstream/main
 ```
 
-To fully sync your fork on GitHub, push the rebased branch to your remote:
+If you run `git remote -v`, you should see something like:
 
 ```sh
-git push origin +main
+origin    https://github.com/myusername/arcweave-unreal-plugin.git (fetch)
+origin    https://github.com/myusername/arcweave-unreal-plugin.git (push)
+upstream  https://github.com/arcweave/arcweave-unreal-plugin.git (fetch)
+upstream  https://github.com/arcweave/arcweave-unreal-plugin.git (push)
 ```
 
-Now rebase your current feature branch on top of your fork's latest `main`:
+After a rebase, update your pull request branch with:
 
 ```sh
-git rebase origin/main
+git push --force-with-lease
 ```
 
 #### Submitting PR
@@ -209,4 +196,5 @@ git rebase origin/main
 
 ### Unreal cpp
 Try to follow the conventions already used in the code
+
 ---

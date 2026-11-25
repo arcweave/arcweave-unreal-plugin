@@ -2407,7 +2407,8 @@ void UArcweaveSubsystem::UpdateVariablesFromConnection(const FArcweaveConnection
                 // Only labels with code can change variables
                 if (ContainsCodePattern(Con.Label))
                 {
-                    RunTranspiler(Con.Label, Con.Id, ProjectData.CurrentVars, ProjectData.Visits, true);
+                    // Same origin as when the label is rendered, so visits() refers to the source element
+                    RunTranspiler(Con.Label, Con.Sourceid, ProjectData.CurrentVars, ProjectData.Visits, true);
                 }
                 return;
             }

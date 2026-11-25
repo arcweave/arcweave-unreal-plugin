@@ -175,7 +175,7 @@ Surface the returned error in your load/save UI. The load helper changes `OutPre
 
 Save at a stable checkpoint after element execution, connection-label evaluation, and any related gameplay effects have completed. Keep the saved cursor and presentation consistent with the captured variables and visits.
 
-Do not call `TranspileObject` or `TranspileConnectionLabel` again just to redraw a restored screen: those calls execute Arcscript and can change variables, visits, or other results. Display the resolved text and choices from your checkpoint, then let the next player action continue through your runner. If your game uses a different checkpoint boundary, define explicitly which operation executes next and persist enough information to avoid replaying an already completed operation.
+Do not call `TranspileObject` again just to redraw a restored screen: it executes Arcscript and can change variables and visits. `TranspileConnectionLabel` does not change variables or visits (the label's effects apply when you call `UpdateVariablesFromConnection` for the chosen option), but it can still return different text, for example with `random()`. Display the resolved text and choices from your checkpoint, then let the next player action continue through your runner. If your game uses a different checkpoint boundary, define explicitly which operation executes next and persist enough information to avoid replaying an already completed operation.
 
 ## Verification
 
