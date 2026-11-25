@@ -1,7 +1,7 @@
 # Arcweave Unreal plugin v3.0.0
 
-Arcweave Unreal plugin v3.0.0 adds multi-language projects, reworks how attributes and components are stored, and makes
-showing a choice label free of side effects. **It has breaking changes:** read
+Arcweave Unreal plugin v3.0.0 adds multi-language projects, reworks how attributes and components are stored, shows option texts like
+play mode and makes showing a choice label free of side effects. **It has breaking changes:** read
 [Breaking changes / upgrading](https://github.com/arcweave/arcweave-unreal-plugin/blob/v3.0.0/README.md#breaking-changes--upgrading)
 before you upgrade from v2.2.0.
 
@@ -62,6 +62,22 @@ Projects with several languages can be imported and switched at runtime
 - Runtime save/load (`CaptureState`/`RestoreState`) is unchanged from v2.2.0. The
   [runtime save/load guide](https://github.com/arcweave/arcweave-unreal-plugin/blob/v3.0.0/docs/runtime-state.md) now
   reflects that rendering a label doesn't change state.
+
+## Option texts
+
+`TranspileConnectionLabel` now falls back like Arcweave's play mode when a connection's label has no text
+([#48](https://github.com/arcweave/arcweave-unreal-plugin/pull/48)). See
+[Option texts](https://github.com/arcweave/arcweave-unreal-plugin/blob/v3.0.0/README.md#option-texts).
+
+- The text comes from a later label with text, else the title of the element the connection leads to, else the first
+  paragraph of its content cut to 70 characters, else `[ Empty element ]`. It used to be empty. Labels with text are
+  returned as before.
+- It returns an empty string, so the option shouldn't be shown, when no branch condition on the path holds or a label or
+  condition script on the path fails to run. Blank branch conditions are skipped.
+- New `HasOptions(Element, BoardData)` is false when the element has no choice to show.
+- Titles and option texts are plain text: entities such as `&amp;` are decoded, mentions show their text and code is
+  removed.
+- A failing Arcscript no longer leaks memory in the Arcscript wrapper.
 
 ## API token
 
