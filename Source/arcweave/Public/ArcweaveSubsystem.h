@@ -230,6 +230,8 @@ private:
     TArray<FArcweaveLocaleData> ParseProjectLocales(const TSharedPtr<FJsonObject>& MainJsonObject);
     FArcweaveContents ParseAllContents(const TSharedPtr<FJsonObject>& MainJsonObject);
     bool ParseResponse(const FString& ResponseString);
+    /** Returns the starting element id if it is an element of an imported board, otherwise logs why and returns an empty string */
+    FString ValidateStartingElement(const TSharedPtr<FJsonObject>& MainJsonObject, const FString& StartingElementId) const;
     void OnEventCallback(const char* EventName);
     /* Without bShouldUpdateVariables the script's variable changes and events (e.g. resetVisits) are not applied */
     FArcscriptTranspilerOutput RunTranspiler(const FString& NodeCode, const FString& OriginElementId,

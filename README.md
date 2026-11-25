@@ -1,25 +1,26 @@
 # Arcweave Plugin for Unreal Engine
 
 [![Version](https://img.shields.io/badge/version-3.0.0-blue.svg)](https://github.com/arcweave/arcweave-unreal-plugin)
-[![Unreal Engine](https://img.shields.io/badge/Unreal%20Engine-5.0%2B-0E1128?logo=unrealengine)](https://www.unrealengine.com/)
+[![Unreal Engine](https://img.shields.io/badge/Unreal%20Engine-5.5%2B-0E1128?logo=unrealengine)](https://www.unrealengine.com/)
 [![Language](https://img.shields.io/badge/language-C%2B%2B-00599C?logo=cplusplus)](https://isocpp.org/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![GitHub Issues](https://img.shields.io/github/issues/arcweave/arcweave-unreal-plugin)](https://github.com/arcweave/arcweave-unreal-plugin/issues)
-[![Discord](https://img.shields.io/badge/Discord-Join%20Us-7289DA?logo=discord&logoColor=white)](https://discord.gg/kb4FxBxw)
+[![Discord](https://img.shields.io/badge/Discord-Join%20Us-7289DA?logo=discord&logoColor=white)](https://discord.gg/atVXxAK)
 [![YouTube](https://img.shields.io/badge/YouTube-Tutorial%20Series-FF0000?logo=youtube&logoColor=white)](https://www.youtube.com/playlist?list=PLP2s5PcDiBdYRg0zHpJTuiDVf9JF_inyH)
 
 [![IMAGE ALT TEXT HERE](https://img.youtube.com/vi/Ws_Cz-IQQYg/0.jpg)](https://www.youtube.com/watch?v=Ws_Cz-IQQYg)
 
-This is the official README file for the Arcweave plugin repository, which facilitates the import of [Arcweave](https://arcweave.com/) projects into Unreal Engine (version 5.0 and later). 
+This is the official README file for the Arcweave plugin repository, which facilitates the import of [Arcweave](https://arcweave.com/) projects into Unreal Engine (version 5.5 and later).
 The plugin can import data from an exported Arcweave JSON file (available to all Arcweave users) or it can directly utilize Arcweave's web API to fetch data, a feature available to Arcweave Team account owners. You can watch a [full video tutorial series](https://www.youtube.com/playlist?list=PLP2s5PcDiBdYRg0zHpJTuiDVf9JF_inyH) on how to install and use the plugin.
 
 ## Table of Contents
 
 - [Plugin Installation](#plugin-installation)
-- [Packaging](#packaging) 
+- [Packaging](#packaging)
 - [Data Collection Methods](#data-collection-methods)
    - [JSON Import](#json-import)
    - [Web API](#web-api)
+- [Localization](#localization)
 - [Important Classes and Functions](#important-classes-and-functions)
    - [UArcweaveSubsystem Functions](#list-of-important-functions-in-uarcweavesubsystem)
    - [Starting element](#starting-element)
@@ -42,6 +43,20 @@ To install the Arcweave Plugin for Unreal Engine, follow these steps:
 3. Open your project.
 4. If prompted to rebuild the Arcweave plugin, click **Yes**.
 
+The plugin requires Unreal Engine 5.5 or later. It runs Arcscript with prebuilt libraries for **Windows (Win64)** and **macOS**,
+so those are the platforms it supports.
+
+## Packaging
+
+- **Local JSON:** the export in `Content/ArcweaveExport` is not an Unreal asset, so it isn't packaged by default. Add the
+  folder in **Project Settings → Packaging → Additional Non-Asset Directories to Package** (`ArcweaveExport`, relative to
+  `Content`), as the [demo project](https://github.com/arcweave/arcweave-unreal-example) does. This adds
+  `+DirectoriesToAlwaysStageAsUFS=(Path="ArcweaveExport")` to `Config/DefaultGame.ini`. If you changed
+  `JsonDirectoryPath`, stage that folder instead.
+- **API token:** clear the token from the Arcweave settings before you package; see [Web API](#web-api).
+- **Libraries and notices:** the Arcscript libraries and the license notices of the bundled Arcscript and ANTLR runtimes
+  are staged with the game automatically.
+
 ## Data Collection Methods
 There are two primary methods for collecting Arcweave project data:
 
@@ -56,7 +71,7 @@ For this method, you'll need to do the following:
 ### Web API:
 This involves fetching data directly from the Arcweave Web API within Unreal Engine. You will need:
 
-- Your **Arcweave API key** and your **project's hash** (Refer to the [Arcweave Documentation](https://arcweave.com/docs/1.0/api) for more info on how to find these).
+- Your **Arcweave API key** and your **project's hash** (Refer to the [Arcweave Documentation](https://docs.arcweave.com/rest-api/overview) for more info on how to find these).
 - Navigate to Project Settings -> Plugins -> Arcweave. Here, you can input your APIToken and the project hash obtained in the previous step.
 
 > **Keep your API token private.** The plugin never writes the token to the log, but the token entered above is saved in
@@ -65,6 +80,69 @@ This involves fetching data directly from the Arcweave Web API within Unreal Eng
 > a token that is already saved. For shipped builds, prefer a JSON export (`EnableReceiveMethodFromLocalJSON`). If you
 > need to fetch at runtime, pass the token to `FetchData(APIToken, ProjectHash)` from a source you don't commit or ship,
 > such as an environment variable on your development machine.
+
+## Localization
+
+Arcweave projects can have several languages (see [Localization](https://docs.arcweave.com/project-tools/localization)
+in the Arcweave docs). Each language has an ISO code (e.g. `en`, `fr`) and a **Translates from** language, exported as the
+locale's `base`. The main language has no base.
+
+### Import settings
+
+Set these in **Project Settings → Plugins → Arcweave**, or from Blueprints and C++ with
+`SaveArcweaveLanguageSettings(bUseLocale, bFallbackToDefaultLocale, CustomLocale)`:
+
+| Setting | Default | Effect |
+| ------- | ------- | ------ |
+| `bUseLocale` (**Use Locale**) | off | Off: the project is imported in its main language. On: it is imported in `Locale`. |
+| `Locale` | `en` | ISO code of the language to import. It is matched to the project's languages ignoring case (`FR` finds `fr`). If the project doesn't have it, the import logs a warning and uses the main language. |
+| `bFallbackToDefaultLocale` (**Fallback To Default Locale**) | on | On: a missing translation is taken from the fallback chain below. Off: it stays empty. |
+
+`SaveArcweaveLanguageSettings` only changes `bFallbackToDefaultLocale` and `Locale` when `bUseLocale` is true.
+The settings apply to the next import.
+
+### Exports with several languages
+
+How many languages you get depends on the import method:
+
+- **JSON import:** in Arcweave's [export](https://docs.arcweave.com/project-tools/export#export-languages), choose
+  **All languages** under **Languages to export**. The JSON then contains every language (`locales` and `contents`), the
+  plugin imports the one from the settings, and you can switch language at runtime. **Current language** or
+  **Select language** exports contain one language only.
+- **Web API:** the plugin requests a single language. With `bUseLocale` on, it asks for `Locale`, and for
+  `fallbackContents=true` when `bFallbackToDefaultLocale` is on. Otherwise it gets the main language. API imports can't
+  switch language at runtime.
+
+### Switching language at runtime
+
+- `HasLocales()` is true when the imported project has more than one language and their translations, i.e. an
+  **All languages** JSON export of a project with several languages.
+- `UpdateContentsWithLocale(DesiredLocale)` switches the imported texts to another project language: element titles and
+  contents, connection labels (including the outputs of each element and the elements that jumpers point to) and
+  component names. Like the settings, the locale is matched ignoring case, and missing translations follow
+  `bFallbackToDefaultLocale`. It returns false and changes nothing when `HasLocales()` is false or the project doesn't
+  have the language.
+- `OnArcweaveLanguageChanged(DesiredLocale)` is broadcast after a successful switch, with the project's ISO code.
+
+The language you switch to doesn't change the settings and lasts until the next import, which uses the settings again.
+Texts you already displayed are not updated: refresh your UI from the project data. `TranspileObject` runs the element's
+Arcscript and counts a visit, so calling it again just to redraw the current element repeats its effects.
+
+```cpp
+UArcweaveSubsystem* Arcweave = GEngine->GetEngineSubsystem<UArcweaveSubsystem>();
+if (Arcweave->HasLocales() && Arcweave->UpdateContentsWithLocale(TEXT("fr")))
+{
+    // The next texts you read or transpile are in French
+}
+```
+
+### Fallback chain
+
+When a language has no translation for a text, and `bFallbackToDefaultLocale` is on, the plugin tries the language's base,
+then the base's base, until it reaches the main language. For example, with `fr-CA` → `fr` → `en`, a text missing in
+`fr-CA` is taken from `fr`, and from `en` if `fr` doesn't have it either. A missing, `null` or empty (`<p></p>`) title,
+content or label counts as missing. Translations in languages outside the chain are never used, and a loop of bases
+(e.g. `it` → `fr` → `it`) is logged and ends with an empty text.
 
 ## Important Classes and Functions
 
@@ -139,7 +217,9 @@ These functions provide a comprehensive set of tools for interacting with the Ar
 
 #### Starting element
 
-After a successful local or API import, `FArcweaveProjectData.StartingElementId` contains the exported `startingElement` ID. Read it from `GetArcweaveProjectData()` or the project data supplied by `OnArcweaveResponseReceived`. The value is empty when the export omits the field or sets it to `null` or an empty string. Each successful import replaces the previous value; a rejected import preserves the loaded project.
+After a successful local or API import, `FArcweaveProjectData.StartingElementId` contains the exported `startingElement` ID. Read it from `GetArcweaveProjectData()` or the project data supplied by `OnArcweaveResponseReceived`. Each successful import replaces the previous value; a rejected import preserves the loaded project.
+
+The value is empty, and the import logs a warning that names the reason, when the export has no starting element (the field is missing, `null` or empty), or when its ID is not an element of the project or not on an imported board (for example an export of selected boards). The import still succeeds, like in the Unity and Godot plugins. Set a starting element in Arcweave and import again to play the project. Passing an empty ID to `TranspileObject` fails and logs that the project has no valid starting element.
 
 Importing does not execute the starting element. When the game is ready to run it, pass the ID to `TranspileObject`:
 
@@ -468,6 +548,22 @@ Attribute and component handling changed in this release. Existing C++ code that
 3. Replace string comparisons such as `Attribute.cType == TEXT("components")` or `Attribute.Value.Type == TEXT("string")` with the enum values. Rich text is now reported as `StringRichText` (a `"string"` value with `plain: false`); plain text stays `String`.
 4. In Blueprints, refresh or re-create the nodes that used `Components`, `cType` or `Value.Type`, and switch on the new enums.
 
+**Behaviour changes**
+
+These don't break the build, but a game that relied on the old behaviour acts differently:
+
+- **Unreal Engine 5.5 or later is supported.** Earlier READMEs said 5.0, but the plugin already needed 5.4 to build
+  (it uses `EAllowShrinking`), and 5.5 is the oldest version it is developed on.
+- **Showing a choice label no longer applies its Arcscript.** `TranspileConnectionLabel` and `TranspileConnection` used to
+  apply a label's assignments and events, such as `resetVisits()`, every time the label was rendered. Now they only
+  return the text. Call `UpdateVariablesFromConnection` with the connection the player picks to apply its effects;
+  `visits()` in the label then counts the visits of the element the connection starts from. Checking branch conditions
+  (`TranspileCondition`, `GetIsTargetBranch`) doesn't change variables or visits either.
+- **The starting element is validated on import.** `StartingElementId` is empty, with a warning, when the exported ID is
+  not an element on an imported board. See [Starting element](#starting-element).
+- **The API token is no longer logged.** The settings read on import are logged at `Verbose` under `LogArcwarePlugin`,
+  and the token only as `set` or `empty`.
+
 ## Using the Demo Project
 
 You can explore the plugin implementation and see examples of its usage in our [Arcweave demo project](https://github.com/Arcweave/arcweave-unreal-example). 
@@ -475,8 +571,7 @@ This project includes a demo scene and samples of logic implementation using Arc
 
 ## Support
 
-If you need support for an issue, you can open it using the CONTRIBUTING.md guide on GitHub or you can reach out on the  [🔗 Discord server](https://discord.gg/kb4FxBxw).
-.
+If you need support for an issue, you can open it using the [CONTRIBUTING.MD](CONTRIBUTING.MD) guide on GitHub or you can reach out on the [🔗 Discord server](https://discord.gg/atVXxAK).
 
 ## License
 

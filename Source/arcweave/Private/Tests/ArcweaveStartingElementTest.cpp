@@ -21,13 +21,20 @@ bool FArcweaveStartingElementTest::RunTest(const FString& Parameters)
             "entry-b": {
                 "title": "Start",
                 "content": "<pre><code>started = true</code></pre><p>Selected start.</p>"
-            }
+            },
+            "orphan": {"title": "Orphan", "content": "<p>Not on any imported board.</p>"}
         },
         "components": {},
         "variables": {
             "started-variable": {"name": "started", "type": "boolean", "value": false, "cType": "global"}
         }
     })JSON");
+
+    // Imports without a usable starting element warn, and starting the story from them logs an error
+    AddExpectedError(TEXT("the project has no starting element"), EAutomationExpectedErrorFlags::Contains, 6);
+    AddExpectedError(TEXT("starting element 'missing-start' was not found in the project"), EAutomationExpectedErrorFlags::Contains, 1);
+    AddExpectedError(TEXT("starting element 'orphan' is not on any imported board"), EAutomationExpectedErrorFlags::Contains, 1);
+    AddExpectedError(TEXT("TranspileObject: no element id was given"), EAutomationExpectedErrorFlags::Contains, 1);
 
     UArcweaveSubsystem* Subsystem = NewObject<UArcweaveSubsystem>();
     TestTrue(TEXT("A new project has no starting element"), Subsystem->GetArcweaveProjectData().StartingElementId.IsEmpty());
@@ -89,6 +96,35 @@ bool FArcweaveStartingElementTest::RunTest(const FString& Parameters)
     }
     TestFalse(TEXT("An incomplete export is rejected"), Subsystem->ParseResponse(TEXT("{\"name\":\"Incomplete\",\"startingElement\":\"entry-a\"}")));
     TestEqual(TEXT("A rejected import preserves the loaded starting element"), Subsystem->GetArcweaveProjectData().StartingElementId, FString(TEXT("entry-b")));
+
+    // A starting element that can't be run is cleared with a warning that names it, and the import still succeeds
+    const struct
+    {
+        const TCHAR* Description;
+        const TCHAR* StartingElement;
+    } InvalidStarts[] = {
+        {TEXT("An unknown starting element"), TEXT("missing-start")},
+        {TEXT("A starting element that is not on an imported board"), TEXT("orphan")},
+    };
+    for (const auto& Case : InvalidStarts)
+    {
+        if (!TestTrue(TEXT("Restore a known starting element before the invalid one"), Subsystem->ParseResponse(Json)))
+        {
+            return false;
+        }
+        const FString Invalid = Json.Replace(TEXT("\"startingElement\": \"entry-b\""),
+            *FString::Printf(TEXT("\"startingElement\": \"%s\""), Case.StartingElement));
+        if (!TestTrue(FString::Printf(TEXT("%s still imports"), Case.Description), Subsystem->ParseResponse(Invalid)))
+        {
+            return false;
+        }
+        TestTrue(FString::Printf(TEXT("%s is cleared"), Case.Description), Subsystem->GetArcweaveProjectData().StartingElementId.IsEmpty());
+    }
+
+    // Starting the story from the cleared id fails with a clear message, before looking for the element
+    bool bStarted = true;
+    Subsystem->TranspileObject(Subsystem->GetArcweaveProjectData().StartingElementId, bStarted);
+    TestFalse(TEXT("A story without a valid starting element can't be started"), bStarted);
     return true;
 }
 

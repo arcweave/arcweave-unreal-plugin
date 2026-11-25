@@ -95,7 +95,7 @@ these guidelines will help maintainers and the community to understand your sugg
 #### Environment Setup
 1. **Prerequisites:**
   - An IDE: [Visual Studio](https://visualstudio.microsoft.com/vs/older-downloads/) 2022 or newer, [VS Code](https://code.visualstudio.com/) or [Rider](https://www.jetbrains.com/rider/)
-  - [Unreal Engine 5](https://www.unrealengine.com/en-US/download) - version 5.5.4
+  - [Unreal Engine 5](https://www.unrealengine.com/en-US/download) - version 5.5 or later (5.5 is the oldest version the plugin supports, so test changes there when you can)
   - [Git](https://git-scm.com/book/en/v2/Getting-Started-Installing-Git) - to clone the repository and manage the version control
 
 If you chose Visual Studio and you have trouble getting Unreal to start, follow this [guide](https://dev.epicgames.com/documentation/en-us/unreal-engine/setting-up-visual-studio-development-environment-for-cplusplus-projects-in-unreal-engine?application_version=5.5)
