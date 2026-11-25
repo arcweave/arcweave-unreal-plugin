@@ -173,8 +173,10 @@ Run `Arcweave.Project.StartingElement` in Unreal Automation to verify imports, r
    paragraph counts as empty, as in play mode);
 4. otherwise `[ Empty element ]`.
 
-It returns an empty string when no branch condition on the path holds, or when a label or condition script on the path
-fails to run: don't show that option. A blank branch condition is skipped, as in play mode.
+It returns an empty string when no branch condition on the path holds, when a label or condition script on the path
+fails to run, or when the path leads to an element that is on no imported board: don't show that option. A blank branch
+condition is skipped, and a condition that fails stops its branch, as in play mode. Text is shown as a browser would:
+entities such as `&amp;` become characters and line breaks become spaces.
 `HasOptions(Element, BoardData)` is false when the element has no such option, or a single one without label text. Play mode
 then continues to the next element without showing a choice.
 
@@ -182,11 +184,12 @@ Neither function changes variables or visits. A label's Arcscript changes, inclu
 labels and branch conditions after it on the same path. Branch conditions and `visits()` refer to the element the option
 starts from.
 
-When the player picks an option, call `SelectOption(Connection, BoardData, OutTarget)`. It follows the same path, applies
-the Arcscript of every label on it to the project (variables and events), and sets `OutTarget` to the element to run next
-with `TranspileObject`. It returns false when the path leads nowhere. Branch conditions are evaluated again on selection, so
-a condition that uses `random()` can choose a different arm than the one the option text showed.
-`UpdateVariablesFromConnection` still applies the label of a single connection.
+When the player picks an option, call `SelectOption(Connection, BoardData, OutTarget)`. Like play mode, it applies the
+option as it was shown: the variable changes and events of every label on its path, without running them again, so a
+label that uses `random()` grants what it showed. It sets `OutTarget` to the element to run next with `TranspileObject`.
+If the variables or visits changed since the option was shown, the path is resolved again first. When the path leads
+nowhere it returns false and changes nothing. `UpdateVariablesFromConnection` still applies the label of a single
+connection.
 
 Run `Arcweave.Project.ConnectionLabelFallback` in Unreal Automation to verify the option texts.
 
