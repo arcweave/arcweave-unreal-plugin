@@ -76,14 +76,14 @@ public:
 
     /**
      * The API token to use: the ARCWEAVE_API_KEY environment variable when it is set, else the token saved for this user.
-     * In the editor only, a token that an older plugin version saved in Config/DefaultGame.ini and that couldn't be moved
-     * is used last. Packaged games never read the token from the project config.
+     * In the editor only, a token that an older plugin version saved in the project config is used last, when it couldn't
+     * be copied to the user file. Packaged games never read the token from the project config.
      */
     static FString ResolveAPIToken();
 
     /**
      * Save the token for this user only, in Saved/Arcweave/APIToken.txt. An empty token removes the file.
-     * Returns false when the file couldn't be written, or read back with the same token.
+     * Returns false, keeping the saved token, when the file couldn't be written and read back with the same token.
      */
     bool SetUserAPIToken(const FString& Token);
 
@@ -93,20 +93,22 @@ public:
     /** Full path of the file the token is saved in for this user. */
     static FString GetUserAPITokenPath();
 
+    /** Tests only: save the user token in another file. An empty path restores the default. */
+    static void SetUserAPITokenPathForTests(const FString& Path);
+
     /**
-     * Remove every assignment of Key in Section from the text of an ini file, keeping the rest of the text as it is.
-     * Returns true when something was removed. OutLastValue gets the value of the last plain or + assignment, unquoted.
+     * Find Key in Section of an ini file's text, following Unreal's syntax. OutValue is its value after all assignments,
+     * unquoted. bOutHasNonEmptyValue is true when any line assigns a non-empty value, even one a later line clears.
      */
-    static bool RemoveIniKey(const FString& IniText, const FString& Section, const FString& Key, FString& OutText, FString* OutLastValue = nullptr);
+    static bool FindIniValue(const FString& IniText, const FString& Section, const FString& Key, FString& OutValue, bool& bOutHasNonEmptyValue);
 
 private:
     /**
-     * Move a token that an older plugin version saved in Config/DefaultGame.ini to the user file (interactive editor only).
-     * Commandlets such as cooking only report a token that would be packaged.
-     * Returns true when a token is left in Config/DefaultGame.ini. The engine's copy of the project config is only
-     * reloaded on restart, so the token is moved before anything reads it this session.
+     * Copy a token that an older plugin version saved in the project config to the user file, once (interactive editor
+     * only), and warn while Config/DefaultGame.ini still contains one. Commandlets such as cooking log an error instead,
+     * since the token would be packaged. Project files are never changed.
      */
-    bool MigrateProjectAPIToken();
+    void CheckProjectAPIToken();
 
 public:
 
