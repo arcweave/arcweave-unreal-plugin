@@ -37,8 +37,8 @@ The plugin can import data from an exported Arcweave JSON file (available to all
 
 To install the Arcweave Plugin for Unreal Engine, follow these steps:
 
-1. Download the plugin from this repository.
-2. Copy the plugin (the downloaded .zip file) into the **ProjectRootDirectory/Plugins** folder. If this folder does not exist please create it.
+1. Download [ArcweaveForUnreal.zip](https://github.com/arcweave/arcweave-unreal-plugin/releases/latest/download/ArcweaveForUnreal.zip) from the [latest release](https://github.com/arcweave/arcweave-unreal-plugin/releases/latest).
+2. Extract it into the **ProjectRootDirectory/Plugins** folder, so that the plugin ends up in **ProjectRootDirectory/Plugins/Arcweave**. If the **Plugins** folder does not exist please create it. When upgrading, delete the previous copy of the plugin first, so that the project does not contain two copies of it.
 3. Open your project.
 4. If prompted to rebuild the Arcweave plugin, click **Yes**.
 

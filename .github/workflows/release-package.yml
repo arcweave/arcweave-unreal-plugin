@@ -1,0 +1,97 @@
+name: Release package
+
+# Attaches ArcweaveForUnreal.zip to every published release.
+# The README and the marketing website link to it through
+# https://github.com/arcweave/arcweave-unreal-plugin/releases/latest/download/ArcweaveForUnreal.zip,
+# which serves the file of the release marked as Latest, so keep the file name stable.
+#
+# Running the workflow manually builds the package from the selected branch and uploads
+# it as a workflow artifact, without touching any release.
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Check the plugin version matches the release
+        if: github.event_name == 'release'
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          version=$(jq -r .VersionName arcweave.uplugin)
+          [ "v$version" = "$TAG" ] ||
+            { echo "arcweave.uplugin has VersionName $version, but the release is $TAG" >&2; exit 1; }
+
+      - name: Build package
+        run: bash .github/scripts/build-release-package.sh HEAD dist
+
+      - name: Attach package to the release
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.release.tag_name }}
+        run: >-
+          gh release upload "$TAG" dist/ArcweaveForUnreal.zip
+          --repo "$GITHUB_REPOSITORY" --clobber
+
+      - name: Upload package as a workflow artifact
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v7
+        with:
+          name: ArcweaveForUnreal
+          path: dist/
+
+  notify:
+    # Posts to the Slack releases channel after the package is attached, so the download link works.
+    if: github.event_name == 'release'
+    needs: package
+    runs-on: ubuntu-latest
+    permissions: {}
+    env:
+      SLACK_WEBHOOK: ${{ secrets.SLACK_RELEASES_WEBHOOK_URL }}
+    steps:
+      - name: Check the Slack webhook is configured
+        if: env.SLACK_WEBHOOK == ''
+        run: echo "::warning::SLACK_RELEASES_WEBHOOK_URL is not set for this repository, so the release is not posted to Slack."
+
+      - name: Create Slack payload
+        if: env.SLACK_WEBHOOK != ''
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+          RELEASE_URL: ${{ github.event.release.html_url }}
+          RELEASE_BODY: ${{ github.event.release.body }}
+          PRERELEASE: ${{ github.event.release.prerelease }}
+          DOWNLOAD_URL: https://github.com/${{ github.repository }}/releases/download/${{ github.event.release.tag_name }}/ArcweaveForUnreal.zip
+        run: |
+          jq --null-input \
+            --arg tag "$TAG" \
+            --arg release_url "$RELEASE_URL" \
+            --arg release_body "$RELEASE_BODY" \
+            --arg prerelease "$PRERELEASE" \
+            --arg download_url "$DOWNLOAD_URL" \
+            'def escape: gsub("\r"; "") | gsub("&"; "&amp;") | gsub("<"; "&lt;") | gsub(">"; "&gt;");
+            {
+              text: (
+                "*<\($release_url)|Arcweave Unreal Plugin \($tag)>*" +
+                (if $prerelease == "true" then " (pre-release)" else "" end) + "\n" +
+                "<\($download_url)|Download ArcweaveForUnreal.zip>" +
+                (if $release_body == "" then "" else "\n```\($release_body | escape)```" end)
+              )
+            }' > slack-payload.json
+
+      - name: Send release notes to Slack
+        if: env.SLACK_WEBHOOK != ''
+        uses: slackapi/slack-github-action@v2.1.1
+        with:
+          webhook: ${{ env.SLACK_WEBHOOK }}
+          webhook-type: incoming-webhook
+          errors: true
+          payload-file-path: slack-payload.json
