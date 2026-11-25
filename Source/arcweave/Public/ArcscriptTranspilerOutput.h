@@ -26,6 +26,9 @@ struct FArcscriptTranspilerOutput
     UPROPERTY(BlueprintReadWrite, Category = "Arcweave")
 	bool ConditionResult;
 
+	/* True when the script couldn't run (parse or runtime error): Output and ConditionResult are then not meaningful */
+	bool bScriptFailed = false;
+
 	FArcscriptTranspilerOutput() {
 		Output = FString("");
 		Type = FArcscriptInputType::SCRIPT;
