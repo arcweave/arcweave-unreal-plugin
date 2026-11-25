@@ -20,10 +20,8 @@ Behaviour changes that a game may rely on:
 
 - **Showing a choice label no longer applies its Arcscript.** `TranspileConnectionLabel` and `TranspileConnection` used
   to apply the label's assignments and events, such as `resetVisits()`, every time the label was shown. Now they only
-  return the text. Apply the effects when the player picks an option: with `SelectOption` (see
-  [Option texts and selection](#option-texts-and-selection)), which applies every label on the option's path, or with
-  `UpdateVariablesFromConnection` for a single connection. Use one or the other for a choice, not both. A game that only
-  rendered labels and never applied them will no longer change variables when an option is chosen. Checking branch
+  return the text. Call `UpdateVariablesFromConnection` with the connection the player picks to apply its effects. A game
+  that only rendered labels and never called it will no longer change variables when an option is chosen. Checking branch
   conditions (`TranspileCondition`, `GetIsTargetBranch`) no longer changes variables or visits either
   ([#46](https://github.com/arcweave/arcweave-unreal-plugin/pull/46)).
 - **`visits()` in a label counts the visits of the element the connection starts from** when the label is applied. It
@@ -53,24 +51,6 @@ Projects with several languages can be imported and switched at runtime
 - API imports request a single language, with `fallbackContents=true` when the fallback setting is on. The API matches
   the locale code exactly and rejects any other spelling (e.g. `FR` for `fr`) with HTTP 400, so the import fails and the
   previous project is kept. Set `Locale` to `*` to import all languages through the API, or to `__default__` for the main language.
-
-## Option texts and selection
-
-Options show and follow what Arcweave's play mode does ([#43](https://github.com/arcweave/arcweave-unreal-plugin/pull/43)):
-
-- `TranspileConnectionLabel` follows the connection through branches and jumpers and returns the last label with text on
-  the path, else the title of the element it leads to, else the first paragraph of its content without code, cut to 70
-  characters, else `[ Empty element ]`. It returns an empty string when no branch condition on the path holds or a script
-  on the path fails, so that option isn't shown. A label's Arcscript changes, including `resetVisits()`, are seen by the
-  labels and branch conditions after it on the same path, without changing the project.
-- New `SelectOption(Connection, BoardData, OutTarget)`: call it when the player picks an option. Like play mode, it applies
-  the option as it was shown (the variable changes and events of every label on its path, without running them again)
-  and returns the element to run next. When the path leads nowhere it changes nothing.
-- New `HasOptions(Element, BoardData)`: false when the element has no option, or a single one without label text, so the
-  game can continue without showing a choice.
-- Previously a connection without a label showed nothing, and a labelled option was shown even when its branch led
-  nowhere. Blank branch conditions are now skipped instead of being run as a script, and a condition that fails to run
-  stops its branch instead of falling through to `else`.
 
 ## Starting element
 
