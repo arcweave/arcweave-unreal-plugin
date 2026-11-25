@@ -25,7 +25,8 @@ bool FArcweaveConnectionLabelFallbackTest::RunTest(const FString& Parameters)
                 "connections": [
                     "c-empty", "c-labelled", "c-code-only", "c-untitled", "c-long", "c-empty-element", "c-jumper", "c-branch",
                     "c-branch-yes", "c-branch-no", "c-single", "c-single-labelled", "c-single-code", "c-dead", "c-dead-out", "c-alive",
-                    "c-empty-html", "c-nested", "c-a-out", "c-b-yes", "c-b-no", "c-loop", "c-loop-back", "c-single-reset", "c-reset-branch", "c-reset-out"
+                    "c-empty-html", "c-nested", "c-a-out", "c-b-yes", "c-b-no", "c-loop", "c-loop-back", "c-single-reset", "c-reset-branch", "c-reset-out",
+                    "c-labelled-branch", "c-set-money"
                 ]
             },
             "board-2": {
@@ -111,7 +112,9 @@ bool FArcweaveConnectionLabelFallbackTest::RunTest(const FString& Parameters)
             "c-loop-back": {"label": null, "sourceid": "branch-loop", "targetid": "branch-loop", "sourceType": "branches", "targetType": "branches"},
             "c-single-reset": {"label": "<pre><code>resetVisits()</code></pre>", "sourceid": "single-reset", "targetid": "help", "sourceType": "elements", "targetType": "elements"},
             "c-reset-branch": {"label": null, "sourceid": "reset-branch", "targetid": "branch-reset", "sourceType": "elements", "targetType": "branches"},
-            "c-reset-out": {"label": null, "sourceid": "branch-reset", "targetid": "help", "sourceType": "branches", "targetType": "elements"}
+            "c-reset-out": {"label": null, "sourceid": "branch-reset", "targetid": "help", "sourceType": "branches", "targetType": "elements"},
+            "c-labelled-branch": {"label": "<p>Decide</p>", "sourceid": "healer", "targetid": "branch-1", "sourceType": "elements", "targetType": "branches"},
+            "c-set-money": {"label": "<pre><code>money = 9</code></pre>", "sourceid": "healer", "targetid": "branch-1", "sourceType": "elements", "targetType": "branches"}
         },
         "components": {},
         "variables": {
@@ -183,6 +186,13 @@ bool FArcweaveConnectionLabelFallbackTest::RunTest(const FString& Parameters)
     TestEqual(TEXT("A branch shows the element it leads to"), Label(TEXT("c-branch")), FString(TEXT("Help")));
     Subsystem->SetVariable(TEXT("money-variable"), TEXT("5"));
     TestEqual(TEXT("A branch shows the label after it"), Label(TEXT("c-branch")), FString(TEXT("Pay up")));
+
+    TestEqual(TEXT("A label before a branch is replaced by the label after it"), Label(TEXT("c-labelled-branch")), FString(TEXT("Pay up")));
+    Subsystem->SetVariable(TEXT("money-variable"), TEXT("0"));
+    TestEqual(TEXT("A label before a branch is kept when the path has no later label"), Label(TEXT("c-labelled-branch")), FString(TEXT("Decide")));
+    TestTrue(TEXT("A labelled connection whose branch leads nowhere has no text"), Label(TEXT("c-dead")).IsEmpty());
+    TestEqual(TEXT("A label's changes reach the branch conditions after it"), Label(TEXT("c-set-money")), FString(TEXT("Pay up")));
+    TestEqual(TEXT("A label's changes on the path don't change the project"), Money(), FString(TEXT("0")));
 
     Subsystem->SetVariable(TEXT("money-variable"), TEXT("0"));
     TestFalse(TEXT("A single output with only code is not an option"), Subsystem->HasOptions(Element(TEXT("single-code")), Board));

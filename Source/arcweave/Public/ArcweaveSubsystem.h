@@ -140,11 +140,11 @@ public:
     FArcweaveConnectionsData GetConnectionsData(const FArcweaveBoardData BoardData, const FString& ConnectionId) const;
 
     /*
-    * Text to show for the connection as an option, as in play mode: the label,
-    * else the title of the element it leads to through jumpers and branches,
+    * Text to show for the connection as an option, as in play mode: the last label with text on its path
+    * through branches and jumpers, else the title of the element it leads to,
     * else the start of that element's content, else "[ Empty element ]".
     * Empty when no branch condition on the way holds.
-    * Running the label's code can change variables
+    * Runs label code and branch conditions without changing variables or visits
     */
     UFUNCTION(BlueprintCallable, Category = "Arcweave")
     FString TranspileConnectionLabel(const FArcweaveConnectionsData& Connection, const FArcweaveBoardData& BoardData);
@@ -221,11 +221,14 @@ private:
     FArcscriptTranspilerOutput RunTranspiler(const FString& NodeCode, const FString& OriginElementId,
         const TMap<FString, FArcweaveVariable>& InitialVars, const TMap<FString, int>& Visits, bool bShouldUpdateVariables = true);
     void UpdateVariables(const FArcscriptTranspilerOutput& Output);
+    /** Applies the variable changes of a script to Variables, adding the changed variables to OutChangedVariables if given */
+    void ApplyVariableChanges(const FArcscriptTranspilerOutput& Output, TMap<FString, FArcweaveVariable>& Variables,
+        TArray<FArcweaveVariable>* OutChangedVariables);
     FArcweaveElementData ExtractElementData(const TSharedPtr<FJsonObject>& MainJsonObject, const FString& ElementId, FArcweaveBoardData& BoardObjRef);
     void EvaluateCondition(const FArcweaveConditionData& Condition, const FString& OriginElementId,
-        FArcscriptTranspilerOutput& TranspilerOutput, bool bShouldUpdateVariables = true);
+        FArcscriptTranspilerOutput& TranspilerOutput, bool bShouldUpdateVariables, const TMap<FString, FArcweaveVariable>& Variables);
     FArcscriptTranspilerOutput RunConditionScript(const FString& ConditionId, const FString& OriginElementId,
-        bool& Success, bool bShouldUpdateVariables);
+        bool& Success, bool bShouldUpdateVariables, const TMap<FString, FArcweaveVariable>& Variables);
     FArcweaveConnectionsData TryGetNExtConnectionData(const FArcweaveBoardData& BoardData, const FArcweaveBranchData& Branch, const FArcweaveConditionData* FiredConditionData);
     void LogTranspilerOutput(const FArcscriptTranspilerOutput& TranspilerOutput);
     bool GetBoardObjectForElement(FString ConditionId, FArcweaveConditionData& OutConditionData, FArcweaveBoardData*& OutBoardObj);
@@ -236,15 +239,16 @@ private:
     bool ContainsCodePattern(const FString& ContentToTest) const;
     /**
      * Follow the connection through branches and jumpers to the element it leads to.
-     * OutLabel gets the last label text on the way. False when no branch condition holds
+     * OutLabel gets the last label text on the way. False when no branch condition holds.
+     * The labels' variable changes apply to the next labels and conditions on the path, but not to the project
      */
     bool ResolveConnectionPath(const FArcweaveConnectionsData& Connection, const FArcweaveBoardData& BoardData,
-        const FString& OriginElementId, bool bEvaluateLabel, FString& OutLabel, FArcweaveElementData& OutTarget);
-    /** Evaluate the branch's conditions for the element the path started from */
+        const FString& OriginElementId, FString& OutLabel, FArcweaveElementData& OutTarget);
+    /** Evaluate the branch's conditions with the given variables, for the element the path started from */
     FGetIsTargetBranchOutput EvaluateBranch(const FArcweaveBoardData& BoardData, const FString& BranchId,
-        const FString& OriginElementId, bool bShouldUpdateVariables);
-    /** Label text without HTML, running its code without changing variables */
-    FString GetLabelText(const FString& Label, const FString& OriginElementId);
+        const FString& OriginElementId, bool bShouldUpdateVariables, const TMap<FString, FArcweaveVariable>& Variables);
+    /** Label text without HTML. Its code runs with Variables and its changes apply to them, not to the project */
+    FString GetLabelText(const FString& Label, const FString& OriginElementId, TMap<FString, FArcweaveVariable>& Variables);
     /** Option text for an element when its connection has no label, as in play mode */
     FString GetElementOptionText(const FArcweaveElementData& Element);
 

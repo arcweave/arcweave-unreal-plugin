@@ -490,11 +490,11 @@ void UArcweaveSubsystem::PrintBranchData(const FArcweaveBranchData& InData)
 
 FArcscriptTranspilerOutput UArcweaveSubsystem::TranspileCondition(const FString& ConditionId, const FString& OriginElementId, bool& Success)
 {
-    return RunConditionScript(ConditionId, OriginElementId, Success, true);
+    return RunConditionScript(ConditionId, OriginElementId, Success, true, ProjectData.CurrentVars);
 }
 
 FArcscriptTranspilerOutput UArcweaveSubsystem::RunConditionScript(const FString& ConditionId, const FString& OriginElementId,
-    bool& Success, bool bShouldUpdateVariables)
+    bool& Success, bool bShouldUpdateVariables, const TMap<FString, FArcweaveVariable>& Variables)
 {
     UE_LOG(LogArcwarePlugin, Log, TEXT("----- TranspileCondition for id: %s -----"), *ConditionId);
     Success = false;
@@ -520,7 +520,7 @@ FArcscriptTranspilerOutput UArcweaveSubsystem::RunConditionScript(const FString&
 
         //run the transpiler
         FString ScriptModified = FString("<pre><code>") + ConditionData.Script + FString("</code></pre>");
-        Output = RunTranspiler(ScriptModified, OriginElementId, ProjectData.CurrentVars, ProjectData.Visits, bShouldUpdateVariables);
+        Output = RunTranspiler(ScriptModified, OriginElementId, Variables, ProjectData.Visits, bShouldUpdateVariables);
 
         Success = true;
     }
@@ -690,13 +690,13 @@ bool UArcweaveSubsystem::RestoreState(const FArcweaveRuntimeState& State, FStrin
 }
 
 void UArcweaveSubsystem::EvaluateCondition(const FArcweaveConditionData& Condition, const FString& OriginElementId,
-    FArcscriptTranspilerOutput& TranspilerOutput, bool bShouldUpdateVariables)
+    FArcscriptTranspilerOutput& TranspilerOutput, bool bShouldUpdateVariables, const TMap<FString, FArcweaveVariable>& Variables)
 {
     UE_LOG(LogArcwarePlugin, Log,
         TEXT("Transpiling condition %s..."), *Condition.Id);
 
     bool bTranspileSucceeded = false;
-    TranspilerOutput = RunConditionScript(Condition.Id, OriginElementId, bTranspileSucceeded, bShouldUpdateVariables);
+    TranspilerOutput = RunConditionScript(Condition.Id, OriginElementId, bTranspileSucceeded, bShouldUpdateVariables, Variables);
 
     if (!bTranspileSucceeded)
     {
@@ -734,14 +734,15 @@ FGetIsTargetBranchOutput UArcweaveSubsystem::GetIsTargetBranch(
     const FArcweaveBoardData& BoardData,
     const FArcweaveConnectionsData& TargetConnection)
 {
-    return EvaluateBranch(BoardData, TargetConnection.Targetid, TargetConnection.Sourceid, true);
+    return EvaluateBranch(BoardData, TargetConnection.Targetid, TargetConnection.Sourceid, true, ProjectData.CurrentVars);
 }
 
 FGetIsTargetBranchOutput UArcweaveSubsystem::EvaluateBranch(
     const FArcweaveBoardData& BoardData,
     const FString& BranchId,
     const FString& OriginElementId,
-    bool bShouldUpdateVariables)
+    bool bShouldUpdateVariables,
+    const TMap<FString, FArcweaveVariable>& Variables)
 {
     FGetIsTargetBranchOutput Result;
 
@@ -756,7 +757,7 @@ FGetIsTargetBranchOutput UArcweaveSubsystem::EvaluateBranch(
         Result.BranchData = Branch;
         const FArcweaveConditionData* FiredConditionData = nullptr;
         FArcscriptTranspilerOutput TranspilerOutput = FArcscriptTranspilerOutput();
-        EvaluateCondition(Branch.IfCondition, OriginElementId, TranspilerOutput, bShouldUpdateVariables);
+        EvaluateCondition(Branch.IfCondition, OriginElementId, TranspilerOutput, bShouldUpdateVariables, Variables);
         Result.BranchConditionResult = TranspilerOutput.ConditionResult;
 
         if (Result.BranchConditionResult)
@@ -773,7 +774,7 @@ FGetIsTargetBranchOutput UArcweaveSubsystem::EvaluateBranch(
         {
             for (const auto& ElseIf : Branch.ElseIfConditions)
             {
-                EvaluateCondition(ElseIf, OriginElementId, TranspilerOutput, bShouldUpdateVariables);
+                EvaluateCondition(ElseIf, OriginElementId, TranspilerOutput, bShouldUpdateVariables, Variables);
                 if (TranspilerOutput.ConditionResult)
                 {
                     FiredConditionData = &ElseIf;
@@ -825,27 +826,11 @@ FArcweaveConnectionsData UArcweaveSubsystem::GetConnectionsData(const FArcweaveB
 
 FString UArcweaveSubsystem::TranspileConnectionLabel(const FArcweaveConnectionsData& Connection, const FArcweaveBoardData& BoardData)
 {
-    bool bSuccess = false;
-    FArcscriptTranspilerOutput Output = TranspileConnection(
-        Connection.Id,
-        Connection.Label,
-        Connection.Sourceid,
-        bSuccess,
-        true,
-        BoardData
-    );
-
-    // Code that prints nothing, or fails, leaves no label to show
-    const FString Label = bSuccess ? Output.Output : ContainsCodePattern(Connection.Label) ? FString() : RemoveHtmlTags(Connection.Label);
-    if (!Label.TrimStartAndEnd().IsEmpty())
-    {
-        return Label;
-    }
-
-    // Like play mode, show the element the connection leads to
+    // Like play mode, follow the whole path: the last label on it, else the element it leads to.
+    // No option when no branch condition on the way holds
     FString PathLabel;
     FArcweaveElementData Target;
-    if (!ResolveConnectionPath(Connection, BoardData, Connection.Sourceid, false, PathLabel, Target))
+    if (!ResolveConnectionPath(Connection, BoardData, Connection.Sourceid, PathLabel, Target))
     {
         return FString();
     }
@@ -860,7 +845,7 @@ bool UArcweaveSubsystem::HasOptions(const FArcweaveElementData& Element, const F
     {
         FString Label;
         FArcweaveElementData Target;
-        if (ResolveConnectionPath(Output, BoardData, Element.Id, true, Label, Target))
+        if (ResolveConnectionPath(Output, BoardData, Element.Id, Label, Target))
         {
             OptionCount++;
             bHasLabel = !Label.IsEmpty();
@@ -870,21 +855,20 @@ bool UArcweaveSubsystem::HasOptions(const FArcweaveElementData& Element, const F
 }
 
 bool UArcweaveSubsystem::ResolveConnectionPath(const FArcweaveConnectionsData& Connection, const FArcweaveBoardData& BoardData,
-    const FString& OriginElementId, bool bEvaluateLabel, FString& OutLabel, FArcweaveElementData& OutTarget)
+    const FString& OriginElementId, FString& OutLabel, FArcweaveElementData& OutTarget)
 {
+    // As in play mode, the changes of the labels on the way apply to the next labels and branch conditions,
+    // but only to this copy: the path is only checked, so it must not change state
+    TMap<FString, FArcweaveVariable> PathVariables = ProjectData.CurrentVars;
     FArcweaveConnectionsData Current = Connection;
     TSet<FString> VisitedBranches;
     while (true)
     {
-        if (bEvaluateLabel)
+        const FString Label = GetLabelText(Current.Label, OriginElementId, PathVariables);
+        if (!Label.IsEmpty())
         {
-            const FString Label = GetLabelText(Current.Label, OriginElementId);
-            if (!Label.IsEmpty())
-            {
-                OutLabel = Label;
-            }
+            OutLabel = Label;
         }
-        bEvaluateLabel = true;
 
         if (Current.TargetType != TEXT("branches"))
         {
@@ -902,7 +886,7 @@ bool UArcweaveSubsystem::ResolveConnectionPath(const FArcweaveConnectionsData& C
 
         // Conditions refer to the element the option starts from, as in play mode.
         // Like labels here, they're only checked, so they must not change state
-        const FGetIsTargetBranchOutput Branch = EvaluateBranch(BoardData, Current.Targetid, OriginElementId, false);
+        const FGetIsTargetBranchOutput Branch = EvaluateBranch(BoardData, Current.Targetid, OriginElementId, false, PathVariables);
         if (Branch.BranchConnections.IsEmpty())
         {
             return false;
@@ -935,12 +919,14 @@ bool UArcweaveSubsystem::ResolveConnectionPath(const FArcweaveConnectionsData& C
     return GetBoardForObject(Current.Targetid, OutTarget, TargetBoard);
 }
 
-FString UArcweaveSubsystem::GetLabelText(const FString& Label, const FString& OriginElementId)
+FString UArcweaveSubsystem::GetLabelText(const FString& Label, const FString& OriginElementId, TMap<FString, FArcweaveVariable>& Variables)
 {
     FString Text = Label;
     if (ContainsCodePattern(Label))
     {
-        Text = RunTranspiler(Label, OriginElementId, ProjectData.CurrentVars, ProjectData.Visits, false).Output;
+        const FArcscriptTranspilerOutput Output = RunTranspiler(Label, OriginElementId, Variables, ProjectData.Visits, false);
+        ApplyVariableChanges(Output, Variables, nullptr);
+        Text = Output.Output;
     }
     return RemoveHtmlTags(Text).TrimStartAndEnd();
 }
@@ -1967,9 +1953,9 @@ FArcscriptTranspilerOutput UArcweaveSubsystem::RunTranspiler(const FString& Node
     return Output;
 }
 
-void UArcweaveSubsystem::UpdateVariables(const FArcscriptTranspilerOutput& Output)
+void UArcweaveSubsystem::ApplyVariableChanges(const FArcscriptTranspilerOutput& Output, TMap<FString, FArcweaveVariable>& Variables,
+    TArray<FArcweaveVariable>* OutChangedVariables)
 {
-    TArray<FArcweaveVariable> ChangedVariables;
     for (const FArcscriptVariableChange& Change : Output.Changes)
     {
         if (!Change.Value.IsValid())
@@ -1977,7 +1963,7 @@ void UArcweaveSubsystem::UpdateVariables(const FArcscriptTranspilerOutput& Outpu
             continue;
         }
 
-        FArcweaveVariable* Variable = ProjectData.CurrentVars.Find(Change.Id);
+        FArcweaveVariable* Variable = Variables.Find(Change.Id);
         if (Variable == nullptr)
         {
             UE_LOG(LogArcwarePlugin, Warning, TEXT("Cannot apply change for unknown variable %s"), *Change.Id);
@@ -2008,9 +1994,18 @@ void UArcweaveSubsystem::UpdateVariables(const FArcscriptTranspilerOutput& Outpu
             Variable->Value = FString::SanitizeFloat(OutFloat);
         }
 
-        ChangedVariables.Add(*Variable);
+        if (OutChangedVariables != nullptr)
+        {
+            OutChangedVariables->Add(*Variable);
+        }
         UE_LOG(LogArcwarePlugin, Display, TEXT("Update variable id %s, value %s"), *Variable->Id, *Variable->Value);
     }
+}
+
+void UArcweaveSubsystem::UpdateVariables(const FArcscriptTranspilerOutput& Output)
+{
+    TArray<FArcweaveVariable> ChangedVariables;
+    ApplyVariableChanges(Output, ProjectData.CurrentVars, &ChangedVariables);
 
     // Broadcast changes
     if (!ChangedVariables.IsEmpty())
