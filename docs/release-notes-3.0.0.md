@@ -95,10 +95,12 @@ Projects with several languages can be imported and switched at runtime
   committed, revoke that token in your Arcweave workspace and create a new one.** See
   [Where the token is saved](https://github.com/arcweave/arcweave-unreal-plugin/blob/v3.0.0/README.md#where-the-token-is-saved).
 - A packaged game no longer gets the token from the project config: a game that fetches from the API at runtime must
-  pass its own token to `FetchData` or set `ARCWEAVE_API_KEY`. `FetchData` with an empty token uses the saved one.
+  pass its own token to `FetchData` or set `ARCWEAVE_API_KEY`. `FetchData` with an empty token uses `ARCWEAVE_API_KEY` or the saved token.
 
 ## Other changes
 
+- The plugin no longer rewrites `Config/DefaultGame.ini` every time the editor starts, and entering the API token in
+  the settings doesn't change that file.
 - The folder of the local JSON export can be set with `JsonDirectoryPath` in the Arcweave settings
   ([#30](https://github.com/arcweave/arcweave-unreal-plugin/pull/30)). The README has a new
   [Packaging](https://github.com/arcweave/arcweave-unreal-plugin/blob/v3.0.0/README.md#packaging) section on staging it.

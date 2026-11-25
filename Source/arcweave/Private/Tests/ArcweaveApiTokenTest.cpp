@@ -5,6 +5,7 @@
 #include "HAL/PlatformMisc.h"
 #include "Misc/AutomationTest.h"
 #include "Misc/Paths.h"
+#include "Misc/ScopeExit.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
     FArcweaveApiTokenIniTest,
@@ -56,6 +57,19 @@ bool FArcweaveApiTokenIniTest::RunTest(const FString& Parameters)
     TestEqual(TEXT("Every assignment is removed"), Result, FString::Printf(TEXT("[%s]\nHash=h\n"), *Section));
     TestEqual(TEXT("The value of the last plain assignment is returned"), Value, FString());
 
+    // Added with ., escaped quotes, comments, and a clear with !
+    const FString OperatorIni = FString::Printf(
+        TEXT("[%s]\n; APIToken=commented\n.APIToken=\"a\\\"b\"\n"), *Section);
+    Value.Reset();
+    TestTrue(TEXT("A . assignment is found"), UArcweaveSettings::RemoveIniKey(OperatorIni, Section, TEXT("APIToken"), Result, &Value));
+    TestEqual(TEXT("The quoted value is unescaped"), Value, FString(TEXT("a\"b")));
+    TestEqual(TEXT("Comments are kept"), Result, FString::Printf(TEXT("[%s]\n; APIToken=commented\n"), *Section));
+
+    const FString ClearedIni = FString::Printf(TEXT("[%s]\nAPIToken=old\n!APIToken=ClearArray\n"), *Section);
+    Value.Reset();
+    TestTrue(TEXT("A cleared key is found"), UArcweaveSettings::RemoveIniKey(ClearedIni, Section, TEXT("APIToken"), Result, &Value));
+    TestTrue(TEXT("A cleared key has no value"), Value.IsEmpty());
+
     // Nothing to remove
     const FString WithoutToken = FString::Printf(TEXT("[%s]\nHash=h\nAPITokenOld=x\n"), *Section);
     TestFalse(TEXT("A similar key is kept"), UArcweaveSettings::RemoveIniKey(WithoutToken, Section, TEXT("APIToken"), Result));
@@ -81,10 +95,16 @@ bool FArcweaveApiTokenResolveTest::RunTest(const FString& Parameters)
     const FString PreviousEnvironment = FPlatformMisc::GetEnvironmentVariable(EnvironmentVariable);
     const FString PreviousUserToken = UArcweaveSettings::GetUserAPIToken();
 
-    FPlatformMisc::SetEnvironmentVar(EnvironmentVariable, TEXT(""));
+    ON_SCOPE_EXIT
+    {
+        FPlatformMisc::SetEnvironmentVar(EnvironmentVariable, *PreviousEnvironment);
+        Settings->SetUserAPIToken(PreviousUserToken);
+    };
+
+    FPlatformMisc::SetEnvironmentVar(EnvironmentVariable, TEXT("   "));
     TestTrue(TEXT("The user token is saved"), Settings->SetUserAPIToken(TEXT(" user-token ")));
     TestTrue(TEXT("The user token is read back trimmed"), UArcweaveSettings::GetUserAPIToken() == TEXT("user-token"));
-    TestTrue(TEXT("The user token is used"), UArcweaveSettings::ResolveAPIToken() == TEXT("user-token"));
+    TestTrue(TEXT("The user token is used when the environment variable is blank"), UArcweaveSettings::ResolveAPIToken() == TEXT("user-token"));
     TestTrue(TEXT("The token file is under Saved"), UArcweaveSettings::GetUserAPITokenPath().StartsWith(FPaths::ConvertRelativePathToFull(FPaths::ProjectSavedDir())));
 
     FPlatformMisc::SetEnvironmentVar(EnvironmentVariable, TEXT(" env-token "));
@@ -94,8 +114,6 @@ bool FArcweaveApiTokenResolveTest::RunTest(const FString& Parameters)
     TestFalse(TEXT("The file is gone"), FPaths::FileExists(UArcweaveSettings::GetUserAPITokenPath()));
     TestTrue(TEXT("No user token is left"), UArcweaveSettings::GetUserAPIToken().IsEmpty());
 
-    FPlatformMisc::SetEnvironmentVar(EnvironmentVariable, *PreviousEnvironment);
-    TestTrue(TEXT("The previous token is restored"), Settings->SetUserAPIToken(PreviousUserToken));
     return true;
 }
 

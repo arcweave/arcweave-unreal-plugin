@@ -95,9 +95,10 @@ logs.
   workspace and create a new one. If the token can't be saved, or `DefaultGame.ini` can't be written (for example, it
   isn't checked out), the plugin leaves the file as it is, warns, and keeps using that token in the editor; remove the
   `APIToken` line yourself. Commandlets such as cooking don't change the file: they log an error while the token is
-  there, since it would be packaged.
+  there, since it would be packaged. A token that an earlier `SaveArcweaveSettings` call saved in your
+  `Saved/Config/<Platform>/Game.ini` is copied to your user file too, when you have none.
 - **Blueprints and C++:** `LoadArcweaveSettings()` returns the token to use, and `SaveArcweaveSettings(APIToken, Hash)` saves
-  it per user. `FetchData` with an empty `APIToken` uses the saved one.
+  it per user. `FetchData` with an empty `APIToken` uses `ARCWEAVE_API_KEY` or the saved token.
 - **Shipped games:** a packaged game has no saved token and never reads one from the project config. Prefer a JSON
   export (`EnableReceiveMethodFromLocalJSON`). A game that fetches at runtime must pass its own token to
   `FetchData(APIToken, ProjectHash)`, or get it from `ARCWEAVE_API_KEY`. A workspace API key in a shipped game can be

@@ -11,13 +11,21 @@
 #include "Misc/CoreMisc.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
+#include "Misc/Parse.h"
+
+#if WITH_EDITOR
+#include "UObject/UnrealType.h"
+#endif
 
 namespace
 {
 const TCHAR* ApiTokenKey = TEXT("APIToken");
 
-// Set once this session removed the token from Config/DefaultGame.ini, whose values stay loaded until a restart
-bool bProjectAPITokenRemoved = false;
+// A token that an older version saved in Config/DefaultGame.ini and that couldn't be moved (editor only)
+FString ProjectAPITokenLeft;
+
+// Set by PostEditChangeProperty, so the settings editor doesn't rewrite the project config for a token edit
+bool bAPITokenJustEdited = false;
 }
 
 const TCHAR* UArcweaveSettings::ApiTokenEnvironmentVariable = TEXT("ARCWEAVE_API_KEY");
@@ -31,16 +39,9 @@ void UArcweaveSettings::PostInitProperties()
 	UObject::PostInitProperties();
     if (HasAnyFlags(RF_ClassDefaultObject))
     {
-        // Before the default config file is rewritten, so the old token is still there to move
-        const bool bTokenLeftInProjectConfig = MigrateProjectAPIToken();
+        MigrateProjectAPIToken();
         APIToken = GetUserAPIToken();
-        if (bTokenLeftInProjectConfig)
-        {
-            // Rewriting the section would drop the token, which is no longer a config property, without saving it anywhere
-            return;
-        }
     }
-	TryUpdateDefaultConfigFile(TEXT(""), false);
 }
 
 #if WITH_EDITOR
@@ -49,8 +50,16 @@ void UArcweaveSettings::PostEditChangeProperty(FPropertyChangedEvent& PropertyCh
     UObject::PostEditChangeProperty(PropertyChangedEvent);
     if (PropertyChangedEvent.GetMemberPropertyName() == GET_MEMBER_NAME_CHECKED(UArcweaveSettings, APIToken))
     {
+        bAPITokenJustEdited = true;
         SetUserAPIToken(APIToken);
     }
+}
+
+bool UArcweaveSettings::ConsumeAPITokenEdit()
+{
+    const bool bWasTokenEdit = bAPITokenJustEdited;
+    bAPITokenJustEdited = false;
+    return bWasTokenEdit;
 }
 #endif
 
@@ -76,11 +85,10 @@ FString UArcweaveSettings::ResolveAPIToken()
 
 #if WITH_EDITOR
     // Only when the token couldn't be moved out of the project config. Packaged games never use it
-    if (GConfig != nullptr && !bProjectAPITokenRemoved
-        && GConfig->GetString(ARCWEAVE_SETTINGS_SECTION, ApiTokenKey, Token, GGameIni) && !Token.IsEmpty())
+    if (!ProjectAPITokenLeft.IsEmpty())
     {
         UE_LOG(LogArcwarePlugin, Warning, TEXT("Arcweave: using an API token saved in the project config (Config/DefaultGame.ini), which is usually committed to version control and packaged with the game. Remove the APIToken line from that file and enter the token again in Project Settings > Plugins > Arcweave, or set %s."), ApiTokenEnvironmentVariable);
-        return Token;
+        return ProjectAPITokenLeft;
     }
 #endif
     return FString();
@@ -166,12 +174,23 @@ bool UArcweaveSettings::RemoveIniKey(const FString& IniText, const FString& Sect
                 && Assignment.Left(EqualsIndex).TrimStartAndEnd().Equals(Key, ESearchCase::IgnoreCase))
             {
                 bRemoveLine = true;
-                if (OutLastValue != nullptr && (!bHasOperator || Trimmed[0] == TEXT('+')))
+                if (OutLastValue != nullptr && Trimmed[0] == TEXT('!'))
+                {
+                    // Clears the key
+                    OutLastValue->Reset();
+                }
+                else if (OutLastValue != nullptr && Trimmed[0] != TEXT('-'))
                 {
                     FString Value = Assignment.RightChop(EqualsIndex + 1).TrimStartAndEnd();
-                    if (Value.Len() >= 2 && Value.StartsWith(TEXT("\"")) && Value.EndsWith(TEXT("\"")))
+                    if (Value.StartsWith(TEXT("\"")))
                     {
-                        Value = Value.Mid(1, Value.Len() - 2);
+                        // Unquote and unescape like Unreal's parser
+                        FString Unquoted;
+                        const TCHAR* Cursor = *Value;
+                        if (FParse::QuotedString(Cursor, Unquoted))
+                        {
+                            Value = Unquoted;
+                        }
                     }
                     *OutLastValue = Value;
                 }
@@ -193,22 +212,39 @@ bool UArcweaveSettings::RemoveIniKey(const FString& IniText, const FString& Sect
 bool UArcweaveSettings::MigrateProjectAPIToken()
 {
 #if WITH_EDITOR
+    ProjectAPITokenLeft.Reset();
     const FString DefaultIni = FPaths::ConvertRelativePathToFull(GetDefaultConfigFilename());
+    TArray<uint8> Bytes;
     FString IniText;
-    if (!FPaths::FileExists(DefaultIni) || !FFileHelper::LoadFileToString(IniText, *DefaultIni))
+    if (!FPaths::FileExists(DefaultIni) || !FFileHelper::LoadFileToArray(Bytes, *DefaultIni))
     {
         return false;
     }
+    FFileHelper::BufferToString(IniText, Bytes.GetData(), Bytes.Num());
 
     FString NewText;
     FString ProjectToken;
-    if (!RemoveIniKey(IniText, ARCWEAVE_SETTINGS_SECTION, ApiTokenKey, NewText, &ProjectToken))
+    const bool bHasProjectKey = RemoveIniKey(IniText, ARCWEAVE_SETTINGS_SECTION, ApiTokenKey, NewText, &ProjectToken);
+    const FString UserToken = GetUserAPIToken();
+    const bool bCanChangeFiles = GIsEditor && !IsRunningCommandlet() && !FParse::Param(FCommandLine::Get(), TEXT("nowrite"));
+
+    // Earlier versions' SaveArcweaveSettings saved the token in the user's Saved/Config/<Platform>/Game.ini, which isn't
+    // committed or packaged: copy it, and leave that file to the engine
+    FString SavedToken;
+    if (bCanChangeFiles && UserToken.IsEmpty() && ProjectToken.IsEmpty() && GConfig != nullptr
+        && GConfig->GetString(ARCWEAVE_SETTINGS_SECTION, ApiTokenKey, SavedToken, GGameIni) && !SavedToken.TrimStartAndEnd().IsEmpty()
+        && SetUserAPIToken(SavedToken))
+    {
+        UE_LOG(LogArcwarePlugin, Log, TEXT("Arcweave: copied the API token saved by an earlier version to %s"), *GetUserAPITokenPath());
+    }
+
+    if (!bHasProjectKey)
     {
         return false;
     }
 
     // Cooking and other commandlets, and -game runs, don't change the project or the user's files
-    if (!GIsEditor || IsRunningCommandlet())
+    if (!bCanChangeFiles)
     {
         if (!ProjectToken.IsEmpty() && IsRunningCommandlet())
         {
@@ -218,34 +254,32 @@ bool UArcweaveSettings::MigrateProjectAPIToken()
         {
             UE_LOG(LogArcwarePlugin, Warning, TEXT("Arcweave: %s contains an API token. Open the project in the editor to move it to your user settings."), *DefaultIni);
         }
+        ProjectAPITokenLeft = ProjectToken;
         return !ProjectToken.IsEmpty();
     }
 
-    const FString UserToken = GetUserAPIToken();
-    if (!ProjectToken.IsEmpty() && UserToken.IsEmpty() && !SetUserAPIToken(ProjectToken))
-    {
-        // Keep the only copy of the token
-        UE_LOG(LogArcwarePlugin, Warning, TEXT("Arcweave: %s contains an API token, which is usually committed to version control and packaged with the game. It was left there because it couldn't be saved to %s."), *DefaultIni, *GetUserAPITokenPath());
-        return true;
-    }
-
-    // Keep the file's encoding
-    TArray<uint8> Bytes;
-    FFileHelper::LoadFileToArray(Bytes, *DefaultIni);
+    // Keep the file's encoding. UTF-16 big endian can't be written back as it was
     FFileHelper::EEncodingOptions Encoding = FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM;
     bool bCanWrite = !IFileManager::Get().IsReadOnly(*DefaultIni);
-    if (Bytes.Num() >= 2 && Bytes[0] == 0xFE && Bytes[1] == 0xFF)
+    if (Bytes.Num() >= 2 && !(Bytes.Num() & 1) && Bytes[0] == 0xFE && Bytes[1] == 0xFF)
     {
-        // UTF-16 big endian can't be written back as it was
         bCanWrite = false;
     }
-    else if (Bytes.Num() >= 2 && Bytes[0] == 0xFF && Bytes[1] == 0xFE)
+    else if (Bytes.Num() >= 2 && !(Bytes.Num() & 1) && Bytes[0] == 0xFF && Bytes[1] == 0xFE)
     {
         Encoding = FFileHelper::EEncodingOptions::ForceUnicode;
     }
     else if (Bytes.Num() >= 3 && Bytes[0] == 0xEF && Bytes[1] == 0xBB && Bytes[2] == 0xBF)
     {
         Encoding = FFileHelper::EEncodingOptions::ForceUTF8;
+    }
+
+    // Save the token for the user first, so the project copy is only removed once there is another one
+    if (bCanWrite && !ProjectToken.IsEmpty() && UserToken.IsEmpty() && GetUserAPIToken().IsEmpty() && !SetUserAPIToken(ProjectToken))
+    {
+        UE_LOG(LogArcwarePlugin, Warning, TEXT("Arcweave: %s contains an API token, which is usually committed to version control and packaged with the game. It was left there because it couldn't be saved to %s."), *DefaultIni, *GetUserAPITokenPath());
+        ProjectAPITokenLeft = ProjectToken;
+        return true;
     }
 
     // Write a copy and replace the file with it, so a failed write can't truncate the project config
@@ -263,12 +297,15 @@ bool UArcweaveSettings::MigrateProjectAPIToken()
     {
         if (!ProjectToken.IsEmpty())
         {
-            UE_LOG(LogArcwarePlugin, Warning, TEXT("Arcweave: %s contains an API token, which is usually committed to version control and packaged with the game. It could not be removed because the file can't be written (check it out if you use source control). Remove the APIToken line from the [%s] section, and if the file was committed, revoke the token in your Arcweave workspace."), *DefaultIni, ARCWEAVE_SETTINGS_SECTION);
+            UE_LOG(LogArcwarePlugin, Warning, TEXT("Arcweave: %s contains an API token, which is usually committed to version control and packaged with the game, and cooking fails while it is there. It could not be removed because the file can't be written (check it out if you use source control). Remove the APIToken line from the [%s] section, and if the file was committed, revoke the token in your Arcweave workspace."), *DefaultIni, ARCWEAVE_SETTINGS_SECTION);
+            if (GetUserAPIToken().IsEmpty())
+            {
+                ProjectAPITokenLeft = ProjectToken;
+            }
         }
         return !ProjectToken.IsEmpty();
     }
 
-    bProjectAPITokenRemoved = true;
     if (ProjectToken.IsEmpty())
     {
         UE_LOG(LogArcwarePlugin, Log, TEXT("Arcweave: removed the empty APIToken setting from %s"), *DefaultIni);

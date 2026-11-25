@@ -64,6 +64,9 @@ public:
 
 #if WITH_EDITOR
     virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
+
+    /** True once after the API token was edited in the settings, which then don't need saving to the project config. */
+    static bool ConsumeAPITokenEdit();
 #endif
 
 #pragma region API token
@@ -100,7 +103,8 @@ private:
     /**
      * Move a token that an older plugin version saved in Config/DefaultGame.ini to the user file (interactive editor only).
      * Commandlets such as cooking only report a token that would be packaged.
-     * Returns true when a token is left in Config/DefaultGame.ini.
+     * Returns true when a token is left in Config/DefaultGame.ini. The engine's copy of the project config is only
+     * reloaded on restart, so the token is moved before anything reads it this session.
      */
     bool MigrateProjectAPIToken();
 

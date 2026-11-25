@@ -475,43 +475,25 @@ FArcweaveAPISettings UArcweaveSubsystem::LoadArcweaveSettings() const
     UArcweaveSettings* ArcweaveSettings = GetMutableDefault<UArcweaveSettings>();
     if (ArcweaveSettings)
     {
+        // The settings object has the class defaults for values the config doesn't set
         ArcweaveSettings->ReloadConfig();
-        if (GConfig)
-        {
-            if (GConfig->GetBool(ARCWEAVE_SETTINGS_SECTION, TEXT("EnableReceiveMethodFromLocalJSON"), OutSetttings.EnableReceiveMethodFromLocalJSON, GGameIni))
-            {
-                UE_LOG(LogArcwarePlugin, Verbose, TEXT("Read EnableReceiveMethodFromLocalJSON: %d"), OutSetttings.EnableReceiveMethodFromLocalJSON);
-            }
+        OutSetttings.EnableReceiveMethodFromLocalJSON = ArcweaveSettings->EnableReceiveMethodFromLocalJSON;
+        OutSetttings.Hash = ArcweaveSettings->Hash;
+        OutSetttings.JsonDirectoryPath = ArcweaveSettings->JsonDirectoryPath;
+        OutSetttings.bUseLocale = ArcweaveSettings->GetUseLocale();
+        OutSetttings.Locale = ArcweaveSettings->GetLocale();
+        OutSetttings.bFallbackToDefaultLocale = ArcweaveSettings->GetFallbackToDefaultLocale();
 
-            // The token is never stored in the project config. Never log the token itself
-            OutSetttings.APIToken = UArcweaveSettings::ResolveAPIToken();
-            UE_LOG(LogArcwarePlugin, Verbose, TEXT("Read APIToken (%s)"), OutSetttings.APIToken.IsEmpty() ? TEXT("empty") : TEXT("set"));
+        // The token is never stored in the project config. Never log the token itself
+        OutSetttings.APIToken = UArcweaveSettings::ResolveAPIToken();
 
-            if (GConfig->GetString(ARCWEAVE_SETTINGS_SECTION, TEXT("Hash"), OutSetttings.Hash, GGameIni))
-            {
-                UE_LOG(LogArcwarePlugin, Verbose, TEXT("Read Hash: %s"), *OutSetttings.Hash);
-            }
-
-            if (GConfig->GetString(ARCWEAVE_SETTINGS_SECTION, TEXT("JsonDirectoryPath"), OutSetttings.JsonDirectoryPath, GGameIni))
-            {
-                UE_LOG(LogArcwarePlugin, Verbose, TEXT("Read JsonDirectoryPath: %s"), *OutSetttings.JsonDirectoryPath);
-            }
-
-            if (GConfig->GetBool(ARCWEAVE_SETTINGS_SECTION, TEXT("bUseLocale"), OutSetttings.bUseLocale, GGameIni))
-            {
-                UE_LOG(LogArcwarePlugin, Verbose, TEXT("Read bUseLocale: %d"), OutSetttings.bUseLocale);
-            }
-
-            if (GConfig->GetString(ARCWEAVE_SETTINGS_SECTION, TEXT("Locale"), OutSetttings.Locale, GGameIni))
-            {
-                UE_LOG(LogArcwarePlugin, Verbose, TEXT("Read Locale: %s"), *OutSetttings.Locale);
-            }
-
-            if (GConfig->GetBool(ARCWEAVE_SETTINGS_SECTION, TEXT("bFallbackToDefaultLocale"), OutSetttings.bFallbackToDefaultLocale, GGameIni))
-            {
-                UE_LOG(LogArcwarePlugin, Verbose, TEXT("Read bFallbackToDefaultLocale: %d"), OutSetttings.bFallbackToDefaultLocale);
-            }
-        }
+        UE_LOG(LogArcwarePlugin, Verbose, TEXT("Read EnableReceiveMethodFromLocalJSON: %d"), OutSetttings.EnableReceiveMethodFromLocalJSON);
+        UE_LOG(LogArcwarePlugin, Verbose, TEXT("Read APIToken (%s)"), OutSetttings.APIToken.IsEmpty() ? TEXT("empty") : TEXT("set"));
+        UE_LOG(LogArcwarePlugin, Verbose, TEXT("Read Hash: %s"), *OutSetttings.Hash);
+        UE_LOG(LogArcwarePlugin, Verbose, TEXT("Read JsonDirectoryPath: %s"), *OutSetttings.JsonDirectoryPath);
+        UE_LOG(LogArcwarePlugin, Verbose, TEXT("Read bUseLocale: %d"), OutSetttings.bUseLocale);
+        UE_LOG(LogArcwarePlugin, Verbose, TEXT("Read Locale: %s"), *OutSetttings.Locale);
+        UE_LOG(LogArcwarePlugin, Verbose, TEXT("Read bFallbackToDefaultLocale: %d"), OutSetttings.bFallbackToDefaultLocale);
     }
     return OutSetttings;
 }

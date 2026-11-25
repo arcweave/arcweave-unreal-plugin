@@ -8,6 +8,7 @@
 #include "Interfaces/IPluginManager.h"
 #include "ArcweaveSettings.h"
 #include "ISettingsModule.h"
+#include "ISettingsSection.h"
 #include "Serialization/JsonReader.h"
 #include "Serialization/JsonSerializer.h"
 
@@ -51,11 +52,16 @@ void FarcweaveModule::StartupModule()
 	//Project settings arcware
 	if (ISettingsModule* SettingModule = FModuleManager::GetModulePtr<ISettingsModule>("Settings"))
 	{
-		SettingModule->RegisterSettings("Project", "Plugins", "Arcweave",
+		ISettingsSectionPtr Section = SettingModule->RegisterSettings("Project", "Plugins", "Arcweave",
 			LOCTEXT("ArcweaveSettingsName", "Arcweave"),
 			LOCTEXT("ArcweaveSettingsDescription", "Settings for the Arcweave plugin"),
 			GetMutableDefault<UArcweaveSettings>()
 		);
+		if (Section.IsValid())
+		{
+			// The API token is saved per user, so editing it doesn't need to rewrite the project config
+			Section->OnModified().BindLambda([]() { return !UArcweaveSettings::ConsumeAPITokenEdit(); });
+		}
 	}
 #endif
 }
