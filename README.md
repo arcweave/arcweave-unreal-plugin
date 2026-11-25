@@ -173,9 +173,14 @@ label has no text, it falls back like Arcweave's play mode:
 3. the first paragraph of that element's content, without code, cut to 70 characters (an empty first paragraph counts as empty);
 4. `[ Empty element ]`.
 
-It returns an empty string when no branch condition on the way holds: don't show that option. A label with text is
-returned as before. `HasOptions(Element, BoardData)` is false when the element has no options, or a single one without
-label text; play mode then continues to the next element without showing a choice.
+A label with text is returned as before. Like play mode, the function returns an empty string, so don't show that option,
+when no branch condition on the connection's path holds, or when a label or condition script on the path fails to run.
+Blank branch conditions are skipped. Titles and content are shown as text: entities such as `&amp;` become characters.
+
+`HasOptions(Element, BoardData)` is false when the element has no option to show: no output leads anywhere, or a single
+one does and it has no label text. In the second case play mode continues to that output's element without showing a
+choice; in the first, the story stops there. `TranspileConnectionLabel` tells the two apart: it is empty for every
+output in the first case.
 
 Neither function changes variables or visits; apply a chosen option's label with `UpdateVariablesFromConnection`.
 Run `Arcweave.Project.ConnectionLabelFallback` in Unreal Automation to verify the fallback.

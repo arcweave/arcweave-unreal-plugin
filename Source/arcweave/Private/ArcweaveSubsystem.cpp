@@ -38,6 +38,57 @@ namespace
 // Arcscript accepts attributes on both tags, e.g. <pre attr='x'><code rem='y'>
 const TCHAR* CodeBlockRegex = TEXT(R"(<pre(\s[^>]*)?><code(\s[^>]*)?>[\s\S]*?</code></pre>)");
 
+// Code blocks as play mode removes them from a text, also with spaces between the tags
+const TCHAR* CodeBlockToRemoveRegex = TEXT(R"(<pre(\s[^>]*)?>\s*<code(\s[^>]*)?>[\s\S]*?</code>\s*</pre>)");
+
+// Line breaks in any form, e.g. <br>, <BR/> or ProseMirror's <br class="ProseMirror-trailingBreak">
+const TCHAR* BreakRegex = TEXT(R"((?i)<br(\s[^>]*)?/?>)");
+
+// Text with the matches of a pattern replaced
+FString ReplacePattern(const FString& Text, const TCHAR* Pattern, const FString& Replacement)
+{
+    const FRegexPattern RegexPattern(Pattern);
+    FRegexMatcher Matcher(RegexPattern, Text);
+    FString Result;
+    int32 CopyStart = 0;
+    while (Matcher.FindNext())
+    {
+        Result += Text.Mid(CopyStart, Matcher.GetMatchBeginning() - CopyStart) + Replacement;
+        CopyStart = Matcher.GetMatchEnding();
+    }
+    return Result + Text.Mid(CopyStart);
+}
+
+// HTML entities as the characters a browser shows
+FString DecodeHtmlEntities(const FString& Text)
+{
+    return Text.Replace(TEXT("&nbsp;"), TEXT(" "))
+        .Replace(TEXT("&lt;"), TEXT("<"))
+        .Replace(TEXT("&gt;"), TEXT(">"))
+        .Replace(TEXT("&quot;"), TEXT("\""))
+        .Replace(TEXT("&#39;"), TEXT("'"))
+        .Replace(TEXT("&apos;"), TEXT("'"))
+        .Replace(TEXT("&amp;"), TEXT("&"));
+}
+
+// A condition script as play mode runs it: the content of its first paragraph, if it starts with one
+FString GetConditionCode(const FString& Script)
+{
+    const FString Trimmed = Script.TrimStartAndEnd();
+    const FRegexPattern ParagraphPattern(TEXT(R"(^<p(\s[^>]*)?>([\s\S]*?)</p>)"));
+    FRegexMatcher Matcher(ParagraphPattern, Trimmed);
+    return Matcher.FindNext() ? Matcher.GetCaptureGroup(2).TrimStartAndEnd() : Trimmed;
+}
+
+// Play mode never satisfies a condition without visible text, e.g. "", "<p></p>" or "<p><br></p>".
+// Only paragraph and break tags are removed: "<" and ">" can be comparisons
+bool IsBlankConditionScript(const FString& Script)
+{
+    FString Text = ReplacePattern(Script, BreakRegex, FString());
+    Text = ReplacePattern(Text, TEXT(R"((?i)</?p(\s[^>]*)?>)"), FString());
+    return Text.Replace(TEXT("&nbsp;"), TEXT(" ")).TrimStartAndEnd().IsEmpty();
+}
+
 // Object-key ordering and JSON whitespace do not change snapshot compatibility.
 TSharedPtr<FJsonValue> SortProjectJson(const TSharedPtr<FJsonValue>& Value)
 {
@@ -626,12 +677,6 @@ void UArcweaveSubsystem::ReportUnavailableConfiguredLocale() const
 
 FArcscriptTranspilerOutput UArcweaveSubsystem::TranspileCondition(const FString& ConditionId, const FString& OriginElementId, bool& Success)
 {
-    return RunConditionScript(ConditionId, OriginElementId, Success);
-}
-
-FArcscriptTranspilerOutput UArcweaveSubsystem::RunConditionScript(const FString& ConditionId, const FString& OriginElementId,
-    bool& Success)
-{
     UE_LOG(LogArcwarePlugin, Log, TEXT("----- TranspileCondition for id: %s -----"), *ConditionId);
     Success = false;
     FArcscriptTranspilerOutput Output;
@@ -654,12 +699,17 @@ FArcscriptTranspilerOutput UArcweaveSubsystem::RunConditionScript(const FString&
     try
     {
 
-        //run the transpiler
-        FString ScriptModified = FString("<pre><code>") + ConditionData.Script + FString("</code></pre>");
+        // Like play mode, a condition without visible text is not satisfied, and runs without its paragraph
+        if (IsBlankConditionScript(ConditionData.Script))
+        {
+            Success = true;
+            return Output;
+        }
+        FString ScriptModified = FString("<pre><code>") + GetConditionCode(ConditionData.Script) + FString("</code></pre>");
         // Checking a condition must not change variables or visits
         Output = RunTranspiler(ScriptModified, OriginElementId, ProjectData.CurrentVars, ProjectData.Visits, false);
 
-        Success = true;
+        Success = !Output.bScriptFailed;
     }
     catch (...)
     {
@@ -846,10 +896,11 @@ void UArcweaveSubsystem::EvaluateCondition(const FArcweaveConditionData& Conditi
         TEXT("Transpiling condition %s..."), *Condition.Id);
 
     bool bTranspileSucceeded = false;
-    TranspilerOutput = RunConditionScript(Condition.Id, OriginElementId, bTranspileSucceeded);
+    TranspilerOutput = TranspileCondition(Condition.Id, OriginElementId, bTranspileSucceeded);
 
     if (!bTranspileSucceeded)
     {
+        TranspilerOutput.bScriptFailed = true;
         UE_LOG(LogArcwarePlugin, Error,
             TEXT("Transpile failed for condition %s"), *Condition.Id);
     }
@@ -870,6 +921,11 @@ void UArcweaveSubsystem::EvaluateCondition(const FArcweaveConditionData& Conditi
 FArcweaveConnectionsData UArcweaveSubsystem::TryGetNExtConnectionData(const FArcweaveBoardData& BoardData,
     const FArcweaveBranchData& Branch, const FArcweaveConditionData* FiredConditionData)
 {
+    // An arm without a connection is valid and leads nowhere, as in play mode
+    if (FiredConditionData->Output.IsEmpty())
+    {
+        return FArcweaveConnectionsData();
+    }
     FArcweaveConnectionsData Next = GetConnectionsData(BoardData, FiredConditionData->Output);
     if (Next.Id.IsEmpty())
     {
@@ -890,9 +946,24 @@ FGetIsTargetBranchOutput UArcweaveSubsystem::GetIsTargetBranch(
 FGetIsTargetBranchOutput UArcweaveSubsystem::EvaluateBranch(
     const FArcweaveBoardData& BoardData,
     const FString& BranchId,
-    const FString& OriginElementId)
+    const FString& OriginElementId,
+    bool* bOutConditionFailed)
 {
     FGetIsTargetBranchOutput Result;
+    // Blank or missing conditions are never satisfied. When the caller asks, a condition that fails to run stops
+    // the branch, as in play mode; GetIsTargetBranch keeps treating it as false
+    bool bFailed = false;
+    const auto IsSatisfied = [this, &OriginElementId, &bFailed, bOutConditionFailed](const FArcweaveConditionData& Condition)
+    {
+        if (Condition.Id.IsEmpty() || IsBlankConditionScript(Condition.Script))
+        {
+            return false;
+        }
+        FArcscriptTranspilerOutput TranspilerOutput;
+        EvaluateCondition(Condition, OriginElementId, TranspilerOutput);
+        bFailed = bOutConditionFailed != nullptr && TranspilerOutput.bScriptFailed;
+        return !TranspilerOutput.bScriptFailed && TranspilerOutput.ConditionResult;
+    };
 
     for (const FArcweaveBranchData& Branch : BoardData.Branches)
     {
@@ -904,9 +975,12 @@ FGetIsTargetBranchOutput UArcweaveSubsystem::EvaluateBranch(
         Result.IsBranch = true;
         Result.BranchData = Branch;
         const FArcweaveConditionData* FiredConditionData = nullptr;
-        FArcscriptTranspilerOutput TranspilerOutput = FArcscriptTranspilerOutput();
-        EvaluateCondition(Branch.IfCondition, OriginElementId, TranspilerOutput);
-        Result.BranchConditionResult = TranspilerOutput.ConditionResult;
+        Result.BranchConditionResult = IsSatisfied(Branch.IfCondition);
+        if (bFailed)
+        {
+            *bOutConditionFailed = true;
+            break;
+        }
 
         if (Result.BranchConditionResult)
         {
@@ -922,12 +996,20 @@ FGetIsTargetBranchOutput UArcweaveSubsystem::EvaluateBranch(
         {
             for (const auto& ElseIf : Branch.ElseIfConditions)
             {
-                EvaluateCondition(ElseIf, OriginElementId, TranspilerOutput);
-                if (TranspilerOutput.ConditionResult)
+                if (IsSatisfied(ElseIf))
                 {
                     FiredConditionData = &ElseIf;
                     break;
                 }
+                if (bFailed)
+                {
+                    break;
+                }
+            }
+            if (bFailed)
+            {
+                *bOutConditionFailed = true;
+                break;
             }
 
             if (!Branch.ElseCondition.Id.IsEmpty())
@@ -945,7 +1027,7 @@ FGetIsTargetBranchOutput UArcweaveSubsystem::EvaluateBranch(
                 {
                     Result.BranchConnections.Add(MoveTemp(Next));
                 }
-                else
+                else if (!FiredConditionData->Output.IsEmpty())
                 {
                     UE_LOG(LogArcwarePlugin, Warning, TEXT("Connection ID is empty, not adding to BranchConnections"));
                 }
@@ -974,24 +1056,24 @@ FArcweaveConnectionsData UArcweaveSubsystem::GetConnectionsData(const FArcweaveB
 
 FString UArcweaveSubsystem::TranspileConnectionLabel(const FArcweaveConnectionsData& Connection, const FArcweaveBoardData& BoardData)
 {
-    bool bSuccess = false;
-    FArcscriptTranspilerOutput Output = TranspileConnection(
-        Connection.Id,
-        Connection.Label,
-        Connection.Sourceid,
-        bSuccess,
-        true,
-        BoardData
-    );
-
-    // Code that prints nothing, or fails, leaves no label to show
-    const FString Label = bSuccess ? Output.Output : ContainsCodePattern(Connection.Label) ? FString() : RemoveHtmlTags(Connection.Label);
-    if (!Label.TrimStartAndEnd().IsEmpty())
+    FString Label;
+    if (!GetLabelText(Connection.Label, Connection.Sourceid, Label))
     {
-        return Label;
+        // Like play mode, an option whose script fails is not shown
+        return FString();
     }
 
-    // Like play mode, show the element the connection leads to
+    // A label with text is shown as before, if its branches and jumpers lead somewhere
+    if (!Label.IsEmpty())
+    {
+        FString PathLabel;
+        FArcweaveElementData Target;
+        const bool bThroughBranchOrJumper = Connection.TargetType == TEXT("branches") || Connection.TargetType == TEXT("jumpers");
+        return !bThroughBranchOrJumper || ResolveConnectionPath(Connection, BoardData, Connection.Sourceid, false, PathLabel, Target)
+            ? Label : FString();
+    }
+
+    // Like play mode, show a later label, else the element the connection leads to
     FString PathLabel;
     FArcweaveElementData Target;
     if (!ResolveConnectionPath(Connection, BoardData, Connection.Sourceid, false, PathLabel, Target))
@@ -1027,7 +1109,12 @@ bool UArcweaveSubsystem::ResolveConnectionPath(const FArcweaveConnectionsData& C
     {
         if (bEvaluateLabel)
         {
-            const FString Label = GetLabelText(Current.Label, OriginElementId);
+            FString Label;
+            if (!GetLabelText(Current.Label, OriginElementId, Label))
+            {
+                // Like play mode, an option whose script fails is not shown
+                return false;
+            }
             if (!Label.IsEmpty())
             {
                 OutLabel = Label;
@@ -1051,8 +1138,9 @@ bool UArcweaveSubsystem::ResolveConnectionPath(const FArcweaveConnectionsData& C
 
         // Conditions refer to the element the option starts from, as in play mode.
         // Like labels here, they're only checked, so they must not change state
-        const FGetIsTargetBranchOutput Branch = EvaluateBranch(BoardData, Current.Targetid, OriginElementId);
-        if (Branch.BranchConnections.IsEmpty())
+        bool bConditionFailed = false;
+        const FGetIsTargetBranchOutput Branch = EvaluateBranch(BoardData, Current.Targetid, OriginElementId, &bConditionFailed);
+        if (bConditionFailed || Branch.BranchConnections.IsEmpty())
         {
             return false;
         }
@@ -1084,47 +1172,43 @@ bool UArcweaveSubsystem::ResolveConnectionPath(const FArcweaveConnectionsData& C
     return GetBoardForObject(Current.Targetid, OutTarget, TargetBoard);
 }
 
-FString UArcweaveSubsystem::GetLabelText(const FString& Label, const FString& OriginElementId)
+bool UArcweaveSubsystem::GetLabelText(const FString& Label, const FString& OriginElementId, FString& OutText)
 {
     FString Text = Label;
     if (ContainsCodePattern(Label))
     {
-        Text = RunTranspiler(Label, OriginElementId, ProjectData.CurrentVars, ProjectData.Visits, false).Output;
+        const FArcscriptTranspilerOutput Output = RunTranspiler(Label, OriginElementId, ProjectData.CurrentVars, ProjectData.Visits, false);
+        if (Output.bScriptFailed)
+        {
+            return false;
+        }
+        Text = Output.Output;
     }
-    return RemoveHtmlTags(Text).TrimStartAndEnd();
+    OutText = RemoveHtmlTags(Text).TrimStartAndEnd();
+    return true;
 }
 
 FString UArcweaveSubsystem::GetElementOptionText(const FArcweaveElementData& Element)
 {
-    const FString Title = Element.Title.TrimStartAndEnd();
+    // Titles are imported without tags; their entities show as characters, as in play mode
+    const FString Title = DecodeHtmlEntities(Element.Title).TrimStartAndEnd();
     if (!Title.IsEmpty())
     {
         return Title;
     }
 
-    // Play mode shows the content's first paragraph, without code, cut to 70 characters
-    FString Content;
-    const FRegexPattern CodeBlockPattern(CodeBlockRegex);
-    FRegexMatcher CodeMatcher(CodeBlockPattern, Element.Content);
-    int32 CopyStart = 0;
-    while (CodeMatcher.FindNext())
-    {
-        Content += Element.Content.Mid(CopyStart, CodeMatcher.GetMatchBeginning() - CopyStart);
-        CopyStart = CodeMatcher.GetMatchEnding();
-    }
-    Content += Element.Content.Mid(CopyStart);
-
-    // Like play mode, only the first paragraph counts, even when it is empty; content without paragraphs is used whole
+    // Like play mode: the content without code, its first paragraph (even an empty one; the whole content when it has
+    // none), cut to 70 characters before it is shown, then shown as text
+    const FString Content = ReplacePattern(Element.Content, CodeBlockToRemoveRegex, FString());
     const FRegexPattern ParagraphPattern(TEXT(R"(<p(\s[^>]*)?>([\s\S]*?)</p>)"));
     FRegexMatcher ParagraphMatcher(ParagraphPattern, Content);
-    FString Text = ParagraphMatcher.FindNext()
-        ? RemoveHtmlTags(ParagraphMatcher.GetCaptureGroup(2)).TrimStartAndEnd()
-        : RemoveHtmlTags(Content).TrimStartAndEnd();
-
-    if (Text.Len() > 74)
+    FString Html = ParagraphMatcher.FindNext() ? ParagraphMatcher.GetCaptureGroup(2) : Content;
+    Html.TrimStartAndEndInline();
+    if (Html.Len() > 74)
     {
-        Text = Text.Left(70) + TEXT("...");
+        Html = Html.Left(70) + TEXT("...");
     }
+    const FString Text = DecodeHtmlEntities(RemoveHtmlTags(ReplacePattern(Html, BreakRegex, TEXT(" ")))).TrimStartAndEnd();
     return Text.IsEmpty() ? FString(TEXT("[ Empty element ]")) : Text;
 }
 
@@ -1763,11 +1847,11 @@ FArcweaveConditionData UArcweaveSubsystem::ParseConditionById(
 
         FString Output;
         if (Obj->TryGetStringField(TEXT("output"), Output))
-            ConditionData.Output = Output.IsEmpty() ? TEXT("empty") : Output;
+            ConditionData.Output = Output;
 
         FString Script;
         if (Obj->TryGetStringField(TEXT("script"), Script))
-            ConditionData.Script = Script.IsEmpty() ? TEXT("empty") : Script;
+            ConditionData.Script = Script;
     }
 
     return ConditionData;
@@ -1886,28 +1970,15 @@ FArcweaveConditionData UArcweaveSubsystem::ParseConditionData(const TSharedPtr<F
                     FString Output = FString("");
                     if (ConditionDataObject->TryGetStringField(TEXT("output"), Output))
                     {
-                        if (Output.IsEmpty())
-                        {
-                            ConditionData.Output = FString("empty");
-                        }
-                        else
-                        {
-                            ConditionData.Output = Output;
-                        }
+                        ConditionData.Output = Output;
 
                     }
                     //script
                     FString Script = FString("");
                     if (ConditionDataObject->TryGetStringField(TEXT("script"), Script))
                     {
-                        if (Script.IsEmpty())
-                        {
-                            ConditionData.Script = FString("empty");
-                        }
-                        else
-                        {
-                            ConditionData.Script = Script;
-                        }
+                        // A blank script stays blank: "empty" could be a variable
+                        ConditionData.Script = Script;
                     }
                 }
             }

@@ -91,15 +91,21 @@ FArcscriptTranspilerOutput UArcscriptTranspilerWrapper::RunScript(const FString&
     }
     catch (Arcweave::ParseErrorException& e) {
         UE_LOG(LogArcweavePlugin, Error, TEXT("ParseErrorException %s"), *FString(e.what()));
-        return FArcscriptTranspilerOutput();
+        FArcscriptTranspilerOutput Failed;
+        Failed.bScriptFailed = true;
+        return Failed;
     }
     catch (Arcweave::RuntimeErrorException& e) {
         UE_LOG(LogArcweavePlugin, Error, TEXT("RuntimeErrorException %s"), *FString(e.what()));
-        return FArcscriptTranspilerOutput();
+        FArcscriptTranspilerOutput Failed;
+        Failed.bScriptFailed = true;
+        return Failed;
     }
     catch (std::exception& e) {
         UE_LOG(LogArcweavePlugin, Error, TEXT("%s"), *FString(e.what()));
-        return FArcscriptTranspilerOutput();
+        FArcscriptTranspilerOutput Failed;
+        Failed.bScriptFailed = true;
+        return Failed;
     }
 
     FArcscriptTranspilerOutput result;

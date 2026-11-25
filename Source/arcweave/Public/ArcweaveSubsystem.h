@@ -158,10 +158,10 @@ public:
     FArcweaveConnectionsData GetConnectionsData(const FArcweaveBoardData BoardData, const FString& ConnectionId) const;
 
     /*
-    * Text to show for the connection as an option, as in play mode: the label,
-    * else the title of the element it leads to through jumpers and branches,
+    * Text to show for the connection as an option, as in play mode: the label; for a label without text,
+    * a later label with text on its path, else the title of the element it leads to through jumpers and branches,
     * else the first paragraph of that element's content, else "[ Empty element ]".
-    * Empty when no branch condition on the way holds.
+    * Empty when no branch condition on the way holds or a script fails: don't show that option.
     * Runs label code and branch conditions without changing variables or visits
     */
     UFUNCTION(BlueprintCallable, Category = "Arcweave")
@@ -170,7 +170,7 @@ public:
     /*
     * False when the element has no options, or a single one without label text.
     * Play mode continues to the next element without showing that option.
-    * Runs label code and branch conditions without changing variables
+    * Runs label code and branch conditions without changing variables or visits
     */
     UFUNCTION(BlueprintCallable, Category = "Arcweave")
     bool HasOptions(const FArcweaveElementData& Element, const FArcweaveBoardData& BoardData);
@@ -248,8 +248,6 @@ private:
     FArcweaveElementData ExtractElementData(const TSharedPtr<FJsonObject>& MainJsonObject, const FString& ElementId, FArcweaveBoardData& BoardObjRef);
     void EvaluateCondition(const FArcweaveConditionData& Condition, const FString& OriginElementId,
         FArcscriptTranspilerOutput& TranspilerOutput);
-    FArcscriptTranspilerOutput RunConditionScript(const FString& ConditionId, const FString& OriginElementId,
-        bool& Success);
     FArcweaveConnectionsData TryGetNExtConnectionData(const FArcweaveBoardData& BoardData, const FArcweaveBranchData& Branch, const FArcweaveConditionData* FiredConditionData);
     void LogTranspilerOutput(const FArcscriptTranspilerOutput& TranspilerOutput);
     bool GetBoardObjectForElement(FString ConditionId, FArcweaveConditionData& OutConditionData, FArcweaveBoardData*& OutBoardObj);
@@ -300,11 +298,12 @@ public:
      */
     bool ResolveConnectionPath(const FArcweaveConnectionsData& Connection, const FArcweaveBoardData& BoardData,
         const FString& OriginElementId, bool bEvaluateLabel, FString& OutLabel, FArcweaveElementData& OutTarget);
-    /** Evaluate the branch's conditions for the element the path started from */
+    /** Evaluate the branch's conditions for the element the path started from. Blank conditions are never satisfied.
+     * With bOutConditionFailed, a condition that fails to run stops the branch without an output and sets it */
     FGetIsTargetBranchOutput EvaluateBranch(const FArcweaveBoardData& BoardData, const FString& BranchId,
-        const FString& OriginElementId);
-    /** Label text without HTML, running its code without changing variables */
-    FString GetLabelText(const FString& Label, const FString& OriginElementId);
+        const FString& OriginElementId, bool* bOutConditionFailed = nullptr);
+    /** Label text without HTML, running its code without changing variables. False when its script fails */
+    bool GetLabelText(const FString& Label, const FString& OriginElementId, FString& OutText);
     /** Option text for an element when its connection has no label, as in play mode */
     FString GetElementOptionText(const FArcweaveElementData& Element);
 
