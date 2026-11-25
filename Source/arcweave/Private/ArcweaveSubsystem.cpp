@@ -62,19 +62,20 @@ FString ReplacePattern(const FString& Text, const TCHAR* Pattern, const FString&
 // Numeric character references, e.g. &#8212; or &#x2014;, except the ones in Except (e.g. "<>&", which stay escaped)
 FString DecodeNumericReferences(const FString& Text, const FString& Except)
 {
-    const FRegexPattern ReferencePattern(TEXT(R"(&#([xX][0-9a-fA-F]+|[0-9]+);)"));
+    // At most 6 hex or 7 decimal digits (after leading zeros): larger numbers are no characters and stay as they are
+    const FRegexPattern ReferencePattern(TEXT(R"(&#([xX]0*[0-9a-fA-F]{1,6}|0*[0-9]{1,7});)"));
     FRegexMatcher Matcher(ReferencePattern, Text);
     FString Result;
     int32 CopyStart = 0;
     while (Matcher.FindNext())
     {
         const FString Number = Matcher.GetCaptureGroup(1);
-        const uint32 CodePoint = Number.StartsWith(TEXT("x"), ESearchCase::IgnoreCase)
-            ? FParse::HexNumber(*Number.RightChop(1)) : static_cast<uint32>(FCString::Atoi64(*Number));
+        const uint64 CodePoint = Number.StartsWith(TEXT("x"), ESearchCase::IgnoreCase)
+            ? FCString::Strtoui64(*Number.RightChop(1), nullptr, 16) : FCString::Strtoui64(*Number, nullptr, 10);
         FString Character;
         if (CodePoint > 0 && CodePoint <= 0x10FFFF && (CodePoint < 0xD800 || CodePoint > 0xDFFF))
         {
-            const UTF32CHAR Utf32[] = {CodePoint, 0};
+            const UTF32CHAR Utf32[] = {static_cast<UTF32CHAR>(CodePoint), 0};
             Character = FString(StringCast<TCHAR>(Utf32).Get());
         }
         Result += Text.Mid(CopyStart, Matcher.GetMatchBeginning() - CopyStart);
@@ -95,13 +96,15 @@ FString DecodeHtmlEntities(const FString& Text)
         {TEXT("&ldquo;"), TEXT("\u201C")}, {TEXT("&rdquo;"), TEXT("\u201D")}, {TEXT("&laquo;"), TEXT("\u00AB")},
         {TEXT("&raquo;"), TEXT("\u00BB")}, {TEXT("&euro;"), TEXT("\u20AC")},
     };
-    FString Result = DecodeNumericReferences(Text, FString());
+    // "&" is decoded last, from both its forms, so that "&amp;lt;" or "&#38;lt;" stay "&lt;"
+    FString Result = DecodeNumericReferences(Text, TEXT("&"));
     for (const auto& Entity : NamedEntities)
     {
         Result.ReplaceInline(Entity[0], Entity[1], ESearchCase::CaseSensitive);
     }
-    // Last, so that "&amp;lt;" stays "&lt;"
-    return Result.Replace(TEXT("&amp;"), TEXT("&"), ESearchCase::CaseSensitive);
+    // A no-break space is a space here, so that text made only of it counts as empty
+    Result.ReplaceInline(TEXT("\u00A0"), TEXT(" "), ESearchCase::CaseSensitive);
+    return DecodeNumericReferences(Result.Replace(TEXT("&amp;"), TEXT("&"), ESearchCase::CaseSensitive), FString());
 }
 
 // Board and component mentions as their text, as play mode measures them
@@ -124,14 +127,14 @@ FString UnwrapMentions(const FString& Html)
 FString GetConditionCode(const FString& Script)
 {
     const FString Trimmed = Script.TrimStartAndEnd();
-    const FRegexPattern ParagraphPattern(TEXT(R"(^<p(\s[^>]*)?>([\s\S]*?)</p>)"));
+    const FRegexPattern ParagraphPattern(TEXT(R"((?i)^<p(\s[^>]*)?>([\s\S]*?)</p>)"));
     FRegexMatcher Matcher(ParagraphPattern, Trimmed);
     const FString Code = Matcher.FindNext() ? Matcher.GetCaptureGroup(2).TrimStartAndEnd() : Trimmed;
-    return DecodeNumericReferences(Code, TEXT("<>&\u00A0")).Replace(TEXT("&quot;"), TEXT("\"")).Replace(TEXT("&apos;"), TEXT("'"));
+    return DecodeNumericReferences(Code, TEXT("<>&\u00A0")).Replace(TEXT("&quot;"), TEXT("\""), ESearchCase::CaseSensitive)
+        .Replace(TEXT("&apos;"), TEXT("'"), ESearchCase::CaseSensitive);
 }
 
 // Play mode never satisfies a condition without visible text, e.g. "", "<p></p>" or "<p><br></p>".
-// Only paragraph and break tags are removed: "<" and ">" can be comparisons
 bool IsBlankConditionScript(const FString& Script)
 {
     // Only tags starting with a letter are removed: "a<b" or "a < b" are comparisons and keep the script nonblank
@@ -1000,6 +1003,10 @@ FGetIsTargetBranchOutput UArcweaveSubsystem::EvaluateBranch(
     bool* bOutConditionFailed)
 {
     FGetIsTargetBranchOutput Result;
+    if (bOutConditionFailed != nullptr)
+    {
+        *bOutConditionFailed = false;
+    }
     // Blank or missing conditions are never satisfied. When the caller asks, a condition that fails to run stops
     // the branch, as in play mode; GetIsTargetBranch keeps treating it as false
     bool bFailed = false;
@@ -1251,14 +1258,16 @@ FString UArcweaveSubsystem::GetElementOptionText(const FArcweaveElementData& Ele
     // Like play mode: the content without code, its first paragraph (even an empty one; the whole content when it has
     // none), cut to 70 characters before it is shown, then shown as text
     const FString Content = UnwrapMentions(ReplacePattern(Element.Content, CodeBlockToRemoveRegex, FString()));
-    const FRegexPattern ParagraphPattern(TEXT(R"(<p(\s[^>]*)?>([\s\S]*?)</p>)"));
+    const FRegexPattern ParagraphPattern(TEXT(R"((?i)<p(\s[^>]*)?>([\s\S]*?)</p>)"));
     FRegexMatcher ParagraphMatcher(ParagraphPattern, Content);
     FString Html = ParagraphMatcher.FindNext() ? ParagraphMatcher.GetCaptureGroup(2) : Content;
     Html.TrimStartAndEndInline();
     if (Html.Len() > 74)
     {
-        // A tag cut short is dropped, as a browser does
-        Html = ReplacePattern(Html.Left(70), TEXT(R"(<[^>]*$)"), FString()) + TEXT("...");
+        // A tag cut short is dropped, as a browser does; a "<" that starts no tag is text.
+        // When nothing visible is left, the element is empty
+        const FString Cut = ReplacePattern(Html.Left(70), TEXT(R"(<(/?[a-zA-Z][^>]*|/)?$)"), FString());
+        Html = DecodeHtmlEntities(RemoveHtmlTags(Cut)).TrimStartAndEnd().IsEmpty() ? FString() : Cut + TEXT("...");
     }
     const FString Text = DecodeHtmlEntities(RemoveHtmlTags(ReplacePattern(Html, BreakRegex, TEXT(" ")))).TrimStartAndEnd();
     return Text.IsEmpty() ? FString(TEXT("[ Empty element ]")) : Text;
@@ -1403,10 +1412,8 @@ FArcscriptTranspilerOutput UArcweaveSubsystem::TranspileConnection(
             Output.Output = RemoveHtmlTags(Output.Output);
         }
 
-        if (!Output.Output.IsEmpty())
-        {
-            Success = true;
-        }
+        // Code that prints nothing is a valid label too
+        Success = !Output.bScriptFailed;
     }
     catch (...)
     {

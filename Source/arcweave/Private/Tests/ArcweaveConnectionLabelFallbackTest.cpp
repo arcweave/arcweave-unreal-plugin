@@ -2,6 +2,7 @@
 
 #include "ArcscriptTranspilerOutput.h"
 #include "ArcweaveSubsystem.h"
+#include "GetIsTargetBranchOutput.h"
 #include "Misc/AutomationTest.h"
 
 // Connections without label text show the element they lead to, as in play mode.
@@ -19,7 +20,7 @@ bool FArcweaveConnectionLabelFallbackTest::RunTest(const FString& Parameters)
         "boards": {
             "board-1": {
                 "name": "Main",
-                "elements": ["healer", "help", "pay", "untitled", "long", "empty", "leading-empty", "plain-choices", "code-only", "tea", "fish", "strong", "mention", "cut-tag", "dash", "take-cover", "single", "single-labelled", "single-code", "single-branch", "single-reset", "reset-branch", "ending"],
+                "elements": ["healer", "help", "pay", "untitled", "long", "empty", "leading-empty", "plain-choices", "code-only", "tea", "fish", "strong", "mention", "cut-tag", "dash", "take-cover", "less-than", "long-link", "double-escape", "single", "single-labelled", "single-code", "single-branch", "single-reset", "reset-branch", "ending"],
                 "jumpers": ["jumper-1"],
                 "branches": ["branch-1", "branch-none", "branch-a", "branch-b", "branch-loop", "branch-reset",
                     "branch-wrapped", "branch-bad", "branch-blank", "branch-noif", "branch-emptyvar", "branch-noout", "branch-quoted"],
@@ -29,7 +30,8 @@ bool FArcweaveConnectionLabelFallbackTest::RunTest(const FString& Parameters)
                     "c-empty-html", "c-nested", "c-a-out", "c-b-yes", "c-b-no", "c-loop", "c-loop-back", "c-single-reset", "c-reset-branch", "c-reset-out", "c-leading-empty", "c-plain-1", "c-plain-2",
                     "c-code-only-el", "c-tea", "c-fish", "c-strong", "c-dead2", "c-wrapped", "c-wrapped-yes", "c-wrapped-no",
                     "c-broken", "c-bad-branch", "c-bad-out", "c-blank", "c-blank-out", "c-blank-else", "c-noif", "c-noif-else",
-                    "c-emptyvar", "c-emptyvar-out", "c-noout", "c-mention", "c-cut-tag", "c-dash", "c-take-cover", "c-quoted", "c-quoted-out"
+                    "c-emptyvar", "c-emptyvar-out", "c-noout", "c-mention", "c-cut-tag", "c-dash", "c-take-cover", "c-quoted", "c-quoted-out",
+                    "c-less-than", "c-long-link", "c-double-escape"
                 ]
             },
             "board-2": {
@@ -66,6 +68,9 @@ bool FArcweaveConnectionLabelFallbackTest::RunTest(const FString& Parameters)
             "cut-tag": {"title": "", "content": "<p>abcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdef<strong>bold</strong></p>", "outputs": []},
             "dash": {"title": "A &#8212; B &copy;", "content": "", "outputs": []},
             "take-cover": {"title": "<p>Take<br>cover</p>", "content": "", "outputs": []},
+            "less-than": {"title": "", "content": "<p>If x < 10 then walk down the long winding dark forest road to the castle gates now</p>", "outputs": []},
+            "long-link": {"title": "", "content": "<p><a href=\"https://example.com/a/very/long/url/that/exceeds/seventy/four/chars\">Open</a></p>", "outputs": []},
+            "double-escape": {"title": "Tom &#38;lt;3", "content": "", "outputs": []},
             "strong": {"title": "", "content": "<p><strong>abcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcde</strong></p>", "outputs": []},
             "far": {"title": "<p>Far away</p>", "content": "", "outputs": []},
             "single": {"title": "Single", "content": "", "outputs": ["c-single"]},
@@ -120,7 +125,7 @@ bool FArcweaveConnectionLabelFallbackTest::RunTest(const FString& Parameters)
             "cond-emptyvar": {"output": "c-emptyvar-out", "script": "empty"},
             "cond-noout": {"output": "", "script": "true"}
         },)JSON")
-    // Split in two: MSVC limits a single string literal to about 16 KB
+    // Split in parts: MSVC limits a single string literal to about 16 KB
     TEXT(R"JSON(
         "connections": {
             "c-empty": {"label": null, "sourceid": "healer", "targetid": "help", "sourceType": "elements", "targetType": "elements"},
@@ -176,6 +181,9 @@ bool FArcweaveConnectionLabelFallbackTest::RunTest(const FString& Parameters)
             "c-cut-tag": {"label": null, "sourceid": "healer", "targetid": "cut-tag", "sourceType": "elements", "targetType": "elements"},
             "c-dash": {"label": null, "sourceid": "healer", "targetid": "dash", "sourceType": "elements", "targetType": "elements"},
             "c-take-cover": {"label": null, "sourceid": "healer", "targetid": "take-cover", "sourceType": "elements", "targetType": "elements"},
+            "c-less-than": {"label": null, "sourceid": "healer", "targetid": "less-than", "sourceType": "elements", "targetType": "elements"},
+            "c-long-link": {"label": null, "sourceid": "healer", "targetid": "long-link", "sourceType": "elements", "targetType": "elements"},
+            "c-double-escape": {"label": null, "sourceid": "healer", "targetid": "double-escape", "sourceType": "elements", "targetType": "elements"},
             "c-quoted": {"label": null, "sourceid": "healer", "targetid": "branch-quoted", "sourceType": "elements", "targetType": "branches"},
             "c-quoted-out": {"label": "<p>Quoted condition</p>", "sourceid": "cond-quoted", "targetid": "help", "sourceType": "conditions", "targetType": "elements"}
         },
@@ -231,11 +239,21 @@ bool FArcweaveConnectionLabelFallbackTest::RunTest(const FString& Parameters)
     TestEqual(TEXT("A tag cut by the 70 characters is dropped"), Label(TEXT("c-cut-tag")), FString(TEXT("abcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdef...")));
     TestEqual(TEXT("Numeric and named entities show as characters"), Label(TEXT("c-dash")), FString(TEXT("A \u2014 B \u00A9")));
     TestEqual(TEXT("A line break in a title separates words"), Label(TEXT("c-take-cover")), FString(TEXT("Take cover")));
+    TestEqual(TEXT("A \"<\" that starts no tag is kept when the text is cut"), Label(TEXT("c-less-than")),
+        FString(TEXT("If x < 10 then walk down the long winding dark forest road to the cast...")));
+    TestEqual(TEXT("Content cut inside its only tag is empty"), Label(TEXT("c-long-link")), FString(TEXT("[ Empty element ]")));
+    TestEqual(TEXT("An escaped ampersand is decoded once"), Label(TEXT("c-double-escape")), FString(TEXT("Tom &lt;3")));
     {
         bool bEmptyHtmlSuccess = false;
         const FArcweaveConnectionsData Labelled = Subsystem->GetConnectionsData(Board, TEXT("c-labelled"));
         Subsystem->TranspileConnection(Labelled.Id, TEXT("<p></p>"), Labelled.Sourceid, bEmptyHtmlSuccess, true, Board);
         TestTrue(TEXT("A label with only empty HTML is not a transpile failure"), bEmptyHtmlSuccess);
+    }
+    {
+        bool bBlankConditionSuccess = false;
+        const FArcscriptTranspilerOutput Blank = Subsystem->TranspileCondition(TEXT("cond-blank-p"), TEXT("healer"), bBlankConditionSuccess);
+        TestTrue(TEXT("A blank condition is not a failure"), bBlankConditionSuccess);
+        TestFalse(TEXT("A blank condition is not satisfied"), Blank.ConditionResult);
     }
     TestEqual(TEXT("Like play mode, content is cut before its tags are removed"), Label(TEXT("c-strong")),
         FString(TEXT("abcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijab...")));
@@ -260,14 +278,31 @@ bool FArcweaveConnectionLabelFallbackTest::RunTest(const FString& Parameters)
 #if PLATFORM_WINDOWS || PLATFORM_MAC
     // c-loop leads to a branch that loops back to itself: once for its text, once for HasOptions on the healer
     AddExpectedMessagePlain(TEXT("leads to a loop of branches"), ELogVerbosity::Warning, EAutomationExpectedMessageFlags::Contains, 2);
-    // c-broken's label fails, and cond-bad fails for c-bad-branch's text
-    AddExpectedMessagePlain(TEXT("ParseErrorException Unknown variable \"undefined_name\""), ELogVerbosity::Error, EAutomationExpectedMessageFlags::Contains, 2);
-    AddExpectedMessagePlain(TEXT("Transpile failed for condition cond-bad"), ELogVerbosity::Error, EAutomationExpectedMessageFlags::Contains, 1);
+    // c-broken's label fails; cond-bad fails for c-bad-branch's text, GetIsTargetBranch and TranspileCondition
+    AddExpectedMessagePlain(TEXT("ParseErrorException Unknown variable \"undefined_name\""), ELogVerbosity::Error, EAutomationExpectedMessageFlags::Contains, 4);
+    AddExpectedMessagePlain(TEXT("Transpile failed for condition cond-bad"), ELogVerbosity::Error, EAutomationExpectedMessageFlags::Contains, 2);
     TestTrue(TEXT("An element with several outputs has options"), Subsystem->HasOptions(Element(TEXT("healer")), Board));
     TestTrue(TEXT("A labelled option whose branch leads nowhere is not shown"), Label(TEXT("c-dead")).IsEmpty());
     TestTrue(TEXT("An unlabelled option whose branch leads nowhere is not shown"), Label(TEXT("c-dead2")).IsEmpty());
     TestTrue(TEXT("An option whose label script fails is not shown"), Label(TEXT("c-broken")).IsEmpty());
     TestTrue(TEXT("An option whose branch condition fails is not shown, rather than taking else"), Label(TEXT("c-bad-branch")).IsEmpty());
+    const FGetIsTargetBranchOutput BadBranch = Subsystem->GetIsTargetBranch(Board, Subsystem->GetConnectionsData(Board, TEXT("c-bad-branch")));
+    if (TestEqual(TEXT("GetIsTargetBranch keeps treating a failing condition as false"), BadBranch.BranchConnections.Num(), 1))
+    {
+        TestEqual(TEXT("GetIsTargetBranch still takes else after a failing condition"), BadBranch.BranchConnections[0].Id, FString(TEXT("c-bad-out")));
+    }
+    {
+        bool bBadSuccess = true;
+        Subsystem->TranspileCondition(TEXT("cond-bad"), TEXT("healer"), bBadSuccess);
+        TestFalse(TEXT("TranspileCondition reports a failing condition"), bBadSuccess);
+    }
+    {
+        bool bCodeOnlySuccess = false;
+        const FArcweaveConnectionsData CodeOnly = Subsystem->GetConnectionsData(Board, TEXT("c-code-only"));
+        Subsystem->TranspileConnection(CodeOnly.Id, CodeOnly.Label, CodeOnly.Sourceid, bCodeOnlySuccess, true, Board);
+        TestTrue(TEXT("A code-only label that prints nothing is not a transpile failure"), bCodeOnlySuccess);
+        Subsystem->SetVariable(TEXT("money-variable"), TEXT("0"));
+    }
     TestEqual(TEXT("Blank conditions are skipped, even with a variable named empty"), Label(TEXT("c-blank")), FString(TEXT("Blank skipped")));
     TestEqual(TEXT("A condition with escaped quotes runs like in play mode"), Label(TEXT("c-quoted")), FString(TEXT("Quoted condition")));
     TestEqual(TEXT("A branch without an if condition takes its else"), Label(TEXT("c-noif")), FString(TEXT("No if")));
