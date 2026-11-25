@@ -180,7 +180,8 @@ Blank branch conditions are skipped. Titles and content are shown as text: entit
 `HasOptions(Element, BoardData)` is false when the element has no option to show: no output leads anywhere, or a single
 one does and it has no label text. In the second case play mode continues to that output's element without showing a
 choice; in the first, the story stops there. `TranspileConnectionLabel` tells the two apart: it is empty for every
-output in the first case.
+output in the first case. Each call evaluates the conditions again, so with conditions that use `random()` or `roll()`
+the two calls can disagree.
 
 Neither function changes variables or visits; apply a chosen option's label with `UpdateVariablesFromConnection`.
 Run `Arcweave.Project.ConnectionLabelFallback` in Unreal Automation to verify the fallback.

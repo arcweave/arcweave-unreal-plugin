@@ -19,17 +19,17 @@ bool FArcweaveConnectionLabelFallbackTest::RunTest(const FString& Parameters)
         "boards": {
             "board-1": {
                 "name": "Main",
-                "elements": ["healer", "help", "pay", "untitled", "long", "empty", "leading-empty", "plain-choices", "code-only", "tea", "fish", "strong", "single", "single-labelled", "single-code", "single-branch", "single-reset", "reset-branch", "ending"],
+                "elements": ["healer", "help", "pay", "untitled", "long", "empty", "leading-empty", "plain-choices", "code-only", "tea", "fish", "strong", "mention", "cut-tag", "dash", "take-cover", "single", "single-labelled", "single-code", "single-branch", "single-reset", "reset-branch", "ending"],
                 "jumpers": ["jumper-1"],
                 "branches": ["branch-1", "branch-none", "branch-a", "branch-b", "branch-loop", "branch-reset",
-                    "branch-wrapped", "branch-bad", "branch-blank", "branch-noif", "branch-emptyvar", "branch-noout"],
+                    "branch-wrapped", "branch-bad", "branch-blank", "branch-noif", "branch-emptyvar", "branch-noout", "branch-quoted"],
                 "connections": [
                     "c-empty", "c-labelled", "c-code-only", "c-untitled", "c-long", "c-empty-element", "c-jumper", "c-branch",
                     "c-branch-yes", "c-branch-no", "c-single", "c-single-labelled", "c-single-code", "c-dead", "c-dead-out", "c-alive",
                     "c-empty-html", "c-nested", "c-a-out", "c-b-yes", "c-b-no", "c-loop", "c-loop-back", "c-single-reset", "c-reset-branch", "c-reset-out", "c-leading-empty", "c-plain-1", "c-plain-2",
                     "c-code-only-el", "c-tea", "c-fish", "c-strong", "c-dead2", "c-wrapped", "c-wrapped-yes", "c-wrapped-no",
                     "c-broken", "c-bad-branch", "c-bad-out", "c-blank", "c-blank-out", "c-blank-else", "c-noif", "c-noif-else",
-                    "c-emptyvar", "c-emptyvar-out", "c-noout"
+                    "c-emptyvar", "c-emptyvar-out", "c-noout", "c-mention", "c-cut-tag", "c-dash", "c-take-cover", "c-quoted", "c-quoted-out"
                 ]
             },
             "board-2": {
@@ -62,6 +62,10 @@ bool FArcweaveConnectionLabelFallbackTest::RunTest(const FString& Parameters)
             "code-only": {"title": "", "content": "<pre> <code>money = 1</code> </pre>", "outputs": []},
             "tea": {"title": "", "content": "<p>Tea &amp; biscuits</p>", "outputs": []},
             "fish": {"title": "<p>Fish &amp; chips</p>", "content": "", "outputs": []},
+            "mention": {"title": "", "content": "<p>Meet <span class=\"mention\" data-id=\"comp-1\" data-type=\"components\">Jim</span> now.</p>", "outputs": []},
+            "cut-tag": {"title": "", "content": "<p>abcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdef<strong>bold</strong></p>", "outputs": []},
+            "dash": {"title": "A &#8212; B &copy;", "content": "", "outputs": []},
+            "take-cover": {"title": "<p>Take<br>cover</p>", "content": "", "outputs": []},
             "strong": {"title": "", "content": "<p><strong>abcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcde</strong></p>", "outputs": []},
             "far": {"title": "<p>Far away</p>", "content": "", "outputs": []},
             "single": {"title": "Single", "content": "", "outputs": ["c-single"]},
@@ -72,7 +76,8 @@ bool FArcweaveConnectionLabelFallbackTest::RunTest(const FString& Parameters)
             "reset-branch": {"title": "Reset branch", "content": "", "outputs": ["c-reset-branch"]},
             "ending": {"title": "Ending", "content": "", "outputs": []}
         },
-        "jumpers": {
+        )JSON")
+    TEXT(R"JSON("jumpers": {
             "jumper-1": {"elementId": "far"}
         },
         "branches": {
@@ -84,7 +89,8 @@ bool FArcweaveConnectionLabelFallbackTest::RunTest(const FString& Parameters)
             "branch-reset": {"conditions": {"ifCondition": "cond-reset", "elseIfConditions": []}},
             "branch-wrapped": {"conditions": {"ifCondition": "cond-wrapped", "elseIfConditions": [], "elseCondition": "cond-wrapped-else"}},
             "branch-bad": {"conditions": {"ifCondition": "cond-bad", "elseIfConditions": [], "elseCondition": "cond-bad-else"}},
-            "branch-blank": {"conditions": {"ifCondition": "cond-blank-if", "elseIfConditions": ["cond-blank-p", "cond-blank-pm"], "elseCondition": "cond-blank-else"}},
+            "branch-blank": {"conditions": {"ifCondition": "cond-blank-if", "elseIfConditions": ["cond-blank-p", "cond-blank-pm", "cond-blank-nbsp", "cond-blank-span", "cond-blank-str"], "elseCondition": "cond-blank-else"}},
+            "branch-quoted": {"conditions": {"ifCondition": "cond-quoted", "elseIfConditions": []}},
             "branch-noif": {"conditions": {"elseIfConditions": [], "elseCondition": "cond-noif-else"}},
             "branch-emptyvar": {"conditions": {"ifCondition": "cond-emptyvar", "elseIfConditions": []}},
             "branch-noout": {"conditions": {"ifCondition": "cond-noout", "elseIfConditions": []}}
@@ -106,6 +112,10 @@ bool FArcweaveConnectionLabelFallbackTest::RunTest(const FString& Parameters)
             "cond-blank-p": {"output": "c-blank-out", "script": "<p></p>"},
             "cond-blank-pm": {"output": "c-blank-out", "script": "<p><br class=\"ProseMirror-trailingBreak\"></p>"},
             "cond-blank-else": {"output": "c-blank-else"},
+            "cond-blank-nbsp": {"output": "c-blank-out", "script": "<p>&#160;</p>"},
+            "cond-blank-span": {"output": "c-blank-out", "script": "<p><span></span></p>"},
+            "cond-blank-str": {"output": "c-blank-out", "script": ""},
+            "cond-quoted": {"output": "c-quoted-out", "script": "<p>who == &quot;Ada&quot;</p>"},
             "cond-noif-else": {"output": "c-noif-else"},
             "cond-emptyvar": {"output": "c-emptyvar-out", "script": "empty"},
             "cond-noout": {"output": "", "script": "true"}
@@ -161,12 +171,19 @@ bool FArcweaveConnectionLabelFallbackTest::RunTest(const FString& Parameters)
             "c-noif-else": {"label": "<p>No if</p>", "sourceid": "cond-noif-else", "targetid": "help", "sourceType": "conditions", "targetType": "elements"},
             "c-emptyvar": {"label": null, "sourceid": "healer", "targetid": "branch-emptyvar", "sourceType": "elements", "targetType": "branches"},
             "c-emptyvar-out": {"label": "<p>Variable named empty</p>", "sourceid": "cond-emptyvar", "targetid": "help", "sourceType": "conditions", "targetType": "elements"},
-            "c-noout": {"label": "<p>No output</p>", "sourceid": "healer", "targetid": "branch-noout", "sourceType": "elements", "targetType": "branches"}
+            "c-noout": {"label": "<p>No output</p>", "sourceid": "healer", "targetid": "branch-noout", "sourceType": "elements", "targetType": "branches"},
+            "c-mention": {"label": null, "sourceid": "healer", "targetid": "mention", "sourceType": "elements", "targetType": "elements"},
+            "c-cut-tag": {"label": null, "sourceid": "healer", "targetid": "cut-tag", "sourceType": "elements", "targetType": "elements"},
+            "c-dash": {"label": null, "sourceid": "healer", "targetid": "dash", "sourceType": "elements", "targetType": "elements"},
+            "c-take-cover": {"label": null, "sourceid": "healer", "targetid": "take-cover", "sourceType": "elements", "targetType": "elements"},
+            "c-quoted": {"label": null, "sourceid": "healer", "targetid": "branch-quoted", "sourceType": "elements", "targetType": "branches"},
+            "c-quoted-out": {"label": "<p>Quoted condition</p>", "sourceid": "cond-quoted", "targetid": "help", "sourceType": "conditions", "targetType": "elements"}
         },
         "components": {},
         "variables": {
             "money-variable": {"name": "money", "type": "integer", "value": 0, "cType": "global"},
-            "empty-variable": {"name": "empty", "type": "boolean", "value": true, "cType": "global"}
+            "empty-variable": {"name": "empty", "type": "boolean", "value": true, "cType": "global"},
+            "who-variable": {"name": "who", "type": "string", "value": "Ada", "cType": "global"}
         }
     })JSON");
 
@@ -210,6 +227,16 @@ bool FArcweaveConnectionLabelFallbackTest::RunTest(const FString& Parameters)
     TestEqual(TEXT("Code is removed even with spaces between its tags"), Label(TEXT("c-code-only-el")), FString(TEXT("[ Empty element ]")));
     TestEqual(TEXT("Content shows entities as characters"), Label(TEXT("c-tea")), FString(TEXT("Tea & biscuits")));
     TestEqual(TEXT("A title shows entities as characters"), Label(TEXT("c-fish")), FString(TEXT("Fish & chips")));
+    TestEqual(TEXT("Mentions show as their text"), Label(TEXT("c-mention")), FString(TEXT("Meet Jim now.")));
+    TestEqual(TEXT("A tag cut by the 70 characters is dropped"), Label(TEXT("c-cut-tag")), FString(TEXT("abcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdef...")));
+    TestEqual(TEXT("Numeric and named entities show as characters"), Label(TEXT("c-dash")), FString(TEXT("A \u2014 B \u00A9")));
+    TestEqual(TEXT("A line break in a title separates words"), Label(TEXT("c-take-cover")), FString(TEXT("Take cover")));
+    {
+        bool bEmptyHtmlSuccess = false;
+        const FArcweaveConnectionsData Labelled = Subsystem->GetConnectionsData(Board, TEXT("c-labelled"));
+        Subsystem->TranspileConnection(Labelled.Id, TEXT("<p></p>"), Labelled.Sourceid, bEmptyHtmlSuccess, true, Board);
+        TestTrue(TEXT("A label with only empty HTML is not a transpile failure"), bEmptyHtmlSuccess);
+    }
     TestEqual(TEXT("Like play mode, content is cut before its tags are removed"), Label(TEXT("c-strong")),
         FString(TEXT("abcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijab...")));
     TestEqual(TEXT("Long content is cut to 70 characters"), Label(TEXT("c-long")),
@@ -241,7 +268,8 @@ bool FArcweaveConnectionLabelFallbackTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("An unlabelled option whose branch leads nowhere is not shown"), Label(TEXT("c-dead2")).IsEmpty());
     TestTrue(TEXT("An option whose label script fails is not shown"), Label(TEXT("c-broken")).IsEmpty());
     TestTrue(TEXT("An option whose branch condition fails is not shown, rather than taking else"), Label(TEXT("c-bad-branch")).IsEmpty());
-    TestEqual(TEXT("Blank conditions are skipped"), Label(TEXT("c-blank")), FString(TEXT("Blank skipped")));
+    TestEqual(TEXT("Blank conditions are skipped, even with a variable named empty"), Label(TEXT("c-blank")), FString(TEXT("Blank skipped")));
+    TestEqual(TEXT("A condition with escaped quotes runs like in play mode"), Label(TEXT("c-quoted")), FString(TEXT("Quoted condition")));
     TestEqual(TEXT("A branch without an if condition takes its else"), Label(TEXT("c-noif")), FString(TEXT("No if")));
     TestEqual(TEXT("A variable named empty can be a condition"), Label(TEXT("c-emptyvar")), FString(TEXT("Variable named empty")));
     TestTrue(TEXT("A satisfied arm without a connection is no option"), Label(TEXT("c-noout")).IsEmpty());

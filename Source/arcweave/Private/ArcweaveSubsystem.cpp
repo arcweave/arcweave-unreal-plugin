@@ -59,34 +59,84 @@ FString ReplacePattern(const FString& Text, const TCHAR* Pattern, const FString&
     return Result + Text.Mid(CopyStart);
 }
 
-// HTML entities as the characters a browser shows
-FString DecodeHtmlEntities(const FString& Text)
+// Numeric character references, e.g. &#8212; or &#x2014;, except the ones in Except (e.g. "<>&", which stay escaped)
+FString DecodeNumericReferences(const FString& Text, const FString& Except)
 {
-    return Text.Replace(TEXT("&nbsp;"), TEXT(" "))
-        .Replace(TEXT("&lt;"), TEXT("<"))
-        .Replace(TEXT("&gt;"), TEXT(">"))
-        .Replace(TEXT("&quot;"), TEXT("\""))
-        .Replace(TEXT("&#39;"), TEXT("'"))
-        .Replace(TEXT("&apos;"), TEXT("'"))
-        .Replace(TEXT("&amp;"), TEXT("&"));
+    const FRegexPattern ReferencePattern(TEXT(R"(&#([xX][0-9a-fA-F]+|[0-9]+);)"));
+    FRegexMatcher Matcher(ReferencePattern, Text);
+    FString Result;
+    int32 CopyStart = 0;
+    while (Matcher.FindNext())
+    {
+        const FString Number = Matcher.GetCaptureGroup(1);
+        const uint32 CodePoint = Number.StartsWith(TEXT("x"), ESearchCase::IgnoreCase)
+            ? FParse::HexNumber(*Number.RightChop(1)) : static_cast<uint32>(FCString::Atoi64(*Number));
+        FString Character;
+        if (CodePoint > 0 && CodePoint <= 0x10FFFF && (CodePoint < 0xD800 || CodePoint > 0xDFFF))
+        {
+            const UTF32CHAR Utf32[] = {CodePoint, 0};
+            Character = FString(StringCast<TCHAR>(Utf32).Get());
+        }
+        Result += Text.Mid(CopyStart, Matcher.GetMatchBeginning() - CopyStart);
+        Result += Character.IsEmpty() || Except.Contains(Character) ? Matcher.GetCaptureGroup(0) : Character;
+        CopyStart = Matcher.GetMatchEnding();
+    }
+    return Result + Text.Mid(CopyStart);
 }
 
-// A condition script as play mode runs it: the content of its first paragraph, if it starts with one
+// HTML entities as the characters a browser shows: numeric references and the named ones used in practice
+FString DecodeHtmlEntities(const FString& Text)
+{
+    static const TCHAR* const NamedEntities[][2] = {
+        {TEXT("&nbsp;"), TEXT(" ")}, {TEXT("&lt;"), TEXT("<")}, {TEXT("&gt;"), TEXT(">")}, {TEXT("&quot;"), TEXT("\"")},
+        {TEXT("&apos;"), TEXT("'")}, {TEXT("&copy;"), TEXT("\u00A9")}, {TEXT("&reg;"), TEXT("\u00AE")},
+        {TEXT("&trade;"), TEXT("\u2122")}, {TEXT("&hellip;"), TEXT("\u2026")}, {TEXT("&mdash;"), TEXT("\u2014")},
+        {TEXT("&ndash;"), TEXT("\u2013")}, {TEXT("&lsquo;"), TEXT("\u2018")}, {TEXT("&rsquo;"), TEXT("\u2019")},
+        {TEXT("&ldquo;"), TEXT("\u201C")}, {TEXT("&rdquo;"), TEXT("\u201D")}, {TEXT("&laquo;"), TEXT("\u00AB")},
+        {TEXT("&raquo;"), TEXT("\u00BB")}, {TEXT("&euro;"), TEXT("\u20AC")},
+    };
+    FString Result = DecodeNumericReferences(Text, FString());
+    for (const auto& Entity : NamedEntities)
+    {
+        Result.ReplaceInline(Entity[0], Entity[1], ESearchCase::CaseSensitive);
+    }
+    // Last, so that "&amp;lt;" stays "&lt;"
+    return Result.Replace(TEXT("&amp;"), TEXT("&"), ESearchCase::CaseSensitive);
+}
+
+// Board and component mentions as their text, as play mode measures them
+FString UnwrapMentions(const FString& Html)
+{
+    const FRegexPattern MentionPattern(TEXT(R"(<span(\s[^>]*)?\sclass="[^"]*\bmention\b[^"]*"[^>]*>([\s\S]*?)</span>)"));
+    FRegexMatcher Matcher(MentionPattern, Html);
+    FString Result;
+    int32 CopyStart = 0;
+    while (Matcher.FindNext())
+    {
+        Result += Html.Mid(CopyStart, Matcher.GetMatchBeginning() - CopyStart) + Matcher.GetCaptureGroup(2);
+        CopyStart = Matcher.GetMatchEnding();
+    }
+    return Result + Html.Mid(CopyStart);
+}
+
+// A condition script as play mode runs it: the content of its first paragraph, if it starts with one, as the browser
+// writes it back: quotes and other characters unescaped, but "<", ">" and "&" still escaped (Arcscript reads those)
 FString GetConditionCode(const FString& Script)
 {
     const FString Trimmed = Script.TrimStartAndEnd();
     const FRegexPattern ParagraphPattern(TEXT(R"(^<p(\s[^>]*)?>([\s\S]*?)</p>)"));
     FRegexMatcher Matcher(ParagraphPattern, Trimmed);
-    return Matcher.FindNext() ? Matcher.GetCaptureGroup(2).TrimStartAndEnd() : Trimmed;
+    const FString Code = Matcher.FindNext() ? Matcher.GetCaptureGroup(2).TrimStartAndEnd() : Trimmed;
+    return DecodeNumericReferences(Code, TEXT("<>&\u00A0")).Replace(TEXT("&quot;"), TEXT("\"")).Replace(TEXT("&apos;"), TEXT("'"));
 }
 
 // Play mode never satisfies a condition without visible text, e.g. "", "<p></p>" or "<p><br></p>".
 // Only paragraph and break tags are removed: "<" and ">" can be comparisons
 bool IsBlankConditionScript(const FString& Script)
 {
-    FString Text = ReplacePattern(Script, BreakRegex, FString());
-    Text = ReplacePattern(Text, TEXT(R"((?i)</?p(\s[^>]*)?>)"), FString());
-    return Text.Replace(TEXT("&nbsp;"), TEXT(" ")).TrimStartAndEnd().IsEmpty();
+    // Only tags starting with a letter are removed: "a<b" or "a < b" are comparisons and keep the script nonblank
+    const FString Text = ReplacePattern(Script, TEXT(R"(</?[a-zA-Z][^>]*>)"), FString());
+    return DecodeHtmlEntities(Text).TrimStartAndEnd().IsEmpty();
 }
 
 // Object-key ordering and JSON whitespace do not change snapshot compatibility.
@@ -1064,7 +1114,7 @@ FString UArcweaveSubsystem::TranspileConnectionLabel(const FArcweaveConnectionsD
     }
 
     // A label with text is shown as before, if its branches and jumpers lead somewhere
-    if (!Label.IsEmpty())
+    if (!Label.TrimStartAndEnd().IsEmpty())
     {
         FString PathLabel;
         FArcweaveElementData Target;
@@ -1115,7 +1165,7 @@ bool UArcweaveSubsystem::ResolveConnectionPath(const FArcweaveConnectionsData& C
                 // Like play mode, an option whose script fails is not shown
                 return false;
             }
-            if (!Label.IsEmpty())
+            if (!Label.TrimStartAndEnd().IsEmpty())
             {
                 OutLabel = Label;
             }
@@ -1184,7 +1234,8 @@ bool UArcweaveSubsystem::GetLabelText(const FString& Label, const FString& Origi
         }
         Text = Output.Output;
     }
-    OutText = RemoveHtmlTags(Text).TrimStartAndEnd();
+    // Stripped but not trimmed, as before; callers check for text with a trimmed copy
+    OutText = RemoveHtmlTags(Text);
     return true;
 }
 
@@ -1199,14 +1250,15 @@ FString UArcweaveSubsystem::GetElementOptionText(const FArcweaveElementData& Ele
 
     // Like play mode: the content without code, its first paragraph (even an empty one; the whole content when it has
     // none), cut to 70 characters before it is shown, then shown as text
-    const FString Content = ReplacePattern(Element.Content, CodeBlockToRemoveRegex, FString());
+    const FString Content = UnwrapMentions(ReplacePattern(Element.Content, CodeBlockToRemoveRegex, FString()));
     const FRegexPattern ParagraphPattern(TEXT(R"(<p(\s[^>]*)?>([\s\S]*?)</p>)"));
     FRegexMatcher ParagraphMatcher(ParagraphPattern, Content);
     FString Html = ParagraphMatcher.FindNext() ? ParagraphMatcher.GetCaptureGroup(2) : Content;
     Html.TrimStartAndEndInline();
     if (Html.Len() > 74)
     {
-        Html = Html.Left(70) + TEXT("...");
+        // A tag cut short is dropped, as a browser does
+        Html = ReplacePattern(Html.Left(70), TEXT(R"(<[^>]*$)"), FString()) + TEXT("...");
     }
     const FString Text = DecodeHtmlEntities(RemoveHtmlTags(ReplacePattern(Html, BreakRegex, TEXT(" ")))).TrimStartAndEnd();
     return Text.IsEmpty() ? FString(TEXT("[ Empty element ]")) : Text;
@@ -1336,7 +1388,8 @@ FArcscriptTranspilerOutput UArcweaveSubsystem::TranspileConnection(
     if (!ContainsCodePattern(ScriptData))
     {
         Output.Output = bStripHtmlTags ? RemoveHtmlTags(ScriptData) : ScriptData;
-        Success = !Output.Output.IsEmpty();
+        // A label without visible text, e.g. "<p></p>", is valid
+        Success = true;
         return Output;
     }
 
@@ -1938,7 +1991,7 @@ FArcweaveElementData UArcweaveSubsystem::ExtractElementData(
                         ElementValueObject->TryGetStringField(TEXT("content"), Element.Content);
                     }
 
-                    Element.Title = RemoveHtmlTags(DirtyTitle);
+                    Element.Title = RemoveHtmlTags(ReplacePattern(DirtyTitle, BreakRegex, TEXT(" "))).TrimStartAndEnd();
                     //FArcscriptTranspilerOutput Output = RunTranspiler(DirtyContent, Element.Id, ProjectData.InitialVars, BoardObj.Visits);
                     Element.Outputs = ParseConnections(FString("outputs"), MainJsonObject, ElementValueObject, BoardObjRef);
                     Element.ComponentIds = ParseComponentIds(ElementValueObject);
@@ -2306,7 +2359,8 @@ void UArcweaveSubsystem::ApplyLocaleToElement(FArcweaveElementData& Element, con
         return;
     }
 
-    Element.Title = RemoveHtmlTags(GetTranslatedContent(Element.Id, TEXT("title"), Locale, bFallbackToDefaultLanguage));
+    Element.Title = RemoveHtmlTags(ReplacePattern(GetTranslatedContent(Element.Id, TEXT("title"), Locale, bFallbackToDefaultLanguage),
+        BreakRegex, TEXT(" "))).TrimStartAndEnd();
     Element.Content = GetTranslatedContent(Element.Id, TEXT("content"), Locale, bFallbackToDefaultLanguage);
 
     // Outputs are copies of the board connections, so they need to be updated separately
@@ -2562,6 +2616,7 @@ FArcscriptTranspilerOutput UArcweaveSubsystem::RunTranspiler(const FString& Node
     else
     {
         UE_LOG(LogArcwarePlugin, Error, TEXT("ArcscriptWrapper not initialized"));
+        Output.bScriptFailed = true;
     }
 
     return Output;
