@@ -38,9 +38,11 @@ public:
     FString JsonDirectoryPath = FString("Content/ArcweaveExport/");
 
     /*
-     * API token that you can find in your Arcweave account settings.
+     * The API token saved for this user (Saved/Arcweave/APIToken.txt), kept here for code that reads it. It is edited in
+     * Project Settings > Plugins > Arcweave API Token (UArcweaveUserSettings) and never saved in Config/DefaultGame.ini.
+     * Use UArcweaveSettings::ResolveAPIToken() for the token to send, which also considers ARCWEAVE_API_KEY.
      */
-    UPROPERTY(Config, EditAnywhere, meta = (EditCondition = "!EnableReceiveMethodFromLocalJSON"), Category = "ArcweaveSettings")
+    UPROPERTY(Transient)
     FString APIToken = FString("");
 
     /*
@@ -51,6 +53,53 @@ public:
 
     //override post init properties to check if the settings are valid
     virtual void PostInitProperties() override;
+
+#pragma region API token
+
+    /** Name of the environment variable that overrides the saved API token. */
+    static const TCHAR* ApiTokenEnvironmentVariable;
+
+    /**
+     * The API token to use: the ARCWEAVE_API_KEY environment variable when it is set, else the token saved for this user.
+     * In the editor only, a token that an older plugin version saved in the project config is used last, when it couldn't
+     * be copied to the user file. Packaged games never read the token from the project config.
+     */
+    static FString ResolveAPIToken();
+
+    /**
+     * Save the token for this user only, in Saved/Arcweave/APIToken.txt. An empty token removes the file, and stops a token
+     * saved by an earlier version from being copied again. Returns false, keeping the saved token, when the file couldn't
+     * be written and read back with the same token.
+     */
+    bool SetUserAPIToken(const FString& Token);
+
+    /** The token saved for this user, without the environment variable or the project config. */
+    static FString GetUserAPIToken();
+
+    /** Full path of the file the token is saved in for this user. */
+    static FString GetUserAPITokenPath();
+
+    /** Tests only: save the user token in another file. An empty path restores the default. */
+    static void SetUserAPITokenPathForTests(const FString& Path);
+
+    /**
+     * Find Key in Section of an ini file's text, following Unreal's syntax. OutValue is its value after all assignments,
+     * unquoted. bOutHasNonEmptyValue is true when any line, including a removal (-Key=) or a commented-out assignment,
+     * contains a non-empty value: the file discloses it even when Unreal doesn't use it.
+     */
+    static bool FindIniValue(const FString& IniText, const FString& Section, const FString& Key, FString& OutValue, bool& bOutHasNonEmptyValue);
+
+private:
+    /**
+     * Copy a token that an older plugin version saved in the project config to the user file, once (interactive editor
+     * only), and warn while Config/DefaultGame.ini still contains one. Commandlets such as cooking log an error instead,
+     * since the token would be packaged. Project files are never changed.
+     */
+    void CheckProjectAPIToken();
+
+public:
+
+#pragma endregion
 
 #pragma region Language
 

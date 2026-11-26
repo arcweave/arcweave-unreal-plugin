@@ -415,7 +415,7 @@ void UArcweaveSubsystem::FetchData(FString APIToken, FString ProjectHash)
     }
     else
     {
-        FetchDataFromAPI(APIToken, ProjectHash);
+        FetchDataFromAPI(APIToken.IsEmpty() ? NewArcweaveAPISettings.APIToken : APIToken, ProjectHash);
     }
 }
 
@@ -476,44 +476,28 @@ FArcweaveAPISettings UArcweaveSubsystem::LoadArcweaveSettings() const
     if (ArcweaveSettings)
     {
         ArcweaveSettings->ReloadConfig();
+
         if (GConfig)
         {
-            if (GConfig->GetBool(ARCWEAVE_SETTINGS_SECTION, TEXT("EnableReceiveMethodFromLocalJSON"), OutSetttings.EnableReceiveMethodFromLocalJSON, GGameIni))
-            {
-                UE_LOG(LogArcwarePlugin, Verbose, TEXT("Read EnableReceiveMethodFromLocalJSON: %d"), OutSetttings.EnableReceiveMethodFromLocalJSON);
-            }
-
-            if (GConfig->GetString(ARCWEAVE_SETTINGS_SECTION, TEXT("APIToken"), OutSetttings.APIToken, GGameIni))
-            {
-                // Never log the token itself
-                UE_LOG(LogArcwarePlugin, Verbose, TEXT("Read APIToken (%s)"), OutSetttings.APIToken.IsEmpty() ? TEXT("empty") : TEXT("set"));
-            }
-
-            if (GConfig->GetString(ARCWEAVE_SETTINGS_SECTION, TEXT("Hash"), OutSetttings.Hash, GGameIni))
-            {
-                UE_LOG(LogArcwarePlugin, Verbose, TEXT("Read Hash: %s"), *OutSetttings.Hash);
-            }
-
-            if (GConfig->GetString(ARCWEAVE_SETTINGS_SECTION, TEXT("JsonDirectoryPath"), OutSetttings.JsonDirectoryPath, GGameIni))
-            {
-                UE_LOG(LogArcwarePlugin, Verbose, TEXT("Read JsonDirectoryPath: %s"), *OutSetttings.JsonDirectoryPath);
-            }
-
-            if (GConfig->GetBool(ARCWEAVE_SETTINGS_SECTION, TEXT("bUseLocale"), OutSetttings.bUseLocale, GGameIni))
-            {
-                UE_LOG(LogArcwarePlugin, Verbose, TEXT("Read bUseLocale: %d"), OutSetttings.bUseLocale);
-            }
-
-            if (GConfig->GetString(ARCWEAVE_SETTINGS_SECTION, TEXT("Locale"), OutSetttings.Locale, GGameIni))
-            {
-                UE_LOG(LogArcwarePlugin, Verbose, TEXT("Read Locale: %s"), *OutSetttings.Locale);
-            }
-
-            if (GConfig->GetBool(ARCWEAVE_SETTINGS_SECTION, TEXT("bFallbackToDefaultLocale"), OutSetttings.bFallbackToDefaultLocale, GGameIni))
-            {
-                UE_LOG(LogArcwarePlugin, Verbose, TEXT("Read bFallbackToDefaultLocale: %d"), OutSetttings.bFallbackToDefaultLocale);
-            }
+            // As before: the struct's defaults, which match the settings class, then typed config reads
+            GConfig->GetBool(ARCWEAVE_SETTINGS_SECTION, TEXT("EnableReceiveMethodFromLocalJSON"), OutSetttings.EnableReceiveMethodFromLocalJSON, GGameIni);
+            GConfig->GetString(ARCWEAVE_SETTINGS_SECTION, TEXT("Hash"), OutSetttings.Hash, GGameIni);
+            GConfig->GetString(ARCWEAVE_SETTINGS_SECTION, TEXT("JsonDirectoryPath"), OutSetttings.JsonDirectoryPath, GGameIni);
+            GConfig->GetBool(ARCWEAVE_SETTINGS_SECTION, TEXT("bUseLocale"), OutSetttings.bUseLocale, GGameIni);
+            GConfig->GetString(ARCWEAVE_SETTINGS_SECTION, TEXT("Locale"), OutSetttings.Locale, GGameIni);
+            GConfig->GetBool(ARCWEAVE_SETTINGS_SECTION, TEXT("bFallbackToDefaultLocale"), OutSetttings.bFallbackToDefaultLocale, GGameIni);
         }
+
+        // The token is never read from the project config here. Never log the token itself
+        OutSetttings.APIToken = UArcweaveSettings::ResolveAPIToken();
+
+        UE_LOG(LogArcwarePlugin, Verbose, TEXT("Read EnableReceiveMethodFromLocalJSON: %d"), OutSetttings.EnableReceiveMethodFromLocalJSON);
+        UE_LOG(LogArcwarePlugin, Verbose, TEXT("Read APIToken (%s)"), OutSetttings.APIToken.IsEmpty() ? TEXT("empty") : TEXT("set"));
+        UE_LOG(LogArcwarePlugin, Verbose, TEXT("Read Hash: %s"), *OutSetttings.Hash);
+        UE_LOG(LogArcwarePlugin, Verbose, TEXT("Read JsonDirectoryPath: %s"), *OutSetttings.JsonDirectoryPath);
+        UE_LOG(LogArcwarePlugin, Verbose, TEXT("Read bUseLocale: %d"), OutSetttings.bUseLocale);
+        UE_LOG(LogArcwarePlugin, Verbose, TEXT("Read Locale: %s"), *OutSetttings.Locale);
+        UE_LOG(LogArcwarePlugin, Verbose, TEXT("Read bFallbackToDefaultLocale: %d"), OutSetttings.bFallbackToDefaultLocale);
     }
     return OutSetttings;
 }
@@ -528,7 +512,11 @@ void UArcweaveSubsystem::SaveArcweaveSettings(const FString& APIToken, const FSt
     UArcweaveSettings* ArcweaveSettings = GetMutableDefault<UArcweaveSettings>();
     if (ArcweaveSettings)
     {
-        ArcweaveSettings->APIToken = APIToken;
+        if (!ArcweaveSettings->SetUserAPIToken(APIToken))
+        {
+            // Nothing is saved, so the token and the hash stay a matching pair
+            return;
+        }
         ArcweaveSettings->Hash = ProjectHash;
         ArcweaveSettings->SaveConfig();
     }

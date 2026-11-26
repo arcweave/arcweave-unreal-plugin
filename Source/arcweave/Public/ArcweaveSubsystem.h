@@ -53,19 +53,23 @@ public:
     void CancelFetch();
 
 	/*
-	 * Fetch the data from Arcweave API
+	 * Fetch the data from Arcweave API, or from the local JSON when that is enabled in the settings.
+	 * An empty APIToken uses the configured one (see LoadArcweaveSettings).
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Arcweave")
 	void FetchData(FString APIToken, FString ProjectHash);
     bool LoadJsonFile();
     /*
-	 * Get Arcweave API token from settings
+	 * Get the Arcweave settings. APIToken is the ARCWEAVE_API_KEY environment variable when it is set, else the token saved
+	 * for this user (Saved/Arcweave/APIToken.txt). In the editor only, a token an older plugin version saved in the
+	 * project config, and that wasn't copied to the user file, is used last.
 	 */
     UFUNCTION(BlueprintPure, Category = "Arcweave")
     FArcweaveAPISettings LoadArcweaveSettings() const;
 
     /*
-     * Save Arcweave API token to settings
+     * Save the Arcweave API token for this user only (Saved/Arcweave/APIToken.txt, never Config/DefaultGame.ini), and the
+     * project hash to the settings with SaveConfig as before. An empty token removes the saved one.
      */
     UFUNCTION(BlueprintCallable, Category = "Arcweave| Settings")
     void SaveArcweaveSettings(const FString& APIToken, const FString& ProjectHash);

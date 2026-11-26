@@ -57,7 +57,11 @@ the x86_64 part of a universal build are not supported.
   `JsonDirectoryPath`, keep the folder under `Content` and stage it by its path relative to `Content`: for example
   `JsonDirectoryPath` `Content/Narrative/` and the packaging entry `Narrative`. A folder outside `Content`, or an absolute
   path, works in the editor but is not packaged.
-- **API token:** clear the token from the Arcweave settings before you package; see [Web API](#web-api).
+- **API token:** the token is saved per user and isn't packaged. While `Config/DefaultGame.ini` still contains a token
+  saved by an earlier version, a cook commandlet logs an error, because the file is packaged. Cooking in the editor
+  (for example **Quick Launch**), packaging without cooking (`-skipcook`) and platform config files such as
+  `Config/Windows/WindowsGame.ini` only get the editor's warning, or none, so remove the token yourself. See
+  [Web API](#web-api).
 - **Libraries and notices:** the Arcscript libraries and the license notices of the bundled Arcscript and ANTLR runtimes
   are staged with the game automatically.
 
@@ -76,14 +80,35 @@ For this method, you'll need to do the following:
 This involves fetching data directly from the Arcweave Web API within Unreal Engine. You will need:
 
 - Your **Arcweave API key** and your **project's hash** (Refer to the [Arcweave Documentation](https://docs.arcweave.com/rest-api/overview) for more info on how to find these).
-- Navigate to Project Settings -> Plugins -> Arcweave. Here, you can input your APIToken and the project hash obtained in the previous step.
+- Navigate to Project Settings -> Plugins -> Arcweave and enter the project hash obtained in the previous step. Enter
+  your API key in Project Settings -> Plugins -> **Arcweave API Token**, a separate page because the key is saved for
+  you only.
 
-> **Keep your API token private.** The plugin never writes the token to the log, but the token entered above is saved in
-> `Config/DefaultGame.ini`, which is usually committed to version control and packaged with your game. Clear any saved
-> `APIToken` before you commit or package, whichever import method you use. Switching to a local JSON import does not remove
-> a token that is already saved. For shipped builds, prefer a JSON export (`EnableReceiveMethodFromLocalJSON`). If you
-> need to fetch at runtime, pass the token to `FetchData(APIToken, ProjectHash)` from a source you don't commit or ship,
-> such as an environment variable on your development machine.
+#### Where the token is saved
+
+The token is saved in `Saved/Arcweave/APIToken.txt` in your project, for whoever uses that copy of the project. On macOS
+the file can only be read by your account. It is never saved in `Config/DefaultGame.ini`, and editing it doesn't change the project's config files, so it isn't committed with
+the project (as long as `Saved` isn't) or packaged with the game. The project hash stays in the project settings. The
+plugin's own log messages never contain the token. Unreal's HTTP module
+can log request headers, including the token, when `LogHttp` is set to `Verbose` or `VeryVerbose`, so don't share such
+logs.
+
+- **Environment variable:** when `ARCWEAVE_API_KEY` is set, it is used instead of the saved token, for example on a build
+  machine. Restart the editor after you change it.
+- **Upgrading from an earlier version:** earlier versions saved the token in `Config/DefaultGame.ini` (or, through
+  `SaveArcweaveSettings`, in `Saved/Config/<Platform>/Game.ini`). The first time you open the project in the editor, the
+  plugin copies that token to your user file, if you have none saved and never cleared it. The plugin never edits
+  `DefaultGame.ini`: while it contains a token, even in a commented-out line, the editor logs a warning and a cook
+  commandlet logs an error. Remove the `APIToken` lines from its `[/Script/arcweave.ArcweaveSettings]` section and commit
+  the change (in Git, also stage it). If the file was ever committed, or a build made with it was shared, revoke the
+  token in your Arcweave workspace and create a new one.
+- **Blueprints and C++:** `LoadArcweaveSettings()` returns the token to use, and `SaveArcweaveSettings(APIToken, Hash)` saves
+  it per user. `FetchData` with an empty `APIToken` uses `ARCWEAVE_API_KEY` or the saved token.
+- **Shipped games:** a packaged game never reads the token from the project config. It only has a saved token if it
+  called `SaveArcweaveSettings`, which saves it in the player's `Saved` folder. Prefer a JSON export
+  (`EnableReceiveMethodFromLocalJSON`). A game that fetches at runtime must pass its own token to
+  `FetchData(APIToken, ProjectHash)`, save it with `SaveArcweaveSettings`, or get it from `ARCWEAVE_API_KEY`. A workspace API key in a shipped game can be
+  extracted by players, so don't ship one.
 
 ## Localization
 
@@ -595,8 +620,16 @@ These don't break the build, but a game that relied on the old behaviour acts di
   (`TranspileCondition`, `GetIsTargetBranch`) doesn't change variables or visits either.
 - **The starting element is validated on import.** `StartingElementId` is empty, with a warning, when the exported ID is
   not an element on an imported board. See [Starting element](#starting-element).
-- **The API token is no longer logged.** The settings read on import are logged at `Verbose` under `LogArcwarePlugin`,
-  and the token only as `set` or `empty`.
+- **Connections without label text now have an option text.** `TranspileConnectionLabel` falls back like play mode
+  instead of returning an empty string, so a game that hid options with an empty text now shows them. It is still empty
+  when no branch condition on the path holds. See [Option texts](#option-texts).
+- **The plugin no longer logs the API token.** The settings read on import are logged at `Verbose` under
+  `LogArcwarePlugin`, and the token only as `set` or `empty`. Unreal's HTTP module can still log request headers; see
+  [Where the token is saved](#where-the-token-is-saved).
+- **The API token is saved per user, not in `Config/DefaultGame.ini`.** The editor copies an existing token once and
+  warns until you remove it from `DefaultGame.ini`, and a cook commandlet fails while it is there. The token has its
+  own page, **Arcweave API Token**, in the project settings. A packaged game no longer gets
+  the token from the project config. See [Where the token is saved](#where-the-token-is-saved).
 
 ## Using the Demo Project
 

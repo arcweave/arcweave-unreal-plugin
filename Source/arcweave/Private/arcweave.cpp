@@ -7,6 +7,7 @@
 #include "Modules/ModuleManager.h"
 #include "Interfaces/IPluginManager.h"
 #include "ArcweaveSettings.h"
+#include "ArcweaveUserSettings.h"
 #include "ISettingsModule.h"
 #include "Serialization/JsonReader.h"
 #include "Serialization/JsonSerializer.h"
@@ -56,6 +57,13 @@ void FarcweaveModule::StartupModule()
 			LOCTEXT("ArcweaveSettingsDescription", "Settings for the Arcweave plugin"),
 			GetMutableDefault<UArcweaveSettings>()
 		);
+
+		// A separate object without config, so editing the token never checks out or rewrites the project config
+		SettingModule->RegisterSettings("Project", "Plugins", "ArcweaveAPIToken",
+			LOCTEXT("ArcweaveAPITokenSettingsName", "Arcweave API Token"),
+			LOCTEXT("ArcweaveAPITokenSettingsDescription", "Your Arcweave API key. It is saved for you only, in Saved/Arcweave/APIToken.txt, never in Config/DefaultGame.ini."),
+			GetMutableDefault<UArcweaveUserSettings>()
+		);
 	}
 #endif
 }
@@ -75,6 +83,7 @@ void FarcweaveModule::ShutdownModule()
 	if (ISettingsModule* SettingsModule = FModuleManager::GetModulePtr<ISettingsModule>("Settings"))
 	{
 		SettingsModule->UnregisterSettings("Project", "Plugins", "Arcweave");
+		SettingsModule->UnregisterSettings("Project", "Plugins", "ArcweaveAPIToken");
 	}
 #endif
 }

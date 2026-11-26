@@ -31,6 +31,7 @@ Behaviour changes that a game may rely on:
   options whose `TranspileConnectionLabel` was empty now shows them; it still gets an empty text for an option whose
   conditions don't hold.
 - **The starting element is validated on import.** See [Starting element](#starting-element).
+- **The API token is saved per user**, not in `Config/DefaultGame.ini`. See [API token](#api-token).
 - **The default `Locale` setting is now `en`** (it was `fr`), and the language settings are now saved with the project
   settings. Check them after upgrading if you use `Use Locale`.
 - **Unreal Engine 5.5 or later is supported.** Earlier READMEs said 5.0, but the plugin already needed 5.4 to build.
@@ -84,15 +85,25 @@ Projects with several languages can be imported and switched at runtime
 
 ## API token
 
-- The API token is no longer written to the log. Importing used to log it at Warning level. The settings read on import
+- The plugin no longer writes the API token to its log. Importing used to log it at Warning level. The settings read on import
   are now logged at `Verbose` under `LogArcwarePlugin`, and the token only as `set` or `empty`
   ([#46](https://github.com/arcweave/arcweave-unreal-plugin/pull/46)).
-- **Check your `Config/DefaultGame.ini`.** A token entered in the Arcweave settings is saved there, and that file is
-  usually committed to version control and packaged with the game. Clear it before you commit or package. See
-  [Web API](https://github.com/arcweave/arcweave-unreal-plugin/blob/v3.0.0/README.md#web-api).
+- **The token is saved per user.** It is stored in `Saved/Arcweave/APIToken.txt` (owner-only on macOS) instead of `Config/DefaultGame.ini`, so
+  it is no longer committed with the project or packaged with the game. The `ARCWEAVE_API_KEY` environment variable
+  overrides it. The first time you open the project in the editor, a token that an earlier version saved is copied to
+  your user file. The plugin doesn't edit `DefaultGame.ini`: while it contains a token, the editor warns and a cook
+  commandlet fails with an error (cooking in the editor, such as Quick Launch, only gets the warning). **Remove the
+  `APIToken` lines from it, and if it was committed or a build made with it was shared, revoke that token in your
+  Arcweave workspace and create a new one.** The token is entered on its own settings page, **Arcweave API Token**. Unreal's HTTP module can log request headers, including the token, at `Verbose` or
+  `VeryVerbose`. See
+  [Where the token is saved](https://github.com/arcweave/arcweave-unreal-plugin/blob/v3.0.0/README.md#where-the-token-is-saved).
+- A packaged game no longer gets the token from the project config: a game that fetches from the API at runtime must
+  pass its own token to `FetchData`, save it with `SaveArcweaveSettings`, or set `ARCWEAVE_API_KEY`. `FetchData` with an empty token uses `ARCWEAVE_API_KEY` or the saved token.
 
 ## Other changes
 
+- The plugin no longer rewrites `Config/DefaultGame.ini` every time the editor starts, and entering the API token in
+  the settings doesn't change that file.
 - The folder of the local JSON export can be set with `JsonDirectoryPath` in the Arcweave settings
   ([#30](https://github.com/arcweave/arcweave-unreal-plugin/pull/30)). The README has a new
   [Packaging](https://github.com/arcweave/arcweave-unreal-plugin/blob/v3.0.0/README.md#packaging) section on staging it.
