@@ -76,7 +76,7 @@ FString DecodeNumericReferences(const FString& Text, const FString& Except)
         if (CodePoint > 0 && CodePoint <= 0x10FFFF && (CodePoint < 0xD800 || CodePoint > 0xDFFF))
         {
             const UTF32CHAR Utf32[] = {static_cast<UTF32CHAR>(CodePoint), 0};
-            Character = FString(StringCast<TCHAR>(Utf32).Get());
+            Character = FString(FUTF32ToTCHAR(Utf32, UE_ARRAY_COUNT(Utf32)).Get());
         }
         Result += Text.Mid(CopyStart, Matcher.GetMatchBeginning() - CopyStart);
         Result += Character.IsEmpty() || Except.Contains(Character) ? Matcher.GetCaptureGroup(0) : Character;
