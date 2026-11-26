@@ -209,10 +209,9 @@ protected:
 private:
  
     /**
-     * Adds the language option to the provided API URL if a specific locale is set.
-     * This function modifies the ApiUrl string in-place by appending a language query parameter
-     * (e.g., "?lang=en" or "&lang=en") based on the DefaultLocale property of the subsystem.
-     * If DefaultLocale is empty or already present in the URL, no changes are made.
+     * When Use Locale is on and Locale isn't empty in the Arcweave settings, appends the locale to ApiUrl in place
+     * (e.g. "?locale=en" or "&locale=en"), plus "&fallbackContents=true" when Fallback To Default Locale is on.
+     * Otherwise ApiUrl is unchanged.
      *
      * @param ApiUrl The API URL string to which the language option will be added.
      */
