@@ -68,7 +68,7 @@ constexpr uint32 LastBmpCodePoint = 0xFFFF;           // noncharacters: Unreal's
 
 // True if the code point can be decoded to a character. Anything else (e.g. &#0;, surrogates, U+FFFE, U+FFFF)
 // is left as the reference text written in the source.
-bool IsDecodableCodePoint(const uint32 CodePoint)
+bool IsDecodableCodePoint(const uint64 CodePoint)
 {
     const bool bIsSurrogate = CodePoint >= FirstSurrogateCodePoint && CodePoint <= LastSurrogateCodePoint;
     const bool bIsReplacedByUnreal = CodePoint == ReversedByteOrderMark || CodePoint == LastBmpCodePoint;

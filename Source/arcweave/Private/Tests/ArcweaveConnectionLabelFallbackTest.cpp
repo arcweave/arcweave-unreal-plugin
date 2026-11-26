@@ -243,8 +243,8 @@ bool FArcweaveConnectionLabelFallbackTest::RunTest(const FString& Parameters)
     TestEqual(TEXT("A tag cut by the 70 characters is dropped"), Label(TEXT("c-cut-tag")), FString(TEXT("abcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdef...")));
     TestEqual(TEXT("Numeric and named entities show as characters"), Label(TEXT("c-dash")), FString(TEXT("A \u2014 B \u00A9")));
     // Decimal and hex forms above U+FFFF decode to one emoji each (a surrogate pair); U+FFFF stays as written; the "B" after it survives
-    TestEqual(TEXT("References above U+FFFF show as characters"), Label(TEXT("c-emoji")), FString(TEXT("A\U0001F600\U0001F600&#xFFFF;B")));
-    TestEqual(TEXT("References that are no character stay as written"), Label(TEXT("c-invalid-references")),
+    TestEqualSensitive (TEXT("References above U+FFFF show as characters"), Label(TEXT("c-emoji")), FString(TEXT("A\U0001F600\U0001F600&#xFFFF;B")));
+    TestEqualSensitive (TEXT("References that are no character stay as written"), Label(TEXT("c-invalid-references")),
         FString(TEXT("C&#0;&#xD800;&#x110000;&#xFFFE;D")));
     TestEqual(TEXT("A line break in a title separates words"), Label(TEXT("c-take-cover")), FString(TEXT("Take cover")));
     TestEqual(TEXT("A \"<\" that starts no tag is kept when the text is cut"), Label(TEXT("c-less-than")),
