@@ -15,6 +15,7 @@
 #include "UArcscriptTranspilerWrapper.h"
 
 // Engine includes
+#include "Containers/StringConv.h"
 #include "Dom/JsonObject.h"
 #include "Dom/JsonValue.h"
 #include "Engine/Engine.h"
@@ -32,7 +33,6 @@
 #include "Policies/CondensedJsonPrintPolicy.h"
 #include "Serialization/JsonSerializer.h"
 #include "Templates/UnrealTemplate.h"
-
 namespace
 {
 // Arcscript accepts attributes on both tags, e.g. <pre attr='x'><code rem='y'>
@@ -59,6 +59,22 @@ FString ReplacePattern(const FString& Text, const TCHAR* Pattern, const FString&
     return Result + Text.Mid(CopyStart);
 }
 
+// Unicode limits used to decide which numeric references can be turned into a character
+constexpr uint32 LastUnicodeCodePoint = 0x10FFFF;     // highest code point Unicode defines
+constexpr uint32 FirstSurrogateCodePoint = 0xD800;    // U+D800..U+DFFF are UTF-16 surrogates, not characters
+constexpr uint32 LastSurrogateCodePoint = 0xDFFF;
+constexpr uint32 ReversedByteOrderMark = 0xFFFE;      // U+FFFE and U+FFFF end the BMP (the first 65536 code points) and are
+constexpr uint32 LastBmpCodePoint = 0xFFFF;           // noncharacters: Unreal's UTF-32 converter replaces them with '?'
+
+// True if the code point can be decoded to a character. Anything else (e.g. &#0;, surrogates, U+FFFE, U+FFFF)
+// is left as the reference text written in the source.
+bool IsDecodableCodePoint(const uint64 CodePoint)
+{
+    const bool bIsSurrogate = CodePoint >= FirstSurrogateCodePoint && CodePoint <= LastSurrogateCodePoint;
+    const bool bIsReplacedByUnreal = CodePoint == ReversedByteOrderMark || CodePoint == LastBmpCodePoint;
+    return CodePoint > 0 && CodePoint <= LastUnicodeCodePoint && !bIsSurrogate && !bIsReplacedByUnreal;
+}
+
 // Numeric character references, e.g. &#8212; or &#x2014;, except the ones in Except (e.g. "<>&", which stay escaped)
 FString DecodeNumericReferences(const FString& Text, const FString& Except)
 {
@@ -73,13 +89,13 @@ FString DecodeNumericReferences(const FString& Text, const FString& Except)
         const uint64 CodePoint = Number.StartsWith(TEXT("x"), ESearchCase::IgnoreCase)
             ? FCString::Strtoui64(*Number.RightChop(1), nullptr, 16) : FCString::Strtoui64(*Number, nullptr, 10);
         FString Character;
-        if (CodePoint > 0 && CodePoint <= 0x10FFFF && (CodePoint < 0xD800 || CodePoint > 0xDFFF))
+        if (IsDecodableCodePoint(CodePoint))
         {
             const UTF32CHAR Utf32[] = {static_cast<UTF32CHAR>(CodePoint), 0};
-            Character = FString(StringCast<TCHAR>(Utf32).Get());
+            Character = FString(FUTF32ToTCHAR(Utf32, UE_ARRAY_COUNT(Utf32)).Get());
         }
         Result += Text.Mid(CopyStart, Matcher.GetMatchBeginning() - CopyStart);
-        Result += Character.IsEmpty() || Except.Contains(Character) ? Matcher.GetCaptureGroup(0) : Character;
+        Result += Character.IsEmpty() || Except.Contains(Character, ESearchCase::CaseSensitive) ? Matcher.GetCaptureGroup(0) : Character;
         CopyStart = Matcher.GetMatchEnding();
     }
     return Result + Text.Mid(CopyStart);

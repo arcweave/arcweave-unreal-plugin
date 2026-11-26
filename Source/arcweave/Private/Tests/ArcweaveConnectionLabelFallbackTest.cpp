@@ -20,7 +20,7 @@ bool FArcweaveConnectionLabelFallbackTest::RunTest(const FString& Parameters)
         "boards": {
             "board-1": {
                 "name": "Main",
-                "elements": ["healer", "help", "pay", "untitled", "long", "empty", "leading-empty", "plain-choices", "code-only", "tea", "fish", "strong", "mention", "cut-tag", "dash", "take-cover", "less-than", "long-link", "double-escape", "single", "single-labelled", "single-code", "single-branch", "single-reset", "reset-branch", "ending"],
+                "elements": ["healer", "help", "pay", "untitled", "long", "empty", "leading-empty", "plain-choices", "code-only", "tea", "fish", "strong", "mention", "cut-tag", "dash", "emoji", "invalid-references", "take-cover", "less-than", "long-link", "double-escape", "single", "single-labelled", "single-code", "single-branch", "single-reset", "reset-branch", "ending"],
                 "jumpers": ["jumper-1"],
                 "branches": ["branch-1", "branch-none", "branch-a", "branch-b", "branch-loop", "branch-reset",
                     "branch-wrapped", "branch-bad", "branch-blank", "branch-noif", "branch-emptyvar", "branch-noout", "branch-quoted"],
@@ -30,7 +30,7 @@ bool FArcweaveConnectionLabelFallbackTest::RunTest(const FString& Parameters)
                     "c-empty-html", "c-nested", "c-a-out", "c-b-yes", "c-b-no", "c-loop", "c-loop-back", "c-single-reset", "c-reset-branch", "c-reset-out", "c-leading-empty", "c-plain-1", "c-plain-2",
                     "c-code-only-el", "c-tea", "c-fish", "c-strong", "c-dead2", "c-wrapped", "c-wrapped-yes", "c-wrapped-no",
                     "c-broken", "c-bad-branch", "c-bad-out", "c-blank", "c-blank-out", "c-blank-else", "c-noif", "c-noif-else",
-                    "c-emptyvar", "c-emptyvar-out", "c-noout", "c-mention", "c-cut-tag", "c-dash", "c-take-cover", "c-quoted", "c-quoted-out",
+                    "c-emptyvar", "c-emptyvar-out", "c-noout", "c-mention", "c-cut-tag", "c-dash", "c-emoji", "c-invalid-references", "c-take-cover", "c-quoted", "c-quoted-out",
                     "c-less-than", "c-long-link", "c-double-escape"
                 ]
             },
@@ -67,6 +67,8 @@ bool FArcweaveConnectionLabelFallbackTest::RunTest(const FString& Parameters)
             "mention": {"title": "", "content": "<p>Meet <span class=\"mention\" data-id=\"comp-1\" data-type=\"components\">Jim</span> now.</p>", "outputs": []},
             "cut-tag": {"title": "", "content": "<p>abcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdef<strong>bold</strong></p>", "outputs": []},
             "dash": {"title": "A &#8212; B &copy;", "content": "", "outputs": []},
+            "emoji": {"title": "A&#128512;&#x1F600;&#xFFFF;B", "content": "", "outputs": []},
+            "invalid-references": {"title": "C&#0;&#xD800;&#x110000;&#xFFFE;D", "content": "", "outputs": []},
             "take-cover": {"title": "<p>Take<br>cover</p>", "content": "", "outputs": []},
             "less-than": {"title": "", "content": "<p>If x < 10 then walk down the long winding dark forest road to the castle gates now</p>", "outputs": []},
             "long-link": {"title": "", "content": "<p><a href=\"https://example.com/a/very/long/url/that/exceeds/seventy/four/chars\">Open</a></p>", "outputs": []},
@@ -180,6 +182,8 @@ bool FArcweaveConnectionLabelFallbackTest::RunTest(const FString& Parameters)
             "c-mention": {"label": null, "sourceid": "healer", "targetid": "mention", "sourceType": "elements", "targetType": "elements"},
             "c-cut-tag": {"label": null, "sourceid": "healer", "targetid": "cut-tag", "sourceType": "elements", "targetType": "elements"},
             "c-dash": {"label": null, "sourceid": "healer", "targetid": "dash", "sourceType": "elements", "targetType": "elements"},
+            "c-emoji": {"label": null, "sourceid": "healer", "targetid": "emoji", "sourceType": "elements", "targetType": "elements"},
+            "c-invalid-references": {"label": null, "sourceid": "healer", "targetid": "invalid-references", "sourceType": "elements", "targetType": "elements"},
             "c-take-cover": {"label": null, "sourceid": "healer", "targetid": "take-cover", "sourceType": "elements", "targetType": "elements"},
             "c-less-than": {"label": null, "sourceid": "healer", "targetid": "less-than", "sourceType": "elements", "targetType": "elements"},
             "c-long-link": {"label": null, "sourceid": "healer", "targetid": "long-link", "sourceType": "elements", "targetType": "elements"},
@@ -238,6 +242,10 @@ bool FArcweaveConnectionLabelFallbackTest::RunTest(const FString& Parameters)
     TestEqual(TEXT("Mentions show as their text"), Label(TEXT("c-mention")), FString(TEXT("Meet Jim now.")));
     TestEqual(TEXT("A tag cut by the 70 characters is dropped"), Label(TEXT("c-cut-tag")), FString(TEXT("abcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdef...")));
     TestEqual(TEXT("Numeric and named entities show as characters"), Label(TEXT("c-dash")), FString(TEXT("A \u2014 B \u00A9")));
+    // Decimal and hex forms above U+FFFF decode to one emoji each (a surrogate pair); U+FFFF stays as written; the "B" after it survives
+    TestEqualSensitive (TEXT("References above U+FFFF show as characters"), Label(TEXT("c-emoji")), FString(TEXT("A\U0001F600\U0001F600&#xFFFF;B")));
+    TestEqualSensitive (TEXT("References that are no character stay as written"), Label(TEXT("c-invalid-references")),
+        FString(TEXT("C&#0;&#xD800;&#x110000;&#xFFFE;D")));
     TestEqual(TEXT("A line break in a title separates words"), Label(TEXT("c-take-cover")), FString(TEXT("Take cover")));
     TestEqual(TEXT("A \"<\" that starts no tag is kept when the text is cut"), Label(TEXT("c-less-than")),
         FString(TEXT("If x < 10 then walk down the long winding dark forest road to the cast...")));
