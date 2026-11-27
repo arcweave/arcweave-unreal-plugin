@@ -60,8 +60,8 @@ struct FArcweaveAPISettings
     UPROPERTY(BlueprintReadWrite,
         Category = "Arcweave| Settings",
         meta = (
-            EditCondition = "!EnableReceiveMethodFromLocalJSON && bUseLocale",
-            ToolTip = "If the specified language is not available, fallback to the standard language (usually en-us). This option is available only from web api"
+            EditCondition = "bUseLocale",
+            ToolTip = "When a text has no translation in the chosen language, use the text of the language it translates from, down to the main language. For a language the project doesn't have, an All languages JSON import uses the main language with a warning, while the Web API returns empty texts or an error."
             )
     )
     bool bFallbackToDefaultLocale = true;

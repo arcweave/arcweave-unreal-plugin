@@ -141,7 +141,7 @@ private:
         EditAnywhere,
         meta = (
             EditCondition = "bUseLocale",
-            ToolTip = "If the specified language is not available, fallback to the standard language (the one defined for the current locale as base in the app)"
+            ToolTip = "When a text has no translation in the chosen language, use the text of the language it translates from, down to the main language. For a language the project doesn't have, an All languages JSON import uses the main language with a warning, while the Web API returns empty texts or an error."
             ),
         Category = ArcweaveSettings
     )

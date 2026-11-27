@@ -142,9 +142,12 @@ The settings apply to the next import, and how they apply depends on the import 
   **Select language**, contains a single language. The plugin imports that language whatever the settings say, and
   can't switch language at runtime.
 - **Web API:** the plugin requests a single language. With `bUseLocale` on, it sends `Locale` as the export's `locale`,
-  and `fallbackContents=true` when `bFallbackToDefaultLocale` is on; otherwise it gets the main language. The API
-  matches the code exactly: a code in a different case (`FR` for `fr`), or one the project doesn't have, is rejected
-  with HTTP 400. The import then fails: `OnArcweaveFetchCompleted` reports it and the previously loaded project is kept.
+  and `fallbackContents=true` when `bFallbackToDefaultLocale` is on. With `bUseLocale` off, the API returns the main
+  language. Use the project's locale code exactly, including its case: `FR` is not `fr`. For a code the project
+  doesn't have, the API doesn't fall back to the main language, even with `bFallbackToDefaultLocale` on. Either the
+  import succeeds with empty element titles and contents, connection labels and component names, or the API rejects
+  the code with HTTP 400: the import fails, `OnArcweaveFetchCompleted` reports it and the previously loaded project is
+  kept. In both cases, check the code's spelling and case.
   Two codes are special: `__default__` requests the main language, and `*` requests all languages, so the import is
   in the main language and can switch language at runtime like an **All languages** JSON export. Otherwise API imports
   can't switch language at runtime.
@@ -152,10 +155,11 @@ The settings apply to the next import, and how they apply depends on the import 
 ### Switching language at runtime
 
 - `HasLocales()` is true when the imported project has more than one language and their translations, i.e. an
-  **All languages** JSON export of a project with several languages.
+  **All languages** JSON export, or a Web API import with `bUseLocale` on and `Locale` set to `*`, of a project with
+  several languages.
 - `UpdateContentsWithLocale(DesiredLocale)` switches the imported texts to another project language: element titles and
   contents, connection labels (including the outputs of each element and the elements that jumpers point to) and
-  component names. Like the settings, the locale is matched ignoring case, and missing translations follow
+  component names. The locale is matched ignoring case, and missing translations follow
   `bFallbackToDefaultLocale`. It returns false and changes nothing when `HasLocales()` is false or the project doesn't
   have the language.
 - `OnArcweaveLanguageChanged(DesiredLocale)` is broadcast after a successful switch, with the project's ISO code.

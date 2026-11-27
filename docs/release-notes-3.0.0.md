@@ -53,8 +53,11 @@ Projects with several languages can be imported and switched at runtime
   Empty paragraphs count as missing, translations from unrelated languages are never used, and loops of bases are
   detected.
 - API imports request a single language, with `fallbackContents=true` when the fallback setting is on. The API matches
-  the locale code exactly and rejects any other spelling (e.g. `FR` for `fr`) with HTTP 400, so the import fails and the
-  previous project is kept. Set `Locale` to `*` to import all languages through the API, or to `__default__` for the main language.
+  the locale code exactly, including its case (`FR` is not `fr`), and doesn't fall back to the main language for a code
+  the project doesn't have. The API then either returns empty texts and the import succeeds, or rejects the code with
+  HTTP 400, so the import fails, `OnArcweaveFetchCompleted` reports it and the previous project is kept. In both cases,
+  check the code's spelling and case. With **Use Locale** on, set `Locale` to `*` to import all languages through the
+  API, or to `__default__` for the main language.
 
 ## Starting element
 
