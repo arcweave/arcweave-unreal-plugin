@@ -70,8 +70,8 @@ There are two primary methods for collecting Arcweave project data:
 
 ### JSON Import: 
 For this method, you'll need to do the following: 
-- Export your Arcweave project for Unreal Engine and unzip it.
-- Move the exported JSON file along with all required assets in the **Content->ArcweaveExport** directory. If this directory does not exist create it.
+- Export your Arcweave project for Unreal Engine. Without **Include assets**, you get a single `project.json` file. With **Include assets**, you get a `.zip` file: unzip it.
+- Move `project.json` along with all required assets in the **Content->ArcweaveExport** directory. If this directory does not exist create it.
 - ⚠️ Make sure you set the tick to the field "Enable receive method from local JSON" inside Unreal under ProjectSettings at the tab "Arcweave Settings"
 
   <img width="686" alt="Arcweave Settings - Enable receive method from local JSON" src="https://github.com/user-attachments/assets/e372638f-e237-4a5b-bd16-09382a8252d1" />
